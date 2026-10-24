@@ -7,5 +7,6 @@ export async function GET(request: Request) {
   const url = new URL(request.url);
   return procurementRead(request, async (client, context) =>
     listMsmePayments(client, context, { bucket: url.searchParams.get("bucket") ?? undefined, supplierId: url.searchParams.get("supplierId") ?? undefined,
-      search: url.searchParams.get("search") ?? undefined }), "procurement.bills.view");
+      search: url.searchParams.get("search") ?? undefined, limit: url.searchParams.get("limit") ?? undefined, offset: url.searchParams.get("offset") ?? undefined }),
+    "procurement.bills.view");
 }

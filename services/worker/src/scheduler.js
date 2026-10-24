@@ -17,6 +17,7 @@ import { JOB_TYPE as MAILINGS_SEND_JOB_TYPE } from "./handlers/crm-mailings-send
 import { JOB_TYPE as BROADCASTS_SEND_JOB_TYPE } from "./handlers/crm-whatsapp-broadcasts-send.js";
 import { JOB_TYPE as QUOTATION_EXPIRY_JOB_TYPE } from "./handlers/sales-quotation-expiry.js";
 import { JOB_TYPE as PAYMENT_REMINDERS_JOB_TYPE } from "./handlers/sales-payment-reminders.js";
+import { JOB_TYPE as RECEIPT_REMINDERS_JOB_TYPE } from "./handlers/procurement-receipt-reminders.js";
 import { JOB_TYPE as RECURRING_JOB_TYPE } from "./handlers/sales-recurring.js";
 import { JOB_TYPE as FISCAL_YEAR_AHEAD_JOB_TYPE } from "./handlers/platform-fiscal-year-ahead.js";
 import { JOB_TYPE as LEAD_SCORING_HISTORY_JOB_TYPE } from "./handlers/crm-lead-scoring-history.js";
@@ -77,6 +78,10 @@ export const SCHEDULED_JOBS = Object.freeze([
   { name: "expired quotations", module: "sales", every: "day", jobType: QUOTATION_EXPIRY_JOB_TYPE, key: "sales-quotation-expiry", maxAttempts: 3 },
   // Payment reminders by the company's rules (off, preview or sending).
   { name: "payment reminders", module: "sales", every: "day", jobType: PAYMENT_REMINDERS_JOB_TYPE, key: "sales-payment-reminders", maxAttempts: 3 },
+  // Reminders to suppliers about goods still to come (Procurement report Phase 2), when the company switched them on.
+  { name: "receipt reminders", module: "procurement", every: "day", jobType: RECEIPT_REMINDERS_JOB_TYPE, key: "procurement-receipt-reminders", maxAttempts: 3,
+    when: async (client, organizationId) => Boolean((await client.query(`SELECT 1 FROM tenant.procurement_settings WHERE organization_id = $1 AND receipt_reminders_mode <> 'off'`,
+      [organizationId])).rows[0]) },
   // Recurring orders and invoices that are due.
   { name: "recurring orders", module: "sales", every: "day", jobType: RECURRING_JOB_TYPE, key: "sales-recurring", maxAttempts: 3 },
 ]);

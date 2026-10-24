@@ -53,3 +53,5 @@ export {
 export { REJECTION_FILE_ENTITY, listRejectionFiles, prepareRejectionFileUpload, readRejectionFile, removeRejectionFile, uploadRejectionFile } from "./rejection-files.js";
 // The supplier's WhatsApp link to a purchase order's PDF (Procurement plan Phase 3).
 export { renderSharedPurchaseOrderPdf, revokePurchaseOrderLink, sharePurchaseOrderLink } from "./share.js";
+// Dropship (Procurement report Phase 3).
+export { confirmDropshipDelivery, markPurchaseOrderDropship } from "./dropship.js";

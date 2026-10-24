@@ -43,9 +43,9 @@ export function ClaimFormScreen({ claimId, billId, supplierId }: { claimId?: str
   const workspace = useWorkspaceContext();
   const existing = useQuery({ queryKey: scopedQueryKey(workspace, "procurement", "debit-claim", claimId), queryFn: () => getClaim(claimId!), enabled: Boolean(claimId) });
   const bill = useQuery({ queryKey: scopedQueryKey(workspace, "procurement", "supplier-bill", billId), queryFn: () => getBill(billId!), enabled: Boolean(billId) && !supplierId });
-  if (existing.isLoading || bill.isLoading) return <LoadingState label="Loading debit claim" />;
-  if (claimId && !existing.data) return <ErrorState title="Could not load the debit claim" description={errorMessage(existing.error)} />;
-  if (existing.data && existing.data.claim.status !== "draft") return <ErrorState title="This debit claim cannot be edited" description="Only a draft is edited; an issued one is answered by the supplier or closed." />;
+  if (existing.isLoading || bill.isLoading) return <LoadingState label="Loading debit note" />;
+  if (claimId && !existing.data) return <ErrorState title="Could not load the debit note" description={errorMessage(existing.error)} />;
+  if (existing.data && existing.data.claim.status !== "draft") return <ErrorState title="This debit note cannot be edited" description="Only a draft is edited; an issued one is answered by the supplier or closed." />;
   return <ClaimForm existing={existing.data ?? null} presetSupplierId={existing.data?.claim.supplierId ?? supplierId ?? bill.data?.bill.supplierId ?? null} presetBillId={billId ?? null} />;
 }
 
@@ -90,8 +90,8 @@ function ClaimForm({ existing, presetSupplierId, presetBillId }: { existing: Cla
   const reasons = options.data.reasons.map((reason) => ({ value: reason.code, label: reason.label }));
   return (
     <div className="flex flex-col gap-4">
-      <PageHeader title={existing ? `Edit ${existing.claim.claimNumber}` : "New Debit Claim to Supplier"}
-        description="A documented claim to the supplier. It is not a credit: nothing changes in Accounts Payable or tax until the supplier's credit is recorded." />
+      <PageHeader title={existing ? `Edit ${existing.claim.claimNumber}` : "New Debit Note to Supplier"}
+        description="A claim to the supplier. Nothing changes in what you owe until their credit is recorded." />
       <Errors error={save.error} />
       <Panel title="Claim">
         <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
@@ -102,7 +102,7 @@ function ClaimForm({ existing, presetSupplierId, presetBillId }: { existing: Cla
         </div>
         <TextArea label="Reason for the claim" value={header.reason} onChange={set("reason")} />
       </Panel>
-      <Panel title="What is claimed" description="An amount (or a quantity at a unit value) on a posted bill line, or another claim with no bill. Tax on bill lines is estimated from the bill."
+      <Panel title="What is claimed" description="An amount, or a quantity at a unit value, on a final bill line, or a claim without a bill."
         actions={
           <div className="flex flex-wrap gap-2">
             <Select aria-label="Add a bill line" size="compact" selectedKey={null} placeholder="Add bill line…" isDisabled={!supplierId}
@@ -163,8 +163,8 @@ export function ClaimDetailScreen({ claimId }: { claimId: string }) {
   const [notice, setNotice] = useState<string | null>(null);
   const issue = useMutation({ mutationFn: () => claimAction(claimId, "issue"), onSuccess: () => changed("Issued to the supplier.") });
   function changed(message: string) { setDialog(null); setNotice(message); void queryClient.invalidateQueries({ queryKey: scopedQueryKey(workspace, "procurement") }); }
-  if (query.isLoading) return <LoadingState label="Loading debit claim" />;
-  if (!query.data) return <ErrorState title="Could not load this debit claim" description={errorMessage(query.error)} action={{ label: "Retry", onPress: () => query.refetch() }} />;
+  if (query.isLoading) return <LoadingState label="Loading debit note" />;
+  if (!query.data) return <ErrorState title="Could not load this debit note" description={errorMessage(query.error)} action={{ label: "Retry", onPress: () => query.refetch() }} />;
   const detail = query.data;
   const { claim, actions } = detail;
   const c = (value: string | null | undefined) => money(claim.currencyCode, value);
@@ -173,7 +173,7 @@ export function ClaimDetailScreen({ claimId }: { claimId: string }) {
       {notice && <Notice tone="success">{notice}</Notice>}
       <Errors error={issue.error} />
       {claim.status === "closed" && <Notice tone="info">Closed {dateTime(claim.closedAt)}{claim.closeReason ? `: ${claim.closeReason}` : ""}.</Notice>}
-      <Notice tone="info">A debit claim is a claim to the supplier. It changes nothing in Accounts Payable or tax; the supplier&apos;s credit, recorded as a vendor credit, does.</Notice>
+      <Notice tone="info">A debit note is a claim to the supplier. It changes nothing in Accounts Payable or tax; the supplier&apos;s credit, recorded as a supplier credit note, does.</Notice>
       <RecordDetailsPage header={{
         title: claim.claimNumber,
         status: <StatusBadge tone={CLAIM_TONE[claim.status] ?? "neutral"}>{claim.statusLabel}</StatusBadge>,
@@ -186,11 +186,11 @@ export function ClaimDetailScreen({ claimId }: { claimId: string }) {
         ],
         primaryAction: actions.issue ? <Button variant="primary" isLoading={issue.isPending} onPress={() => issue.mutate()}>Issue to Supplier</Button>
           : actions.respond ? <Button variant="primary" onPress={() => setDialog("respond")}>Record Supplier Response</Button>
-            : actions.createCredit ? <LinkButton variant="primary" href={`/procurement/debit-notes-credits/vendor-credits/new?claimId=${claim.id}&supplierId=${claim.supplierId}`}>Record Vendor Credit</LinkButton> : undefined,
+            : actions.createCredit ? <LinkButton variant="primary" href={`/procurement/debit-notes-credits/vendor-credits/new?claimId=${claim.id}&supplierId=${claim.supplierId}`}>Record Supplier Credit Note</LinkButton> : undefined,
         secondaryActions: (
           <div className="flex flex-wrap gap-2">
             {actions.edit && <LinkButton variant="secondary" href={`/procurement/debit-notes-credits/claims/${claim.id}/edit`}><Pencil className="size-4" aria-hidden="true" />Edit</LinkButton>}
-            {actions.respond && actions.createCredit && <LinkButton variant="secondary" href={`/procurement/debit-notes-credits/vendor-credits/new?claimId=${claim.id}&supplierId=${claim.supplierId}`}>Record Vendor Credit</LinkButton>}
+            {actions.respond && actions.createCredit && <LinkButton variant="secondary" href={`/procurement/debit-notes-credits/vendor-credits/new?claimId=${claim.id}&supplierId=${claim.supplierId}`}>Record Supplier Credit Note</LinkButton>}
             {actions.close && <Button variant="ghost" onPress={() => setDialog("close")}>Close</Button>}
             <a className={buttonVariants({ variant: "ghost" })} href={claimPdfUrl(claim.id, true)} target="_blank" rel="noreferrer"><Eye className="size-4" aria-hidden="true" />View</a>
             <a className={buttonVariants({ variant: "ghost" })} href={claimPdfUrl(claim.id)} download><Download className="size-4" aria-hidden="true" />PDF</a>
@@ -198,12 +198,12 @@ export function ClaimDetailScreen({ claimId }: { claimId: string }) {
         ),
       }}>
         <Tabs selectedKey={tab} onSelectionChange={(value) => setTab(String(value))}>
-          <TabList aria-label="Debit claim sections">
+          <TabList aria-label="Debit note sections">
             <Tab id="overview">Overview</Tab>
             <Tab id="lines">Claimed Items &amp; Amounts</Tab>
             <Tab id="sources">Original Bills / Returns</Tab>
             <Tab id="responses">Supplier Response</Tab>
-            <Tab id="credits">Linked Vendor Credits</Tab>
+            <Tab id="credits">Linked Supplier Credit Notes</Tab>
             <Tab id="notes">Notes &amp; Attachments</Tab>
             <Tab id="history">History</Tab>
           </TabList>
@@ -249,7 +249,7 @@ export function ClaimDetailScreen({ claimId }: { claimId: string }) {
           </TabPanel>
           <TabPanel id="sources">
             <div className="pt-4">
-              <Panel title="Original bills and returns" description="The posted bills (and returned goods) the claim is about.">
+              <Panel title="Original bills and returns" description="The final bills (and returned goods) the claim is about.">
                 {!detail.lines.some((line) => line.billId || line.purchaseReturnLineId) ? <p className="text-sm text-text-muted">The claim is not tied to a bill.</p> : (
                   <ul className="flex flex-col divide-y divide-border text-sm">
                     {[...new Map(detail.lines.filter((line) => line.billId).map((line) => [line.billId, line])).values()].map((line) => (
@@ -269,7 +269,7 @@ export function ClaimDetailScreen({ claimId }: { claimId: string }) {
           <TabPanel id="responses">
             <div className="pt-4">
               <Panel title="Supplier responses" description="Each decision as recorded. A partial acceptance leaves the rest disputed.">
-                {!detail.responses.length ? <p className="text-sm text-text-muted">{claim.status === "draft" ? "Issue the debit claim first." : "Awaiting the supplier."}</p> : (
+                {!detail.responses.length ? <p className="text-sm text-text-muted">{claim.status === "draft" ? "Issue the debit note first." : "Awaiting the supplier."}</p> : (
                   <ul className="flex flex-col divide-y divide-border text-sm">
                     {detail.responses.map((entry) => (
                       <li key={entry.id} className="py-2"><span className="font-medium">{statusLabel(entry.decision)}</span> · accepted {c(entry.acceptedAmount)} · disputed {c(entry.disputedAmount)}
@@ -283,7 +283,7 @@ export function ClaimDetailScreen({ claimId }: { claimId: string }) {
           </TabPanel>
           <TabPanel id="credits">
             <div className="pt-4">
-              <Panel title="Vendor credits" description="The supplier's credits recorded against this claim. Posted credits covering the accepted amount resolve it.">
+              <Panel title="Supplier credit notes" description="The supplier's credits recorded against this claim. Final credits covering the accepted amount resolve it.">
                 {!detail.credits.length ? <p className="text-sm text-text-muted">None yet.</p> : (
                   <ul className="flex flex-col divide-y divide-border text-sm">
                     {detail.credits.map((entry) => <li key={entry.id} className="flex flex-wrap justify-between gap-2 py-2"><Link className="text-brand hover:underline" href={entry.href}>{entry.number}</Link>
@@ -338,15 +338,15 @@ function RespondDialog({ detail, onClose, onDone }: { detail: ClaimDetail; onClo
 
 function CloseDialog({ claimId, onClose, onDone }: { claimId: string; onClose: () => void; onDone: (message: string) => void }) {
   const [reason, setReason] = useState("");
-  const mutation = useMutation({ mutationFn: () => claimAction(claimId, "close", { reason }), onSuccess: () => onDone("Debit claim closed.") });
+  const mutation = useMutation({ mutationFn: () => claimAction(claimId, "close", { reason }), onSuccess: () => onDone("Debit note closed.") });
   return (
-    <Dialog isOpen onOpenChange={(open) => !open && onClose()} title="Close the debit claim" description="Nothing more will come of it: withdrawn, rejected for good, or the rest written off." size="md">
+    <Dialog isOpen onOpenChange={(open) => !open && onClose()} title="Close the debit note" description="Nothing more will come of it: withdrawn, rejected for good, or the rest written off." size="md">
       <div className="flex flex-col gap-3">
         <Errors error={mutation.error} />
         <TextArea label="Reason" value={reason} onChange={setReason} />
         <div className="flex justify-end gap-2">
           <Button variant="secondary" onPress={onClose}>Back</Button>
-          <Button variant="primary" isLoading={mutation.isPending} isDisabled={reason.trim().length < 3} onPress={() => mutation.mutate()}>Close debit claim</Button>
+          <Button variant="primary" isLoading={mutation.isPending} isDisabled={reason.trim().length < 3} onPress={() => mutation.mutate()}>Close debit note</Button>
         </div>
       </div>
     </Dialog>

@@ -44,7 +44,7 @@ export function CommissionRulesScreen() {
                     <span className="font-medium">{rule.name} <StatusBadge tone={rule.isActive ? "success" : "neutral"}>{rule.isActive ? "Active" : "Off"}</StatusBadge></span>
                     <span className="text-xs text-text-muted">
                       {rule.ratePercent}% of {rule.basisLabel.toLowerCase()} · {rule.ownerName ?? "Everyone"}
-                      {rule.validFrom || rule.validTo ? ` · ${rule.validFrom ?? "…"} to ${rule.validTo ?? "…"}` : ""} · {rule.entries} accrued
+                      {rule.validFrom || rule.validTo ? ` · ${rule.validFrom ?? "…"} to ${rule.validTo ?? "…"}` : ""} · {rule.entries} earned
                     </span>
                   </span>
                   {data.canManage && (

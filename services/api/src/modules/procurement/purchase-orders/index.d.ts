@@ -121,3 +121,7 @@ export declare const MATCHING_POLICY_LABELS: Record<string, string>;
 export declare function sharePurchaseOrderLink(client: any, context: any, orderId: string, input?: { phone?: string | null }): Promise<{ url: string; body: string; phone: string | null; whatsapp: string }>;
 export declare function revokePurchaseOrderLink(client: any, context: any, orderId: string): Promise<{ revoked: boolean }>;
 export declare function renderSharedPurchaseOrderPdf(client: any, token: string): Promise<{ fileName: string; body: Buffer } | null>;
+
+// Dropship (Procurement report Phase 3).
+export declare function confirmDropshipDelivery(client: any, context: any, orderId: string, input?: { lines?: Array<{ purchaseOrderLineId: string; quantity: string }>; deliveredOn?: string; supplierChallanNumber?: string; trackingReference?: string; carrierName?: string; idempotencyKey?: string }): Promise<{ receiptId: string; receiptNumber: string; deliveryId: string; deliveryNumber: string }>;
+export declare function markPurchaseOrderDropship(client: any, context: any, orderId: string, input: { salesOrderId: string; salesOrderNumber: string; customerName?: string | null; links?: Array<{ lineNumber: number; salesOrderLineId: string }> }): Promise<void>;

@@ -1,6 +1,5 @@
 "use client";
 
-import { useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -19,6 +18,7 @@ import {
 } from "@/shell/navigation/moduleNavigationRegistry";
 import { ProfileMenu } from "@/shell/primary-sidebar/ProfileMenu";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
+import { useRailTooltip } from "@/shell/primary-sidebar/useRailTooltip";
 
 // Settings is the registry entry flagged `placement: "topbar"` —
 // the primary sidebar filters those same entries out, so each renders in
@@ -48,32 +48,17 @@ function TopBarIconLink({
   icon: React.ReactNode;
   active: boolean;
 }) {
-  const triggerRef = useRef<HTMLSpanElement>(null);
-  const [tooltipPosition, setTooltipPosition] = useState<{
-    top: number;
-    right: number;
-  } | null>(null);
-
-  function showTooltip() {
-    const rect = triggerRef.current?.getBoundingClientRect();
-    if (!rect) return;
-    setTooltipPosition({
-      top: rect.bottom + 6,
-      right: window.innerWidth - rect.right,
-    });
-  }
-  function hideTooltip() {
-    setTooltipPosition(null);
-  }
+  // Shown on hover or keyboard focus only, and gone on click, leave, Escape, scroll or a page change.
+  const { ref: triggerRef, position: tooltipPosition, handlers: tooltipHandlers } = useRailTooltip<HTMLSpanElement>((rect) => ({
+    top: rect.bottom + 6,
+    right: window.innerWidth - rect.right,
+  }));
 
   return (
     <span
       ref={triggerRef}
       className="relative flex"
-      onMouseEnter={showTooltip}
-      onMouseLeave={hideTooltip}
-      onFocus={showTooltip}
-      onBlur={hideTooltip}
+      {...tooltipHandlers}
     >
       <Link
         href={href}

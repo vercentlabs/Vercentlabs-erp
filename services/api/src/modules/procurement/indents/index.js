@@ -11,6 +11,10 @@ import { normalizeQuantityToBase } from "../../products/uom.js";
 import { poCan, requirePoPermission } from "../purchase-orders/access.js";
 import { PO_PERMISSIONS, PurchaseOrderError, dayOf, fail, isUuid, optionalUuid, readDate, requireUuid, text } from "../purchase-orders/constants.js";
 import { procurementSettings } from "../purchase-orders/document.js";
+import { oneOffOrderLine, oneOffView, readOneOffLine } from "../purchase-orders/one-off-lines.js";
+import { requireRuleApprovals } from "../../../core/platform/approvals/index.js";
+import { INDENT_APPROVAL, departmentOf, indentApprovalContent } from "./departments.js";
+import { purchaseWarningsFor } from "../warnings.js";
 import { databaseToday } from "../org-day.js";
 import { pagedList } from "../paging.js";
 import { createPurchaseOrder } from "../purchase-orders/records.js";
@@ -39,8 +43,9 @@ async function requireIndentsOn(client, context) {
     throw new PurchaseOrderError(409, "Purchase indents are turned off. Turn them on in Procurement Setup › Purchasing Rules.", "PURCHASE_INDENTS_OFF");
 }
 
-// What each line has had ordered (order lines naming it, orders not cancelled), in the indent line's unit when the order used it.
-const ORDERED_SQL = `(SELECT COALESCE(sum(po_line.ordered_quantity), 0) FROM tenant.purchase_order_lines po_line
+// What each line has had ordered (order lines naming it, orders not cancelled), in the indent line's unit: compared in base units, so an
+// order in boxes counts against an indent in pieces.
+const ORDERED_SQL = `(SELECT round(COALESCE(sum(po_line.ordered_quantity * po_line.conversion_factor), 0) / line.conversion_factor, 6) FROM tenant.purchase_order_lines po_line
     JOIN tenant.purchase_orders po ON po.organization_id = po_line.organization_id AND po.id = po_line.purchase_order_id
    WHERE po_line.organization_id = line.organization_id AND po_line.source_indent_line_id = line.id AND po.status <> 'cancelled')`;
 // An indent with something still to order: an open line whose ordered quantity is short of what was asked.
@@ -53,7 +58,10 @@ export async function listPurchaseIndents(client, context, filters = {}) {
   const values = [context.organizationId];
   const bind = (value) => `$${values.push(value)}`;
   let where = "";
-  if (!seesAll(context)) { const me = bind(context.userId ?? null); where += ` AND (indent.requested_by = ${me} OR indent.created_by = ${me})`; }
+  // Besides their own, a department head sees their department's requests.
+  if (!seesAll(context)) { const me = bind(context.userId ?? null); where += ` AND (indent.requested_by = ${me} OR indent.created_by = ${me}
+    OR EXISTS (SELECT 1 FROM tenant.procurement_departments department WHERE department.organization_id = indent.organization_id AND department.id = indent.department_id
+                 AND department.head_user_id = ${me}))`; }
   const view = INDENT_VIEWS.some((entry) => entry.key === filters.view) ? filters.view : "all";
   if (view === "to_approve") where += " AND indent.status = 'submitted'";
   else if (view === "to_order") where += ` AND indent.status = 'approved' AND ${TO_ORDER_SQL}`;
@@ -65,14 +73,14 @@ export async function listPurchaseIndents(client, context, filters = {}) {
   if (search) {
     const term = bind(`%${search.replace(/[\\%_]/g, (character) => `\\${character}`)}%`);
     where += ` AND (indent.indent_number ILIKE ${term} OR indent.purpose ILIKE ${term} OR requester.full_name ILIKE ${term}
-      OR EXISTS (SELECT 1 FROM tenant.purchase_indent_lines line JOIN tenant.items item ON item.organization_id = line.organization_id AND item.id = line.item_id
-                  WHERE line.organization_id = indent.organization_id AND line.indent_id = indent.id AND (item.name ILIKE ${term} OR item.code ILIKE ${term})))`;
+      OR EXISTS (SELECT 1 FROM tenant.purchase_indent_lines line LEFT JOIN tenant.items item ON item.organization_id = line.organization_id AND item.id = line.item_id
+                  WHERE line.organization_id = indent.organization_id AND line.indent_id = indent.id AND (item.name ILIKE ${term} OR item.code ILIKE ${term} OR line.description ILIKE ${term})))`;
   }
   return pagedList(client,
     `SELECT indent.id, indent.indent_number, indent.status, indent.source, indent.required_by, indent.purpose, indent.created_at, requester.full_name AS requested_by_name,
             warehouse.name AS warehouse_name,
             (SELECT count(*) FROM tenant.purchase_indent_lines line WHERE line.organization_id = indent.organization_id AND line.indent_id = indent.id)::int AS line_count,
-            (SELECT string_agg(item.name, ', ' ORDER BY line.line_number) FROM tenant.purchase_indent_lines line JOIN tenant.items item ON item.organization_id = line.organization_id AND item.id = line.item_id
+            (SELECT string_agg(COALESCE(item.name, line.description), ', ' ORDER BY line.line_number) FROM tenant.purchase_indent_lines line LEFT JOIN tenant.items item ON item.organization_id = line.organization_id AND item.id = line.item_id
               WHERE line.organization_id = indent.organization_id AND line.indent_id = indent.id) AS items,
             indent.status = 'approved' AND ${TO_ORDER_SQL} AS to_order
        FROM tenant.purchase_indents indent
@@ -89,7 +97,9 @@ async function loadIndent(client, context, indentId, { lock = false } = {}) {
   requireIndentAccess(context);
   const row = (await client.query(`SELECT * FROM tenant.purchase_indents WHERE organization_id = $1 AND id = $2${lock ? " FOR UPDATE" : ""}`,
     [context.organizationId, requireUuid(indentId, "Indent")])).rows[0];
-  if (!row || (!seesAll(context) && row.requested_by !== context.userId && row.created_by !== context.userId))
+  const headOf = async () => Boolean(row.department_id && context.userId && (await client.query(
+    `SELECT 1 FROM tenant.procurement_departments WHERE organization_id = $1 AND id = $2 AND head_user_id = $3`, [context.organizationId, row.department_id, context.userId])).rowCount);
+  if (!row || (!seesAll(context) && row.requested_by !== context.userId && row.created_by !== context.userId && !(await headOf())))
     throw new PurchaseOrderError(404, "Purchase indent not found.", "PURCHASE_INDENT_NOT_FOUND");
   return row;
 }
@@ -98,7 +108,7 @@ async function indentLines(client, organizationId, indentId) {
   return (await client.query(
     `SELECT line.*, item.code AS item_code, item.name AS item_name, item.purchase_uom_id, item.uom_id AS base_uom_id, uom.code AS uom_code, warehouse.name AS warehouse_name,
             ${ORDERED_SQL} AS ordered_quantity
-       FROM tenant.purchase_indent_lines line JOIN tenant.items item ON item.organization_id = line.organization_id AND item.id = line.item_id
+       FROM tenant.purchase_indent_lines line LEFT JOIN tenant.items item ON item.organization_id = line.organization_id AND item.id = line.item_id
        LEFT JOIN tenant.units_of_measure uom ON uom.organization_id = line.organization_id AND uom.id = line.uom_id
        LEFT JOIN tenant.warehouses warehouse ON warehouse.organization_id = line.organization_id AND warehouse.id = line.warehouse_id
       WHERE line.organization_id = $1 AND line.indent_id = $2 ORDER BY line.line_number`, [organizationId, indentId])).rows;
@@ -120,11 +130,18 @@ export async function getPurchaseIndent(client, context, indentId) {
       WHERE line.organization_id = $1 AND line.indent_id = $2`, [context.organizationId, row.id])).rows;
   const remaining = (line) => (line.status === "open" ? sub(decimal(line.quantity), decimal(line.ordered_quantity)) : 0n);
   // Items on an active rate contract are bought from it — no RFQ needed (Procurement plan Phase 3).
-  const contracts = await activeContractsByItem(client, context.organizationId, lines.map((line) => line.item_id), await databaseToday(client, context.organizationId));
+  const contracts = await activeContractsByItem(client, context.organizationId, lines.map((line) => line.item_id).filter(Boolean), await databaseToday(client, context.organizationId));
   const somethingToOrder = lines.some((line) => remaining(line) > 0n);
   const nothingOrdered = lines.every((line) => decimal(line.ordered_quantity) === 0n);
   const own = row.requested_by === context.userId || row.created_by === context.userId;
   const owner = (context.roleSlugs ?? []).some((slug) => slug === "organization_owner" || slug === "system_administrator");
+  // The department's head approves its requests (report Phase 3); without a head, anyone allowed to approve requests.
+  const department = await departmentOf(client, context.organizationId, row.department_id);
+  const head = department?.head_user_id ?? null;
+  const mayApprove = head ? head === context.userId || owner : can(context, INDENT_PERMISSIONS.approve) && (!own || owner);
+  const waiting = row.status === "submitted" && row.head_approved_at ? (await client.query(
+    `SELECT approval_level FROM public.approval_requests WHERE organization_id = $1 AND command_key = 'procurement.indent.approve' AND entity_id = $2 AND status = 'pending'
+      ORDER BY requested_at DESC LIMIT 1`, [context.organizationId, row.id])).rows[0] : null;
   const mayEdit = own || can(context, INDENT_PERMISSIONS.manage);
   return {
     indent: {
@@ -132,12 +149,16 @@ export async function getPurchaseIndent(client, context, indentId) {
       purpose: row.purpose, notes: row.notes, warehouseId: row.warehouse_id, departmentId: row.department_id, costCenterId: row.cost_center_id,
       requestedById: row.requested_by, requestedBy: name(row.requested_by), submittedAt: row.submitted_at, decidedAt: row.decided_at, decidedBy: name(row.decided_by),
       decisionNote: row.decision_note, createdAt: row.created_at,
+      departmentName: department?.name ?? null, headName: head ? name(head) ?? (await client.query(`SELECT full_name FROM public.users WHERE id = $1`, [head])).rows[0]?.full_name ?? null : null,
+      headApprovedAt: row.head_approved_at, headApprovedBy: row.head_approved_by ? (await client.query(`SELECT full_name FROM public.users WHERE id = $1`, [row.head_approved_by])).rows[0]?.full_name ?? null : null,
+      waitingApproval: waiting ? { level: waiting.approval_level } : null,
     },
     lines: lines.map((line) => ({
-      id: line.id, lineNumber: line.line_number, productId: line.item_id, productCode: line.item_code, productName: line.item_name, description: line.description,
+      id: line.id, lineNumber: line.line_number, productId: line.item_id, productCode: line.item_code, productName: line.item_name ?? line.description, description: line.description,
+      ...oneOffView(line),
       quantity: dec(line.quantity), uomId: line.uom_id, uomCode: line.uom_code, requiredBy: dayOf(line.required_by ?? row.required_by), warehouseId: line.warehouse_id ?? row.warehouse_id,
       warehouseName: line.warehouse_name, status: line.status, ordered: dec(line.ordered_quantity), remaining: dec(remaining(line) > 0n ? remaining(line) : 0n), notes: line.notes,
-      contract: contracts.get(line.item_id) ?? null,
+      contract: line.item_id ? contracts.get(line.item_id) ?? null : null,
     })),
     orders: orders.map((order) => ({ id: order.id, number: order.purchase_order_number, status: order.status, href: `/procurement/purchase-orders/${order.id}` })),
     rfqs: rfqs.map((rfq) => ({ id: rfq.id, number: rfq.rfq_number, status: rfq.status, href: `/procurement/rfqs/${rfq.id}` })),
@@ -145,8 +166,8 @@ export async function getPurchaseIndent(client, context, indentId) {
       edit: ["draft", "rejected"].includes(row.status) && mayEdit,
       submit: ["draft", "rejected"].includes(row.status) && mayEdit,
       // An approver does not approve their own indent (the owner may).
-      approve: row.status === "submitted" && can(context, INDENT_PERMISSIONS.approve) && (!own || owner),
-      reject: row.status === "submitted" && can(context, INDENT_PERMISSIONS.approve),
+      approve: row.status === "submitted" && !row.head_approved_at && mayApprove,
+      reject: row.status === "submitted" && mayApprove,
       order: row.status === "approved" && somethingToOrder && poCan(context, PO_PERMISSIONS.create),
       rfq: row.status === "approved" && somethingToOrder && poCan(context, PO_PERMISSIONS.create),
       close: row.status === "approved" && can(context, INDENT_PERMISSIONS.manage, PO_PERMISSIONS.create),
@@ -163,6 +184,14 @@ async function readLines(client, context, input) {
   const parsed = [];
   for (const [index, line] of lines.entries()) {
     const label = `Line ${index + 1}`;
+    if (!line.productId && !line.itemId) {
+      // Outside the catalogue: a description, a unit, and whether it is a service or a non-stock purchase.
+      const quantity = String(line.quantity ?? "").trim();
+      if (!/^\d+(\.\d{1,6})?$/.test(quantity) || decimal(quantity) <= 0n) fail(`${label}: the quantity must be more than zero.`, "quantity");
+      parsed.push({ ...(await readOneOffLine(client, context.organizationId, line, label)), quantity, conversionFactor: "1", requiredBy: readDate(line.requiredBy, `${label} required by`),
+        warehouseId: null, costCenterId: optionalUuid(line.costCenterId, `${label} cost centre`), notes: text(line.notes, 1000) });
+      continue;
+    }
     const itemId = requireUuid(line.productId ?? line.itemId, `${label} item`);
     const item = (await client.query(`SELECT id, uom_id, purchase_uom_id, status, is_purchasable FROM tenant.items WHERE organization_id = $1 AND id = $2`, [context.organizationId, itemId])).rows[0];
     if (!item || item.status !== "active") fail(`${label}: choose an active item.`, "productId", "PURCHASE_INDENT_ITEM_INVALID", 409);
@@ -172,9 +201,10 @@ async function readLines(client, context, input) {
     const uomId = optionalUuid(line.uomId, `${label} unit`) ?? item.purchase_uom_id ?? item.uom_id;
     const unit = await normalizeQuantityToBase(client, context.organizationId, item.id, uomId, decimal(quantity), { purpose: "purchase" });
     if (!unit.ok) fail(`${label}: ${unit.message}`, "uomId", "PURCHASE_INDENT_UOM_INVALID");
-    parsed.push({ itemId, quantity, uomId, description: text(line.description, 1000), requiredBy: readDate(line.requiredBy, `${label} required by`),
+    parsed.push({ itemId, quantity, uomId, conversionFactor: formatDecimal(unit.factor), description: text(line.description, 1000), requiredBy: readDate(line.requiredBy, `${label} required by`),
       warehouseId: optionalUuid(line.warehouseId, `${label} warehouse`), costCenterId: optionalUuid(line.costCenterId, `${label} cost centre`), notes: text(line.notes, 1000) });
   }
+  await purchaseWarningsFor(client, context.organizationId, { lines: parsed.map((line, index) => ({ itemId: line.itemId, label: `Line ${index + 1}` })) });
   return parsed;
 }
 
@@ -182,9 +212,10 @@ async function writeLines(client, context, indentId, lines) {
   await client.query(`DELETE FROM tenant.purchase_indent_lines WHERE organization_id = $1 AND indent_id = $2`, [context.organizationId, indentId]);
   for (const [index, line] of lines.entries())
     await client.query(
-      `INSERT INTO tenant.purchase_indent_lines (organization_id, indent_id, line_number, item_id, description, quantity, uom_id, required_by, warehouse_id, cost_center_id, notes)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
-      [context.organizationId, indentId, index + 1, line.itemId, line.description, line.quantity, line.uomId, line.requiredBy, line.warehouseId, line.costCenterId, line.notes]);
+      `INSERT INTO tenant.purchase_indent_lines (organization_id, indent_id, line_number, item_id, description, quantity, uom_id, required_by, warehouse_id, cost_center_id, notes,
+         conversion_factor, one_off_type, expense_account_id, tax_category_id, one_off_no_tax) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)`,
+      [context.organizationId, indentId, index + 1, line.itemId, line.description, line.quantity, line.uomId, line.requiredBy, line.warehouseId, line.costCenterId, line.notes,
+        line.conversionFactor, line.oneOffType ?? null, line.expenseAccountId ?? null, line.taxCategoryId ?? null, Boolean(line.noTax)]);
 }
 
 async function readHeader(client, context, input) {
@@ -193,7 +224,9 @@ async function readHeader(client, context, input) {
     fail("Choose a warehouse.", "warehouseId", "PURCHASE_INDENT_WAREHOUSE_INVALID", 409);
   const requiredBy = readDate(input.requiredBy, "Required by");
   if (requiredBy && requiredBy < await databaseToday(client, context.organizationId)) fail("The required-by date has passed.", "requiredBy");
-  return { warehouseId, requiredBy, purpose: text(input.purpose, 500), notes: text(input.notes, 2000), departmentId: optionalUuid(input.departmentId, "Department"),
+  const departmentId = optionalUuid(input.departmentId, "Department");
+  if (departmentId && !(await departmentOf(client, context.organizationId, departmentId))?.active) fail("Choose an active department.", "departmentId", "PURCHASE_INDENT_DEPARTMENT_INVALID", 409);
+  return { warehouseId, requiredBy, purpose: text(input.purpose, 500), notes: text(input.notes, 2000), departmentId,
     costCenterId: optionalUuid(input.costCenterId, "Cost centre") };
 }
 
@@ -238,7 +271,16 @@ async function decide(client, context, indentId, action, input = {}) {
   }
   const note = text(input.note ?? input.reason, 1000);
   if (action === "reject" && !note) fail("Give the reason for rejecting the indent.", "reason", "PURCHASE_INDENT_REASON_REQUIRED");
-  const status = { submit: "submitted", approve: "approved", reject: "rejected", close: "closed", cancel: "cancelled" }[action];
+  let status = { submit: "submitted", approve: "approved", reject: "rejected", close: "closed", cancel: "cancelled" }[action];
+  // Approving: the head's approval is kept; above an amount the approval rules ask further levels before the request is approved.
+  if (action === "approve") {
+    await client.query(`UPDATE tenant.purchase_indents SET head_approved_by = $3, head_approved_at = now() WHERE organization_id = $1 AND id = $2`, [context.organizationId, row.id, context.userId ?? null]);
+    const { amount, contentKey } = await indentApprovalContent(client, context.organizationId, row.id);
+    const approval = await requireRuleApprovals(client, context, { documentType: INDENT_APPROVAL, documentId: row.id, amount, contentKey,
+      title: `Purchase request ${row.indent_number} (about ${amount})` });
+    if (approval.required && !approval.approved) return { id: row.id, status: "submitted", approvalRequired: true, pendingApproval: approval.pending };
+  }
+  if (action === "reject") await client.query(`UPDATE tenant.purchase_indents SET head_approved_by = NULL, head_approved_at = NULL WHERE organization_id = $1 AND id = $2`, [context.organizationId, row.id]);
   await client.query(
     `UPDATE tenant.purchase_indents SET status = $3, submitted_at = CASE WHEN $3 = 'submitted' THEN now() ELSE submitted_at END,
             decided_at = CASE WHEN $3 IN ('approved', 'rejected') THEN now() ELSE decided_at END, decided_by = CASE WHEN $3 IN ('approved', 'rejected') THEN $4 ELSE decided_by END,
@@ -254,30 +296,38 @@ export const closePurchaseIndent = (client, context, id) => decide(client, conte
 export const cancelPurchaseIndent = (client, context, id) => decide(client, context, id, "cancel");
 
 // Approved indent lines with something still to order — the buyer's "Indents to buy" picker for a purchase order or an RFQ.
-// filters: { itemId?, indentId?, search? }
+// filters: { itemId?, indentId?, search?, ids? (exactly these lines, locked so two buyers cannot order the same line at once) }
 export async function listIndentLinesToOrder(client, context, filters = {}) {
   requireIndentAccess(context);
   const values = [context.organizationId];
   const bind = (value) => `$${values.push(value)}`;
   let where = "";
+  const ids = Array.isArray(filters.ids) ? filters.ids.filter(isUuid) : null;
+  if (ids) {
+    if (!ids.length) return [];
+    await client.query(`SELECT id FROM tenant.purchase_indent_lines WHERE organization_id = $1 AND id = ANY($2::uuid[]) ORDER BY id FOR UPDATE`, [context.organizationId, ids]);
+    where += ` AND line.id = ANY(${bind(ids)}::uuid[])`;
+  }
   if (isUuid(filters.indentId)) where += ` AND indent.id = ${bind(filters.indentId)}`;
   if (isUuid(filters.itemId)) where += ` AND line.item_id = ${bind(filters.itemId)}`;
   const search = text(filters.search, 120);
-  if (search) { const term = bind(`%${search}%`); where += ` AND (indent.indent_number ILIKE ${term} OR item.name ILIKE ${term} OR item.code ILIKE ${term})`; }
+  if (search) { const term = bind(`%${search}%`); where += ` AND (indent.indent_number ILIKE ${term} OR item.name ILIKE ${term} OR item.code ILIKE ${term} OR line.description ILIKE ${term})`; }
   const rows = (await client.query(
-    `SELECT line.id, line.indent_id, indent.indent_number, line.item_id, item.code AS item_code, item.name AS item_name, line.quantity, line.uom_id, uom.code AS uom_code,
+    `SELECT line.id, line.indent_id, indent.indent_number, line.item_id, item.code AS item_code, COALESCE(item.name, line.description) AS item_name, line.description, line.quantity, line.uom_id,
+            uom.code AS uom_code, line.one_off_type, line.expense_account_id, line.tax_category_id, line.one_off_no_tax,
             COALESCE(line.required_by, indent.required_by) AS required_by, COALESCE(line.warehouse_id, indent.warehouse_id) AS warehouse_id, ${ORDERED_SQL} AS ordered_quantity,
             item.purchase_price
        FROM tenant.purchase_indent_lines line
        JOIN tenant.purchase_indents indent ON indent.organization_id = line.organization_id AND indent.id = line.indent_id
-       JOIN tenant.items item ON item.organization_id = line.organization_id AND item.id = line.item_id
+       LEFT JOIN tenant.items item ON item.organization_id = line.organization_id AND item.id = line.item_id
        LEFT JOIN tenant.units_of_measure uom ON uom.organization_id = line.organization_id AND uom.id = line.uom_id
       WHERE line.organization_id = $1 AND indent.status = 'approved' AND line.status = 'open' AND line.quantity > ${ORDERED_SQL}${where}
-      ORDER BY COALESCE(line.required_by, indent.required_by) NULLS LAST, indent.indent_number, line.line_number LIMIT 300`, values)).rows;
+      ORDER BY COALESCE(line.required_by, indent.required_by) NULLS LAST, indent.indent_number, line.line_number${ids ? "" : " LIMIT 300"}`, values)).rows;
   return rows.map((row) => ({
     id: row.id, indentId: row.indent_id, indentNumber: row.indent_number, productId: row.item_id, productCode: row.item_code, productName: row.item_name,
     quantity: dec(row.quantity), ordered: dec(row.ordered_quantity), remaining: dec(sub(decimal(row.quantity), decimal(row.ordered_quantity))), uomId: row.uom_id, uomCode: row.uom_code,
-    requiredBy: dayOf(row.required_by), warehouseId: row.warehouse_id, purchasePrice: dec(row.purchase_price),
+    requiredBy: dayOf(row.required_by), warehouseId: row.warehouse_id, purchasePrice: dec(row.purchase_price), description: row.description,
+    ...oneOffView(row),
   }));
 }
 
@@ -289,7 +339,7 @@ export async function createPurchaseOrderFromIndents(client, context, input = {}
   const supplierId = requireUuid(input.supplierId, "Supplier");
   const asked = Array.isArray(input.lines) ? input.lines : [];
   if (!asked.length) fail("Choose the indent lines to order.", "lines", "PURCHASE_INDENT_NO_LINES");
-  const open = new Map((await listIndentLinesToOrder(client, context, {})).map((line) => [line.id, line]));
+  const open = new Map((await listIndentLinesToOrder(client, context, { ids: asked.map((entry) => entry?.indentLineId) })).map((line) => [line.id, line]));
   const lines = [];
   let warehouse = optionalUuid(input.defaultWarehouseId, "Warehouse");
   let earliest = null;
@@ -299,6 +349,12 @@ export async function createPurchaseOrderFromIndents(client, context, input = {}
     const quantity = entry.quantity ? String(entry.quantity).trim() : line.remaining;
     if (decimal(quantity) <= 0n || decimal(quantity) > decimal(line.remaining)) fail(`${line.indentNumber} · ${line.productName}: order at most ${line.remaining}.`, "lines", "PURCHASE_INDENT_OVER_ORDER", 409);
     let unitPrice = entry.unitPrice !== undefined && entry.unitPrice !== null && entry.unitPrice !== "" ? String(entry.unitPrice) : null;
+    if (line.oneOff) {
+      if (unitPrice === null) fail(`${line.indentNumber} · ${line.productName}: enter the price.`, "lines", "PURCHASE_ORDER_PRICE_MISSING");
+      if (line.requiredBy && (!earliest || line.requiredBy < earliest)) earliest = line.requiredBy;
+      lines.push({ ...oneOffOrderLine(line, entry, `${line.indentNumber} · ${line.productName}`), quantity, unitPrice, expectedDeliveryDate: line.requiredBy ?? undefined, sourceIndentLineId: line.id });
+      continue;
+    }
     if (unitPrice === null) {
       unitPrice = (await client.query(
         `SELECT po_line.unit_price FROM tenant.purchase_order_lines po_line JOIN tenant.purchase_orders po ON po.organization_id = po_line.organization_id AND po.id = po_line.purchase_order_id

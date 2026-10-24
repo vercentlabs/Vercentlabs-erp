@@ -26,14 +26,14 @@ export type SupplierPaymentDetail = {
     tdsSection: string | null; amount: string; balance: string; reversed: boolean; href: string }>;
   planned: Array<{ billId: string; billNumber: string | null; supplierInvoice: string | null; billDate: string | null; amount: string; tds: string; href: string }>;
 };
-export type PayResult = { payments: Array<{ paymentId: string; paymentNumber: string; status: "posted" | "awaiting_approval"; amount: string; bills: string[] }> };
+export type PayResult = { payments: Array<{ paymentId: string; paymentNumber: string; status: "posted" | "awaiting_approval"; amount: string; bills: string[]; advice?: string | null }> };
 export type SupplierAdvances = { total: string; advances: Array<{ id: string; number: string; date: string; available: string; currencyCode: string; purchaseOrderNumber: string | null; againstThisOrder: boolean }> };
 export type MsmeRow = {
   id: string; billId: string; billNumber: string; supplierInvoice: string | null; supplierId: string; supplierName: string; classification: string | null; udyam: string | null;
   sourceReference: string; acceptanceDate: string; statutoryDays: number; statutoryDueDate: string; daysLeft: number; bucket: string; disputed: boolean; disputeReference: string | null;
   outstanding: string; currencyCode: string; href: string;
 };
-export type MsmePayments = { today: string; bucket: string; buckets: Array<{ key: string; label: string; count: number; total: string }>; rows: MsmeRow[] };
+export type MsmePayments = { today: string; bucket: string; buckets: Array<{ key: string; label: string; count: number; total: string }>; rows: MsmeRow[]; total: number };
 
 export const listSupplierPayments = (filters: Record<string, string | undefined>) => request<SupplierPaymentList>(`/payments${qs(filters)}`);
 export const getSupplierPayment = (id: string) => request<SupplierPaymentDetail>(`/payments/${id}`);
@@ -44,3 +44,12 @@ export const getSupplierAdvances = (supplierId: string, purchaseOrderId?: string
 export const listMsmePayments = (filters: Record<string, string | undefined>) => request<MsmePayments>(`/payables/msme${qs(filters)}`);
 export const paymentAdviceUrl = (id: string, inline = false) => `/api/documents/procurement.payment_advice/${id}/pdf${inline ? "?disposition=inline" : ""}`;
 export const errorMessage = (error: unknown) => (error instanceof Error ? error.message : "Something went wrong.");
+
+// MSME-1 and the year-end figures (Procurement report Phase 3).
+export type Msme1 = { period: { half: string; from: string; to: string }; asOf: string; total: string;
+  rows: Array<{ supplierId: string; supplierName: string; udyam: string | null; billId: string; billNumber: string; dueDate: string; daysOverdue: number; amount: string }> };
+export type MsmeYearEnd = { asOf: string; bankRate: string; interestRate: string; owed: string; pastDue: string; interest: string;
+  suppliers: Array<{ supplierId: string; supplierName: string; udyam: string | null; owed: string; pastDue: string; interest: string }> };
+export const getMsme1 = (half: string) => request<Msme1>(`/payables/msme/msme-1?half=${encodeURIComponent(half)}`);
+export const msme1CsvUrl = (half: string) => `/api/procurement/payables/msme/msme-1?half=${encodeURIComponent(half)}&format=csv`;
+export const getMsmeYearEnd = (year: number, bankRate: string) => request<MsmeYearEnd>(`/payables/msme/year-end?year=${year}&bankRate=${encodeURIComponent(bankRate)}`);

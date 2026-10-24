@@ -17,9 +17,9 @@ import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext"
 
 type Loaded = { kind: "task"; record: Task; options: TaskOptions; action: "complete" } | { kind: "follow_up"; record: FollowUp; options: FollowUpOptions; action: "complete" | "reschedule" };
 
-// layout "check": an always-visible round Complete button for the first column of a list (and, on a follow-up, a ⋯ menu with Reschedule
-// and Snooze), instead of the hover actions.
-// labelled: the check is followed by the word Complete (a phone card, where there is room and no column header).
+// layout "check": an always-visible round Complete button for a list's actions column, at the end of the row (and, on a follow-up, a
+// More menu with Reschedule and Snooze), instead of the hover actions.
+// labelled: the check is followed by the word Complete, and the menu reads More (the list's actions column, and a phone card).
 export function WorkRowActions({ kind, id, snooze = kind === "follow_up", onDone, onMessage, layout = "row", labelled = false }: {
   kind: "task" | "follow_up"; id: string; snooze?: boolean; onDone?: () => void; onMessage?: (text: string) => void; layout?: "row" | "check"; labelled?: boolean;
 }) {
@@ -67,7 +67,8 @@ export function WorkRowActions({ kind, id, snooze = kind === "follow_up", onDone
   );
   if (layout === "check")
     return (
-      <span className="flex items-center" onClick={(event) => event.stopPropagation()}>
+      // Labelled, Complete ends the row and More (a follow-up's) sits before it, so every row's Complete lines up at the same place.
+      <span className={`flex items-center gap-1 ${labelled ? "flex-row-reverse justify-start" : ""}`} onClick={(event) => event.stopPropagation()}>
         {labelled ? (
           <button type="button" disabled={busy} onClick={() => void open("complete")}
             className="flex items-center gap-2 rounded-full border border-border px-2.5 py-1 text-xs font-medium text-text-secondary outline-none transition-colors hover:border-success hover:bg-success-soft hover:text-success focus-visible:ring-2 focus-visible:ring-brand disabled:opacity-50">
@@ -81,7 +82,9 @@ export function WorkRowActions({ kind, id, snooze = kind === "follow_up", onDone
         )}
         {kind === "follow_up" && (
           <MenuTrigger>
-            <IconButton size="compact" variant="ghost" isDisabled={busy} aria-label="More actions"><MoreHorizontal className="size-4" aria-hidden="true" /></IconButton>
+            {labelled
+              ? <Button size="compact" variant="ghost" isDisabled={busy}><MoreHorizontal className="size-4" aria-hidden="true" />More</Button>
+              : <IconButton size="compact" variant="ghost" isDisabled={busy} aria-label="More actions"><MoreHorizontal className="size-4" aria-hidden="true" /></IconButton>}
             <Menu onAction={(key) => { if (key === "reschedule") void open("reschedule"); else void snoozeFor(String(key)); }}>
               <MenuItem id="reschedule">Reschedule…</MenuItem>
               {snooze ? snoozeChoices().map((choice) => <MenuItem key={choice.id} id={choice.id}>{`Snooze: ${choice.label}`}</MenuItem>) : null}

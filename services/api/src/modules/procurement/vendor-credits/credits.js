@@ -41,11 +41,11 @@ export async function finance(work) {
 export async function loadCredit(client, context, creditId, { lock = false } = {}) {
   requireCreditView(context);
   const row = (await client.query(`SELECT * FROM tenant.accounting_vendor_bills WHERE organization_id = $1 AND id = $2${lock ? " FOR UPDATE" : ""}`,
-    [context.organizationId, requireUuid(creditId, "Vendor credit")])).rows[0];
-  if (!row || row.bill_type !== "credit_note") throw new VendorCreditError(404, "Vendor credit not found.", "VENDOR_CREDIT_NOT_FOUND");
+    [context.organizationId, requireUuid(creditId, "Supplier credit note")])).rows[0];
+  if (!row || row.bill_type !== "credit_note") throw new VendorCreditError(404, "Supplier credit note not found.", "VENDOR_CREDIT_NOT_FOUND");
   return row;
 }
-const requirePrepare = (context) => requireAny(context, [VC_PERMISSIONS.creditsManage, VC_PERMISSIONS.payablesManage, VC_PERMISSIONS.creditsExceptional], "You do not have permission to prepare vendor credits.");
+const requirePrepare = (context) => requireAny(context, [VC_PERMISSIONS.creditsManage, VC_PERMISSIONS.payablesManage, VC_PERMISSIONS.creditsExceptional], "You do not have permission to prepare supplier credit notes.");
 
 // ---------------------------------------------------------------- entitlement
 
@@ -80,7 +80,7 @@ export async function returnLineEntitlement(client, organizationId, returnLineId
 export async function calculateAvailableCreditEntitlement(client, context, input = {}) {
   requireCreditView(context);
   const organizationId = context.organizationId;
-  const excludeCreditId = optionalUuid(input.excludeCreditId, "Vendor credit");
+  const excludeCreditId = optionalUuid(input.excludeCreditId, "Supplier credit note");
   if (input.purchaseReturnLineId) {
     const lines = await returnLineEntitlement(client, organizationId, requireUuid(input.purchaseReturnLineId, "Purchase return line"), { excludeCreditId });
     return { purchaseReturnLineId: input.purchaseReturnLineId, billed: dec(lines.reduce((total, line) => add(total, line.billed), 0n)),
@@ -130,11 +130,11 @@ export async function buildVendorCredit(client, context, input, { current = null
       { field: "supplierCreditNoteNumber", duplicate: { id: duplicate.id, number: duplicate.bill_number } });
   }
   let claim = null;
-  const claimId = optionalUuid(input.debitClaimId ?? current?.debit_claim_id, "Debit claim");
-  if (origin === "accepted_claim" && !claimId) fail("Choose the debit claim the supplier accepted.", "debitClaimId", "VENDOR_CREDIT_CLAIM_REQUIRED");
+  const claimId = optionalUuid(input.debitClaimId ?? current?.debit_claim_id, "Debit note");
+  if (origin === "accepted_claim" && !claimId) fail("Choose the debit note the supplier accepted.", "debitClaimId", "VENDOR_CREDIT_CLAIM_REQUIRED");
   if (claimId) {
     claim = await loadClaim(client, context, claimId, { lock: true });
-    if (claim.supplier_id !== supplier.id) fail(`${claim.claim_number} is another supplier's debit claim.`, "debitClaimId", "VENDOR_CREDIT_SUPPLIER_MISMATCH", 409);
+    if (claim.supplier_id !== supplier.id) fail(`${claim.claim_number} is another supplier's debit note.`, "debitClaimId", "VENDOR_CREDIT_SUPPLIER_MISMATCH", 409);
     if (!CREDITABLE_CLAIM.includes(claim.status))
       fail(`${claim.claim_number} is ${claim.status.replace("_", " ")}: only what the supplier accepted is credited.`, "debitClaimId", "VENDOR_CREDIT_CLAIM_NOT_ACCEPTED", 409);
   }
@@ -142,7 +142,7 @@ export async function buildVendorCredit(client, context, input, { current = null
   if (origin === "other_authorized") {
     const recorded = revalidate && current?.credit_authorized_by;
     if (!recorded && !can(context, VC_PERMISSIONS.creditsExceptional))
-      throw new VendorCreditError(403, "A credit without a supplier credit note or an accepted debit claim needs the exceptional-credit permission.", "VENDOR_CREDIT_EXCEPTIONAL_PERMISSION");
+      throw new VendorCreditError(403, "A credit without a supplier credit note or an accepted debit note needs the exceptional-credit permission.", "VENDOR_CREDIT_EXCEPTIONAL_PERMISSION");
     authorization = text(input.authorizationReason, 1000);
     if (!authorization || authorization.length < 10) fail("Explain the documented basis for this credit (at least 10 characters).", "authorizationReason", "VENDOR_CREDIT_AUTHORIZATION_REQUIRED");
   }
@@ -161,7 +161,7 @@ export async function buildVendorCredit(client, context, input, { current = null
         [organizationId, returnLineId])).rows[0];
       if (!returnLine) throw new VendorCreditError(404, `${label}: the returned line was not found.`, "VENDOR_CREDIT_LINE_INVALID");
       if (returnLine.supplier_id !== supplier.id) fail(`${label}: ${returnLine.return_number} is another supplier's return.`, `lines.${index}`, "VENDOR_CREDIT_SUPPLIER_MISMATCH", 409);
-      if (returnLine.document_status !== "posted") fail(`${label}: ${returnLine.return_number} is not posted — only goods that actually went back are credited.`, `lines.${index}`,
+      if (returnLine.document_status !== "posted") fail(`${label}: ${returnLine.return_number} is not final — only goods that actually went back are credited.`, `lines.${index}`,
         "VENDOR_CREDIT_RETURN_NOT_POSTED", 409);
       const entitlement = (await returnLineEntitlement(client, organizationId, returnLineId, { excludeCreditId }))
         .filter((share) => !entry.billLineId || share.billLineId === entry.billLineId);
@@ -207,13 +207,13 @@ export async function buildVendorCredit(client, context, input, { current = null
   }
   for (const bill of bills.values()) {
     if (bill.party_id !== supplier.party_id) fail(`${bill.bill_number} is another supplier's bill.`, "lines", "VENDOR_CREDIT_SUPPLIER_MISMATCH", 409);
-    if (!POSTED_STATUSES.includes(bill.status)) fail(`${bill.bill_number} is ${bill.status === "reversed" ? "reversed" : "not posted"}: only a posted bill is credited.`, "lines", "VENDOR_CREDIT_BILL_NOT_POSTED", 409);
+    if (!POSTED_STATUSES.includes(bill.status)) fail(`${bill.bill_number} is ${bill.status === "reversed" ? "reversed" : "not final"}: only a final bill is credited.`, "lines", "VENDOR_CREDIT_BILL_NOT_POSTED", 409);
   }
   const billList = [...bills.values()];
   const currencies = new Set(billList.map((bill) => bill.currency_code.trim()));
   if (currencies.size > 1) fail("One credit corrects bills in one currency.", "lines", "VENDOR_CREDIT_CURRENCY_MISMATCH", 409);
   const registrations = new Set(billList.map((bill) => bill.buying_registration_id ?? "none"));
-  if (registrations.size > 1) fail("One credit corrects bills of one company registration (GSTIN).", "lines", "VENDOR_CREDIT_COMPANY_MISMATCH", 409);
+  if (registrations.size > 1) fail("One credit corrects bills of one of our GSTINs.", "lines", "VENDOR_CREDIT_COMPANY_MISMATCH", 409);
   const firstBill = billList[0] ?? null;
   const currency = firstBill?.currency_code.trim() ?? (input.currencyCode ? String(input.currencyCode).trim().toUpperCase().slice(0, 3) : claim?.currency_code.trim())
     ?? (supplier.default_currency ? String(supplier.default_currency).trim() : (await client.query(`SELECT base_currency FROM public.organizations WHERE id = $1`, [organizationId])).rows[0].base_currency.trim());
@@ -295,7 +295,7 @@ export async function buildVendorCredit(client, context, input, { current = null
   const header = {
     billType: "credit_note", partyId: supplier.party_id, supplierId: supplier.id, sourceBillId: bills.size === 1 ? firstBill.id : undefined,
     sourcePurchaseOrderId: orders.size === 1 ? [...orders][0] : undefined, supplierInvoiceReference: supplierNoteNumber, billDate: creditDate,
-    accountingDate: readDate(input.postingDate, "Posting date") ?? creditDate, dueDate: creditDate, currencyCode: currency,
+    accountingDate: readDate(input.postingDate, "Accounting date") ?? creditDate, dueDate: creditDate, currencyCode: currency,
     exchangeRate: firstBill ? formatDecimal(firstBill.exchange_rate) : undefined, paymentTermSnapshot: firstBill?.payment_term_snapshot ?? undefined, matchingStatus: "not_required",
     notes: text(input.notes, 2000), supplierSnapshot: firstBill?.supplier_snapshot ?? { id: supplier.party_id, displayName: supplier.display_name, legalName: supplier.legal_name, gstin: supplier.gstin, pan: supplier.pan },
     sourceType: firstBill?.source_type ?? "direct", supplierTaxRegistrationId: firstBill?.supplier_tax_registration_id ?? undefined, supplierTaxSnapshot: firstBill?.supplier_tax_snapshot ?? undefined,
@@ -321,7 +321,7 @@ export async function findDuplicateSupplierCreditNote(client, organizationId, pa
 export async function checkDuplicateSupplierCreditNote(client, context, input = {}) {
   requireCreditView(context);
   const supplier = await supplierOf(client, context.organizationId, input.supplierId);
-  const duplicate = await findDuplicateSupplierCreditNote(client, context.organizationId, supplier.party_id, input.supplierCreditNoteNumber, optionalUuid(input.excludeCreditId, "Vendor credit"));
+  const duplicate = await findDuplicateSupplierCreditNote(client, context.organizationId, supplier.party_id, input.supplierCreditNoteNumber, optionalUuid(input.excludeCreditId, "Supplier credit note"));
   return { duplicate: Boolean(duplicate), existing: duplicate ? { id: duplicate.id, number: duplicate.bill_number } : null };
 }
 
@@ -357,9 +357,9 @@ export async function createVendorCredit(client, context, input = {}) {
   const created = await finance(() => createVendorBill(client, drafting(context), built.header, { documentNumber: number }));
   const creditId = created.bill.id;
   await linkReturnLines(client, context, creditId, built.sources);
-  if (built.claim) await recordClaimEvent(client, context, built.claim.id, "claim.credit_created", `Vendor credit ${number} drafted for ${dec(created.bill.grand_total)}`, { creditId });
+  if (built.claim) await recordClaimEvent(client, context, built.claim.id, "claim.credit_created", `Supplier credit note ${number} drafted for ${dec(created.bill.grand_total)}`, { creditId });
   for (const returnId of new Set(built.sources.map((source) => source.plan.purchaseReturnId).filter(Boolean)))
-    await recordReturnEvent(client, context, returnId, "purchase_return.credit_created", `Vendor credit ${number} drafted for the billed goods returned`, { creditId });
+    await recordReturnEvent(client, context, returnId, "purchase_return.credit_created", `Supplier credit note ${number} drafted for the billed goods returned`, { creditId });
   let response = { id: creditId, creditNumber: number, status: "draft", total: dec(created.bill.grand_total), warnings: built.issues, replayed: false };
   if (input.post) response = { ...response, ...(await postVendorCredit(client, context, creditId)), creditNumber: number, total: dec(created.bill.grand_total) };
   await completeIdempotentOperation(client, context, idempotency, { response, aggregateType: "vendor_bill", aggregateId: creditId });
@@ -385,7 +385,7 @@ export async function createCreditFromPurchaseReturn(client, context, returnId, 
   const ret = (await client.query(`SELECT id, return_number, supplier_id, document_status FROM tenant.purchase_returns WHERE organization_id = $1 AND id = $2`,
     [context.organizationId, requireUuid(returnId, "Purchase return")])).rows[0];
   if (!ret) throw new VendorCreditError(404, "Purchase return not found.", "PURCHASE_RETURN_NOT_FOUND");
-  if (ret.document_status !== "posted") throw new VendorCreditError(409, `${ret.return_number} is not posted: only goods that actually went back are credited.`, "VENDOR_CREDIT_RETURN_NOT_POSTED");
+  if (ret.document_status !== "posted") throw new VendorCreditError(409, `${ret.return_number} is not final: only goods that actually went back are credited.`, "VENDOR_CREDIT_RETURN_NOT_POSTED");
   let lines = input.lines;
   if (!Array.isArray(lines) || !lines.length) {
     const returnLines = (await client.query(`SELECT id FROM tenant.purchase_return_lines WHERE organization_id = $1 AND purchase_return_id = $2 ORDER BY line_number`, [context.organizationId, ret.id])).rows;
@@ -424,7 +424,7 @@ export async function createCreditFromAcceptedClaim(client, context, claimId, in
         : { basis: "amount", amount: dec(factor(line.amount)), taxAmount: dec(factor(line.tax_amount)) }),
     })).filter((line) => line.basis === "quantity" || decimal(line.amount) > 0n);
   }
-  return createVendorCredit(client, context, { reason: `Debit claim ${claim.claim_number} accepted by the supplier`, ...input, origin: "accepted_claim", supplierId: claim.supplier_id,
+  return createVendorCredit(client, context, { reason: `Debit note ${claim.claim_number} accepted by the supplier`, ...input, origin: "accepted_claim", supplierId: claim.supplier_id,
     debitClaimId: claim.id, currencyCode: claim.currency_code.trim(), lines });
 }
 
@@ -432,7 +432,7 @@ export async function createCreditFromAcceptedClaim(client, context, claimId, in
 export async function updateDraftVendorCredit(client, context, creditId, input = {}) {
   requirePrepare(context);
   const current = await loadCredit(client, context, creditId, { lock: true });
-  if (current.status !== "draft") throw new VendorCreditError(409, "Only a draft vendor credit can be changed.", "VENDOR_CREDIT_LOCKED");
+  if (current.status !== "draft") throw new VendorCreditError(409, "Only a draft supplier credit note can be changed.", "VENDOR_CREDIT_LOCKED");
   const stored = await storedInput(client, context, current);
   const built = await buildVendorCredit(client, context, { ...stored, ...input, supplierId: current.supplier_id }, { current });
   await finance(() => updateDraftVendorBill(client, drafting(context), current.id, built.header));
@@ -504,13 +504,13 @@ export const calculateVendorCreditTaxes = calculateVendorCreditTotals;
 
 async function afterPosting(client, context, credit) {
   await refreshClaimResolution(client, context, credit.debit_claim_id);
-  if (credit.debit_claim_id) await recordClaimEvent(client, context, credit.debit_claim_id, "claim.credit_posted", `Vendor credit ${credit.bill_number} posted (${dec(credit.grand_total)})`);
+  if (credit.debit_claim_id) await recordClaimEvent(client, context, credit.debit_claim_id, "claim.credit_posted", `Supplier credit note ${credit.bill_number} final (${dec(credit.grand_total)})`);
   const returns = (await client.query(`SELECT DISTINCT purchase_return_id FROM tenant.purchase_return_financial_allocations WHERE organization_id = $1 AND debit_note_id = $2`,
     [context.organizationId, credit.id])).rows;
   for (const row of returns)
-    await recordReturnEvent(client, context, row.purchase_return_id, "purchase_return.credit_posted", `Vendor credit ${credit.bill_number} posted for the billed goods returned`, { creditId: credit.id });
+    await recordReturnEvent(client, context, row.purchase_return_id, "purchase_return.credit_posted", `Supplier credit note ${credit.bill_number} finalised for the billed goods returned`, { creditId: credit.id });
   if (credit.source_purchase_order_id)
-    await recordPoEvent(client, context, credit.source_purchase_order_id, "purchase_order.vendor_credit", `Vendor credit ${credit.bill_number} posted: ${credit.debit_note_reason ?? ""}`.trim(),
+    await recordPoEvent(client, context, credit.source_purchase_order_id, "purchase_order.vendor_credit", `Supplier credit note ${credit.bill_number} final: ${credit.debit_note_reason ?? ""}`.trim(),
       { details: { creditId: credit.id } });
 }
 
@@ -524,7 +524,7 @@ async function postApproved(client, context, credit) {
 
 // postVendorCredit: Accounts Payable posts the credit through Finance (or submits it for approval). It is never applied to a bill by itself.
 export async function postVendorCredit(client, context, creditId) {
-  requireAny(context, [VC_PERMISSIONS.payablesManage], "You do not have permission to post vendor credits.");
+  requireAny(context, [VC_PERMISSIONS.payablesManage], "You do not have permission to finalise supplier credit notes.");
   const credit = await loadCredit(client, context, creditId, { lock: true });
   if (POSTED_STATUSES.includes(credit.status)) return { id: credit.id, status: "posted", replayed: true };
   if (credit.status === "pending_approval") return { id: credit.id, status: "awaiting_approval", replayed: true };
@@ -538,7 +538,7 @@ export async function postVendorCredit(client, context, creditId) {
 
 // approveVendorCredit: Finance's approver approves a credit awaiting approval, and it is posted.
 export async function approveVendorCredit(client, context, creditId) {
-  requireAny(context, [VC_PERMISSIONS.payablesApprove], "You do not have permission to approve vendor credits.");
+  requireAny(context, [VC_PERMISSIONS.payablesApprove], "You do not have permission to approve supplier credit notes.");
   const credit = await loadCredit(client, context, creditId, { lock: true });
   if (credit.status !== "pending_approval") throw new VendorCreditError(409, "The credit is not awaiting approval.", "VENDOR_CREDIT_NOT_PENDING");
   await finance(() => approveSubledgerDocument(client, fin(context), "vendor_bill", credit.id, credit.content_hash));
@@ -551,22 +551,22 @@ export async function cancelDraftVendorCredit(client, context, creditId, input =
   const credit = await loadCredit(client, context, creditId, { lock: true });
   if (credit.status === "cancelled") return { id: credit.id, status: "cancelled", replayed: true };
   await finance(() => cancelDraftVendorBill(client, drafting(context), credit.id, { reason: input.reason }));
-  if (credit.debit_claim_id) await recordClaimEvent(client, context, credit.debit_claim_id, "claim.credit_cancelled", `Draft vendor credit ${credit.bill_number} cancelled`);
+  if (credit.debit_claim_id) await recordClaimEvent(client, context, credit.debit_claim_id, "claim.credit_cancelled", `Draft supplier credit note ${credit.bill_number} cancelled`);
   return { id: credit.id, status: "cancelled", replayed: false };
 }
 
 // reverseVendorCredit: a posted credit entered in error — never while a supplier refund stands; its applications are taken off the bills first.
 // Its bills, returns and claim may be credited again. input: { reason }
 export async function reverseVendorCredit(client, context, creditId, input = {}) {
-  requireAny(context, [VC_PERMISSIONS.payablesApprove], "You do not have permission to reverse vendor credits.");
+  requireAny(context, [VC_PERMISSIONS.payablesApprove], "You do not have permission to cancel supplier credit notes.");
   const credit = await loadCredit(client, context, creditId, { lock: true });
   if (credit.status === "reversed") return { id: credit.id, status: "reversed", replayed: true };
   const reason = text(input.reason, 1000);
   if (!reason || reason.length < 3) fail("Give the reason for the reversal.", "reason", "VENDOR_CREDIT_REASON_REQUIRED");
   const result = await finance(() => reverseVendorCreditNote(client, fin(context), credit.id, { reason }));
   await refreshClaimResolution(client, context, credit.debit_claim_id);
-  if (credit.debit_claim_id) await recordClaimEvent(client, context, credit.debit_claim_id, "claim.credit_reversed", `Vendor credit ${credit.bill_number} reversed: ${reason}`);
+  if (credit.debit_claim_id) await recordClaimEvent(client, context, credit.debit_claim_id, "claim.credit_reversed", `Supplier credit note ${credit.bill_number} cancelled: ${reason}`);
   if (credit.source_purchase_order_id)
-    await recordPoEvent(client, context, credit.source_purchase_order_id, "purchase_order.vendor_credit_reversed", `Vendor credit ${credit.bill_number} reversed: ${reason}`, { details: { creditId: credit.id } });
+    await recordPoEvent(client, context, credit.source_purchase_order_id, "purchase_order.vendor_credit_reversed", `Supplier credit note ${credit.bill_number} cancelled: ${reason}`, { details: { creditId: credit.id } });
   return { id: credit.id, status: "reversed", unapplied: result.unapplied, replayed: false };
 }

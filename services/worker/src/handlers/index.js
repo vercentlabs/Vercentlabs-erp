@@ -16,6 +16,7 @@ import { notifyOverdueProductionHoldsHandler, JOB_TYPE as HOLD_OVERDUE_JOB_TYPE,
 import { notifyProjectAlertsHandler, JOB_TYPE as PROJECT_ALERTS_JOB_TYPE, payloadSchema as projectAlertsPayloadSchema } from "./projects-alerts.js";
 import { noteExpiredQuotationsHandler, JOB_TYPE as QUOTATION_EXPIRY_JOB_TYPE, payloadSchema as quotationExpiryPayloadSchema } from "./sales-quotation-expiry.js";
 import { paymentRemindersHandler, JOB_TYPE as PAYMENT_REMINDERS_JOB_TYPE, payloadSchema as paymentRemindersPayloadSchema } from "./sales-payment-reminders.js";
+import { receiptRemindersHandler, JOB_TYPE as RECEIPT_REMINDERS_JOB_TYPE, payloadSchema as receiptRemindersPayloadSchema } from "./procurement-receipt-reminders.js";
 import { recurringHandler, JOB_TYPE as RECURRING_JOB_TYPE, payloadSchema as recurringPayloadSchema } from "./sales-recurring.js";
 import { openNextFiscalYearHandler, JOB_TYPE as FISCAL_YEAR_AHEAD_JOB_TYPE, payloadSchema as fiscalYearAheadPayloadSchema } from "./platform-fiscal-year-ahead.js";
 import { leadScoringHistoryHandler, JOB_TYPE as LEAD_SCORING_HISTORY_JOB_TYPE, payloadSchema as leadScoringHistoryPayloadSchema } from "./crm-lead-scoring-history.js";
@@ -202,6 +203,13 @@ export function registerBuiltinHandlers() {
     handler: paymentRemindersHandler,
     backoff: internalJobBackoff,
     idempotency: "NATURALLY_IDEMPOTENT", // the reminder log stamps each rule and invoice once
+    maxAttempts: 3,
+  });
+  registerJobHandler(RECEIPT_REMINDERS_JOB_TYPE, {
+    schema: receiptRemindersPayloadSchema,
+    handler: receiptRemindersHandler,
+    backoff: internalJobBackoff,
+    idempotency: "NATURALLY_IDEMPOTENT", // the reminder log stamps each order once per kind
     maxAttempts: 3,
   });
   registerJobHandler(RECURRING_JOB_TYPE, {

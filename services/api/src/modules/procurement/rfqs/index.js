@@ -5,6 +5,7 @@
 //
 //   draft → sent → awarded          cancelled before award; closed when nothing will be bought
 // RFQs are optional per company (Procurement Setup › Use RFQs).
+import { purchaseWarningsFor } from "../warnings.js";
 import { add, decimal, div, formatDecimal, mul, roundMoney, sub } from "../../../core/decimal.js";
 import { nextDocumentNumber } from "../../../core/platform/numbering/index.js";
 import { loadTaxContext, resolveLineTax } from "../../../core/tax/index.js";
@@ -17,6 +18,7 @@ import { insertOrder, recordPoEvent } from "../purchase-orders/persist.js";
 import { createSupplierQuotation } from "../purchase-orders/quotations.js";
 import { listIndentLinesToOrder } from "../indents/index.js";
 import { databaseToday } from "../org-day.js";
+import { oneOffOrderLine, oneOffView, readOneOffLine } from "../purchase-orders/one-off-lines.js";
 import { pagedList } from "../paging.js";
 
 export const RFQ_STATUS_LABELS = Object.freeze({ draft: "Draft", sent: "Sent", awarded: "Awarded", closed: "Closed", cancelled: "Cancelled" });
@@ -49,8 +51,8 @@ export async function listPurchaseRfqs(client, context, filters = {}) {
       OR EXISTS (SELECT 1 FROM tenant.purchase_rfq_suppliers invited JOIN tenant.procurement_suppliers supplier ON supplier.organization_id = invited.organization_id AND supplier.id = invited.supplier_id
                    JOIN tenant.business_parties party ON party.organization_id = supplier.organization_id AND party.id = supplier.party_id
                   WHERE invited.organization_id = rfq.organization_id AND invited.rfq_id = rfq.id AND party.display_name ILIKE ${term})
-      OR EXISTS (SELECT 1 FROM tenant.purchase_rfq_lines line JOIN tenant.items item ON item.organization_id = line.organization_id AND item.id = line.item_id
-                  WHERE line.organization_id = rfq.organization_id AND line.rfq_id = rfq.id AND (item.name ILIKE ${term} OR item.code ILIKE ${term})))`;
+      OR EXISTS (SELECT 1 FROM tenant.purchase_rfq_lines line LEFT JOIN tenant.items item ON item.organization_id = line.organization_id AND item.id = line.item_id
+                  WHERE line.organization_id = rfq.organization_id AND line.rfq_id = rfq.id AND (item.name ILIKE ${term} OR item.code ILIKE ${term} OR line.description ILIKE ${term})))`;
   }
   return pagedList(client,
     `SELECT rfq.id, rfq.rfq_number, rfq.status, rfq.title, rfq.response_due_date, rfq.created_at, rfq.sent_at,
@@ -74,14 +76,14 @@ async function loadRfq(client, context, rfqId, { lock = false } = {}) {
 export async function getPurchaseRfq(client, context, rfqId) {
   const row = await loadRfq(client, context, rfqId);
   const lines = (await client.query(
-    `SELECT line.*, item.code AS item_code, item.name AS item_name, uom.code AS uom_code, indent.indent_number, indent.id AS indent_id
-       FROM tenant.purchase_rfq_lines line JOIN tenant.items item ON item.organization_id = line.organization_id AND item.id = line.item_id
+    `SELECT line.*, item.code AS item_code, COALESCE(item.name, line.description) AS item_name, uom.code AS uom_code, indent.indent_number, indent.id AS indent_id
+       FROM tenant.purchase_rfq_lines line LEFT JOIN tenant.items item ON item.organization_id = line.organization_id AND item.id = line.item_id
        LEFT JOIN tenant.units_of_measure uom ON uom.organization_id = line.organization_id AND uom.id = line.uom_id
        LEFT JOIN tenant.purchase_indent_lines indent_line ON indent_line.organization_id = line.organization_id AND indent_line.id = line.indent_line_id
        LEFT JOIN tenant.purchase_indents indent ON indent.organization_id = indent_line.organization_id AND indent.id = indent_line.indent_id
       WHERE line.organization_id = $1 AND line.rfq_id = $2 ORDER BY line.line_number`, [context.organizationId, row.id])).rows;
   const suppliers = (await client.query(
-    `SELECT invited.*, party.display_name AS supplier_name, supplier.supplier_number, supplier.msme_classification, party.gstin,
+    `SELECT invited.*, party.display_name AS supplier_name, supplier.supplier_number, supplier.msme_classification, party.gstin, party.tax_treatment,
             (SELECT json_build_object('id', quotation.id, 'number', quotation.quotation_number, 'status', quotation.status, 'convertedPurchaseOrderId', quotation.converted_purchase_order_id)
                FROM tenant.supplier_quotations quotation WHERE quotation.organization_id = invited.organization_id AND quotation.rfq_id = invited.rfq_id
                 AND quotation.supplier_id = invited.supplier_id AND quotation.status <> 'cancelled' ORDER BY quotation.created_at DESC LIMIT 1) AS quotation,
@@ -106,8 +108,8 @@ export async function getPurchaseRfq(client, context, rfqId) {
       currencyCode: row.currency_code?.trim(), warehouseId: row.warehouse_id, notes: row.notes, sentAt: row.sent_at, awardedAt: row.awarded_at, createdAt: row.created_at },
     lines: lines.map((line) => ({ id: line.id, lineNumber: line.line_number, productId: line.item_id, productCode: line.item_code, productName: line.item_name, description: line.description,
       quantity: dec(line.quantity), uomId: line.uom_id, uomCode: line.uom_code, requiredBy: dayOf(line.required_by), indentLineId: line.indent_line_id, indentId: line.indent_id,
-      indentNumber: line.indent_number, awardedQuotationLineId: line.awarded_quotation_line_id })),
-    suppliers: suppliers.map((entry) => ({ id: entry.id, supplierId: entry.supplier_id, supplierName: entry.supplier_name, supplierNumber: entry.supplier_number, gstin: entry.gstin,
+      indentNumber: line.indent_number, awardedQuotationLineId: line.awarded_quotation_line_id, ...oneOffView(line) })),
+    suppliers: suppliers.map((entry) => ({ id: entry.id, supplierId: entry.supplier_id, supplierName: entry.supplier_name, supplierNumber: entry.supplier_number, gstin: entry.gstin, taxTreatment: entry.tax_treatment,
       msme: ["micro", "small"].includes(entry.msme_classification), email: entry.email, phone: entry.phone, status: entry.quotation ? "responded" : entry.status, sentAt: entry.sent_at,
       declinedReason: entry.declined_reason, quotation: entry.quotation })),
     orders: orders.map((order) => ({ id: order.id, number: order.purchase_order_number, status: order.status, href: `/procurement/purchase-orders/${order.id}` })),
@@ -126,16 +128,25 @@ async function readRfqInput(client, context, input, current = null) {
   let lines = null;
   if (Array.isArray(input.indentLineIds) && input.indentLineIds.length) {
     // From approved indent lines: what each still has to order.
-    const open = new Map((await listIndentLinesToOrder(client, context, {})).map((line) => [line.id, line]));
+    const open = new Map((await listIndentLinesToOrder(client, context, { ids: input.indentLineIds })).map((line) => [line.id, line]));
     lines = input.indentLineIds.map((id, index) => {
       const line = open.get(id);
       if (!line) fail(`Line ${index + 1}: the indent line is not approved or has nothing left to order.`, "indentLineIds", "PURCHASE_INDENT_LINE_INVALID", 409);
-      return { itemId: line.productId, quantity: line.remaining, uomId: line.uomId, requiredBy: line.requiredBy, indentLineId: line.id, description: null };
+      return { itemId: line.productId, quantity: line.remaining, uomId: line.uomId, requiredBy: line.requiredBy, indentLineId: line.id, description: line.oneOff ? line.description : null,
+        ...(line.oneOff ? { oneOffType: line.oneOffType, expenseAccountId: line.expenseAccountId, taxCategoryId: line.taxCategoryId, noTax: line.noTax } : {}) };
     });
   } else if (Array.isArray(input.lines)) {
     lines = [];
     for (const [index, line] of input.lines.entries()) {
       const label = `Line ${index + 1}`;
+      if (!line.productId && !line.itemId) {
+        // Outside the catalogue: described, with a unit.
+        const quantity = String(line.quantity ?? "").trim();
+        if (!/^\d+(\.\d{1,6})?$/.test(quantity) || decimal(quantity) <= 0n) fail(`${label}: the quantity must be more than zero.`, "quantity");
+        lines.push({ ...(await readOneOffLine(client, context.organizationId, line, label)), quantity, requiredBy: readDate(line.requiredBy, `${label} required by`),
+          indentLineId: optionalUuid(line.indentLineId, `${label} indent line`) });
+        continue;
+      }
       const itemId = requireUuid(line.productId ?? line.itemId, `${label} item`);
       const item = (await client.query(`SELECT id, uom_id, purchase_uom_id, status FROM tenant.items WHERE organization_id = $1 AND id = $2`, [context.organizationId, itemId])).rows[0];
       if (!item || item.status !== "active") fail(`${label}: choose an active item.`, "productId", "PURCHASE_RFQ_ITEM_INVALID", 409);
@@ -149,6 +160,7 @@ async function readRfqInput(client, context, input, current = null) {
     }
   }
   if (!current && (!lines || !lines.length)) fail("Add at least one item to ask prices for.", "lines", "PURCHASE_RFQ_NO_LINES");
+  if (lines) await purchaseWarningsFor(client, context.organizationId, { lines: lines.map((line, index) => ({ itemId: line.itemId, label: `Line ${index + 1}` })) });
   let supplierIds = null;
   if (Array.isArray(input.supplierIds)) {
     supplierIds = [...new Set(input.supplierIds.map((id) => requireUuid(id, "Supplier")))];
@@ -163,8 +175,10 @@ async function writeRfqParts(client, context, rfqId, data) {
     await client.query(`DELETE FROM tenant.purchase_rfq_lines WHERE organization_id = $1 AND rfq_id = $2`, [context.organizationId, rfqId]);
     for (const [index, line] of data.lines.entries())
       await client.query(
-        `INSERT INTO tenant.purchase_rfq_lines (organization_id, rfq_id, line_number, item_id, description, quantity, uom_id, required_by, indent_line_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
-        [context.organizationId, rfqId, index + 1, line.itemId, line.description, line.quantity, line.uomId, line.requiredBy, line.indentLineId]);
+        `INSERT INTO tenant.purchase_rfq_lines (organization_id, rfq_id, line_number, item_id, description, quantity, uom_id, required_by, indent_line_id, one_off_type, expense_account_id,
+           tax_category_id, one_off_no_tax) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
+        [context.organizationId, rfqId, index + 1, line.itemId, line.description, line.quantity, line.uomId, line.requiredBy, line.indentLineId, line.oneOffType ?? null,
+          line.expenseAccountId ?? null, line.taxCategoryId ?? null, Boolean(line.noTax)]);
   }
   if (data.supplierIds) {
     await client.query(`DELETE FROM tenant.purchase_rfq_suppliers WHERE organization_id = $1 AND rfq_id = $2 AND NOT (supplier_id = ANY($3::uuid[]))`, [context.organizationId, rfqId, data.supplierIds]);
@@ -235,7 +249,9 @@ export async function recordRfqQuotation(client, context, rfqId, input = {}) {
   const lines = asked.map((line, index) => {
     const rfqLine = rfqLines.get(line.rfqLineId);
     if (!rfqLine) fail(`Line ${index + 1}: not a line of this RFQ.`, "lines", "PURCHASE_RFQ_LINE_INVALID");
-    return { productId: rfqLine.item_id, quantity: line.quantity ? String(line.quantity) : formatDecimal(rfqLine.quantity), uomId: rfqLine.uom_id, unitPrice: String(line.unitPrice),
+    return { productId: rfqLine.item_id ?? undefined, description: rfqLine.item_id ? undefined : rfqLine.description, oneOffType: rfqLine.one_off_type ?? undefined,
+      expenseAccountId: rfqLine.expense_account_id ?? undefined, noTax: rfqLine.one_off_no_tax || undefined,
+      quantity: line.quantity ? String(line.quantity) : formatDecimal(rfqLine.quantity), uomId: rfqLine.uom_id, unitPrice: String(line.unitPrice),
       discountType: line.discountType, discountValue: line.discountValue, taxCategoryId: line.taxCategoryId, rfqLineId: rfqLine.id };
   });
   const made = await createSupplierQuotation(client, context, { ...input, supplierId, rfqReference: current.rfq_number, currencyCode: input.currencyCode ?? current.currency_code?.trim(), lines },
@@ -254,8 +270,10 @@ export async function declineRfqSupplier(client, context, rfqId, input = {}) {
 }
 
 // The comparison (Procurement plan Phase 2): per RFQ line, every supplier's answer — rate, discount, net rate, GST %, its share of the
-// quotation's freight (by line value), the landed rate per unit (net + freight + GST), lead time, payment terms — the last price paid for
-// the item and the MSME flag; the lowest landed rate is marked. Per supplier: the total landed value of what they quoted.
+// quotation's freight (by line value), the landed rate per unit, lead time, payment terms — the last price paid for the item and the MSME
+// flag. The landed rate is what the goods really cost: net + freight + only the GST that cannot be claimed back (all of it when we are not
+// a regular GST registration; none from a composition or unregistered supplier, who charges none). The lowest landed rate among quotes
+// still valid is marked; expired quotes are shown but never lowest. Per supplier: the total landed value of what they quoted.
 export async function getRfqComparison(client, context, rfqId) {
   const detail = await getPurchaseRfq(client, context, rfqId);
   const organizationId = context.organizationId;
@@ -264,7 +282,7 @@ export async function getRfqComparison(client, context, rfqId) {
        LEFT JOIN tenant.payment_terms term ON term.organization_id = quotation.organization_id AND term.id = quotation.payment_term_id
       WHERE quotation.organization_id = $1 AND quotation.rfq_id = $2 AND quotation.status <> 'cancelled'`, [organizationId, detail.rfq.id])).rows;
   const quoteLines = quotations.length ? (await client.query(
-    `SELECT line.*, item.tax_category_id AS item_tax_category_id FROM tenant.supplier_quotation_lines line JOIN tenant.items item ON item.organization_id = line.organization_id AND item.id = line.item_id
+    `SELECT line.*, item.tax_category_id AS item_tax_category_id FROM tenant.supplier_quotation_lines line LEFT JOIN tenant.items item ON item.organization_id = line.organization_id AND item.id = line.item_id
       WHERE line.organization_id = $1 AND line.supplier_quotation_id = ANY($2::uuid[])`, [organizationId, quotations.map((quotation) => quotation.id)])).rows : [];
   // GST % per tax category (the total rate; the CGST/SGST or IGST split does not change it).
   const tax = await loadTaxContext(client, { organizationId, purchase: true }).catch(() => null);
@@ -292,8 +310,10 @@ export async function getRfqComparison(client, context, rfqId) {
        FROM tenant.purchase_order_lines po_line JOIN tenant.purchase_orders po ON po.organization_id = po_line.organization_id AND po.id = po_line.purchase_order_id
        JOIN tenant.business_parties party ON party.organization_id = po.organization_id AND party.id = po.party_id
       WHERE po_line.organization_id = $1 AND po_line.product_id = ANY($2::uuid[]) AND po.status IN ('confirmed', 'closed')
-      ORDER BY po_line.product_id, po.order_date DESC, po.created_at DESC`, [organizationId, detail.lines.map((line) => line.productId)])).rows.map((row) => [row.product_id, row]));
+      ORDER BY po_line.product_id, po.order_date DESC, po.created_at DESC`, [organizationId, detail.lines.map((line) => line.productId).filter(Boolean)])).rows.map((row) => [row.product_id, row]));
   const supplierOf = new Map(detail.suppliers.map((entry) => [entry.supplierId, entry]));
+  const weClaim = Boolean(tax?.registration) && (tax.registration.registrationType ?? "regular") === "regular";
+  const chargesGst = (supplier) => !["registered_composition", "unregistered"].includes(supplier?.taxTreatment ?? "registered_regular");
   const totals = new Map();
   const lines = [];
   for (const rfqLine of detail.lines) {
@@ -304,22 +324,23 @@ export async function getRfqComparison(client, context, rfqId) {
       const quantity = decimal(line.quantity);
       const net = netOf(line);
       const share = decimal(quotation.freight_amount ?? 0) > 0n && (quotedNet.get(quotation.id) ?? 0n) > 0n ? div(mul(decimal(quotation.freight_amount), net), quotedNet.get(quotation.id)) : 0n;
-      const rate = await rateOf(line.tax_category_id ?? line.item_tax_category_id);
-      const gst = div(mul(add(net, share), rate), decimal(100));
-      const landed = add(add(net, share), gst);
-      const perUnit = quantity > 0n ? div(landed, quantity) : 0n;
       const supplier = supplierOf.get(quotation.supplier_id);
+      const charged = chargesGst(supplier);
+      const rate = charged ? await rateOf(line.tax_category_id ?? line.item_tax_category_id ?? rfqLine.taxCategoryId) : 0n;
+      const gst = div(mul(add(net, share), rate), decimal(100));
+      const landed = add(add(net, share), weClaim ? 0n : gst);
+      const perUnit = quantity > 0n ? div(landed, quantity) : 0n;
       totals.set(quotation.id, add(totals.get(quotation.id) ?? 0n, landed));
       offers.push({
         quotationId: quotation.id, quotationNumber: quotation.quotation_number, quotationLineId: line.id, supplierId: quotation.supplier_id, supplierName: supplier?.supplierName ?? null,
         msme: Boolean(supplier?.msme), quantity: dec(quantity), unitPrice: dec(line.unit_price), discountType: line.discount_type, discountValue: dec(line.discount_value),
-        netRate: dec(quantity > 0n ? roundMoney(div(net, quantity), 4) : 0n), gstRate: dec(rate), freightPerUnit: dec(quantity > 0n ? roundMoney(div(share, quantity), 4) : 0n),
+        netRate: dec(quantity > 0n ? roundMoney(div(net, quantity), 4) : 0n), gstRate: dec(rate), gstClaimable: charged && weClaim, freightPerUnit: dec(quantity > 0n ? roundMoney(div(share, quantity), 4) : 0n),
         landedRate: dec(roundMoney(perUnit, 4)), landedValue: dec(roundMoney(landed, 2)), leadDays: quotation.delivery_lead_days, paymentTerms: quotation.payment_term_name,
         validUntil: dayOf(quotation.valid_until), expired: Boolean(quotation.valid_until && dayOf(quotation.valid_until) < today), awarded: rfqLine.awardedQuotationLineId === line.id,
       });
     }
-    const best = offers.reduce((lowest, offer) => (lowest === null || decimal(offer.landedRate) < decimal(lowest.landedRate) ? offer : lowest), null);
-    const last = lastPrices.get(rfqLine.productId);
+    const best = offers.filter((offer) => !offer.expired).reduce((lowest, offer) => (lowest === null || decimal(offer.landedRate) < decimal(lowest.landedRate) ? offer : lowest), null);
+    const last = rfqLine.productId ? lastPrices.get(rfqLine.productId) : null;
     lines.push({ ...rfqLine, offers: offers.map((offer) => ({ ...offer, lowest: best?.quotationLineId === offer.quotationLineId })),
       lastPrice: last ? { unitPrice: dec(last.unit_price), date: dayOf(last.order_date), supplierName: last.supplier_name } : null });
   }
@@ -339,11 +360,13 @@ export async function getRfqComparison(client, context, rfqId) {
 export async function awardPurchaseRfq(client, context, rfqId, input = {}) {
   requirePoPermission(context, PO_PERMISSIONS.create, "You do not have permission to award RFQs.");
   const current = await loadRfq(client, context, rfqId, { lock: true });
-  if (current.status !== "sent") throw new PurchaseOrderError(409, current.status === "awarded" ? "This RFQ is already awarded." : "Award an RFQ once suppliers have answered.", "PURCHASE_RFQ_LOCKED");
+  if (current.status !== "sent") throw new PurchaseOrderError(409, current.status === "awarded" ? "Every line of this RFQ is already awarded." : "Award an RFQ once suppliers have answered.", "PURCHASE_RFQ_LOCKED");
   const comparison = await getRfqComparison(client, context, current.id);
   let awards = [];
   if (isUuid(input.quotationId)) {
+    // The whole quotation: every line it quoted that is not awarded yet.
     for (const line of comparison.lines) {
+      if (line.awardedQuotationLineId) continue;
       const offer = line.offers.find((candidate) => candidate.quotationId === input.quotationId);
       if (offer) awards.push({ line, offer });
     }
@@ -353,10 +376,25 @@ export async function awardPurchaseRfq(client, context, rfqId, input = {}) {
       const offer = line?.offers.find((candidate) => candidate.quotationLineId === entry.quotationLineId);
       if (!line || !offer) fail("An award names a line or a price that is not on this RFQ.", "awards", "PURCHASE_RFQ_AWARD_INVALID");
       if (awards.some((award) => award.line.id === line.id)) fail(`${line.productName} is awarded twice.`, "awards", "PURCHASE_RFQ_AWARD_INVALID");
+      if (line.awardedQuotationLineId) fail(`${line.productName} is already awarded.`, "awards", "PURCHASE_RFQ_AWARD_INVALID", 409);
       awards.push({ line, offer });
     }
   }
   if (!awards.length) fail("Choose who wins each line, or the whole RFQ.", "awards", "PURCHASE_RFQ_AWARD_INVALID");
+  // An expired quote's price no longer holds: ask the supplier again.
+  const expired = awards.filter((award) => award.offer.expired);
+  if (expired.length) fail(`The quote for ${expired.map((award) => award.line.productName).join(", ")} has expired: ask the supplier to confirm a new price.`, "awards", "PURCHASE_RFQ_QUOTE_EXPIRED", 409);
+  // What the requests still need, now: another order may have taken some since the RFQ went out. Each line orders at most that.
+  const indentLineIds = awards.map((award) => award.line.indentLineId).filter(Boolean);
+  if (indentLineIds.length) {
+    const open = new Map((await listIndentLinesToOrder(client, context, { ids: indentLineIds })).map((line) => [line.id, line]));
+    for (const award of awards) {
+      if (!award.line.indentLineId) continue;
+      const need = open.get(award.line.indentLineId);
+      if (!need) fail(`${award.line.productName}: the purchase request has nothing left to order.`, "awards", "PURCHASE_INDENT_OVER_ORDER", 409);
+      if (decimal(award.line.quantity) > decimal(need.remaining)) award.line = { ...award.line, quantity: need.remaining };
+    }
+  }
   const notLowest = awards.filter((award) => !award.offer.lowest);
   const reason = text(input.reason, 1000);
   if (notLowest.length && !reason) fail(`Give the reason for not choosing the lowest landed rate (${notLowest.map((award) => award.line.productName).join(", ")}).`, "reason", "PURCHASE_RFQ_REASON_REQUIRED");
@@ -380,6 +418,11 @@ export async function awardPurchaseRfq(client, context, rfqId, input = {}) {
       internalNotes: `Awarded on ${current.rfq_number}${notLowest.some((award) => award.offer.quotationId === quotationId) && reason ? ` — not the lowest landed rate: ${reason}` : ""}`,
       lines: group.map(({ line }) => {
         const quoted = quoteLines.get(group.find((award) => award.line.id === line.id).offer.quotationLineId);
+        if (line.oneOff) {
+          return { ...oneOffOrderLine(line, input.accounts?.[line.id], line.productName), quantity: line.quantity, unitPrice: formatDecimal(quoted.unit_price), discountType: quoted.discount_type,
+            discountValue: formatDecimal(quoted.discount_value), priceSource: "quotation", sourceQuotationLineId: quoted.id, sourceIndentLineId: line.indentLineId ?? undefined,
+            expectedDeliveryDate: line.requiredBy ?? undefined };
+        }
         return {
           productId: line.productId, quantity: line.quantity, uomId: line.uomId ?? quoted.uom_id, unitPrice: formatDecimal(quoted.unit_price), discountType: quoted.discount_type,
           discountValue: formatDecimal(quoted.discount_value), priceSource: "quotation", sourceQuotationLineId: quoted.id, sourceIndentLineId: line.indentLineId ?? undefined,
@@ -398,9 +441,13 @@ export async function awardPurchaseRfq(client, context, rfqId, input = {}) {
       await client.query(`UPDATE tenant.purchase_rfq_lines SET awarded_quotation_line_id = $3 WHERE organization_id = $1 AND id = $2`, [context.organizationId, award.line.id, award.offer.quotationLineId]);
     orders.push({ id: order.id, purchaseOrderNumber: order.purchase_order_number, supplierId: quotation.supplier_id, lines: group.length });
   }
-  await client.query(`UPDATE tenant.purchase_rfqs SET status = 'awarded', awarded_at = now(), awarded_by = $3, updated_by = $3, updated_at = now() WHERE organization_id = $1 AND id = $2`,
-    [context.organizationId, current.id, context.userId ?? null]);
-  return { id: current.id, status: "awarded", orders };
+  // Awarded when every line is; until then it stays open for the other lines.
+  const left = Number((await client.query(`SELECT count(*)::int AS left FROM tenant.purchase_rfq_lines WHERE organization_id = $1 AND rfq_id = $2 AND awarded_quotation_line_id IS NULL`,
+    [context.organizationId, current.id])).rows[0].left);
+  const status = left === 0 ? "awarded" : "sent";
+  await client.query(`UPDATE tenant.purchase_rfqs SET status = $4, awarded_at = now(), awarded_by = $3, updated_by = $3, updated_at = now() WHERE organization_id = $1 AND id = $2`,
+    [context.organizationId, current.id, context.userId ?? null, status]);
+  return { id: current.id, status, linesLeft: left, orders };
 }
 
 async function finish(client, context, rfqId, status) {

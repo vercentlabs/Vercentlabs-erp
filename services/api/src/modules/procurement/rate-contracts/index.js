@@ -3,8 +3,15 @@
 // the contract line it draws from; what each line has drawn is read from those order lines (orders not cancelled), never stored twice.
 // Items on an active contract need no RFQ. Contracts ending within 30 days show on the overview.
 //
-//   draft → active → (expired, by date)        cancelled at any time before it ends
-import { decimal, formatDecimal, roundMoney, sub } from "../../../core/decimal.js";
+//   draft → active → (expired, by date)        cancelled at any time before it ends, with a reason
+//
+// Activating follows the company's approval rules for rate contracts (Settings › Approval rules), on the contract's value (each line's
+// value cap, else rate × quantity cap): until every level approved this exact content, Activate asks for the next approval and the contract
+// stays a draft. Every step is kept in the contract's history.
+import { oneOffView, readOneOffLine } from "../purchase-orders/one-off-lines.js";
+import { createHash } from "node:crypto";
+import { add, decimal, formatDecimal, mul, roundMoney, sub } from "../../../core/decimal.js";
+import { requireRuleApprovals } from "../../../core/platform/approvals/index.js";
 import { nextDocumentNumber } from "../../../core/platform/numbering/index.js";
 import { normalizeQuantityToBase } from "../../products/uom.js";
 import { assertSupplierUsable } from "../suppliers/defaults.js";
@@ -19,6 +26,22 @@ export const PURCHASE_RATE_CONTRACT_VIEWS = Object.freeze([
 ]);
 const dec = (value) => (value === null || value === undefined ? null : formatDecimal(value));
 const today = (client, context) => databaseToday(client, context.organizationId);
+export const RATE_CONTRACT_APPROVAL = "procurement.rate_contract";
+
+async function recordContractEvent(client, context, contractId, eventType, summary, details = {}) {
+  await client.query(`INSERT INTO tenant.purchase_rate_contract_events (organization_id, contract_id, event_type, summary, details, actor_user_id) VALUES ($1, $2, $3, $4, $5::jsonb, $6)`,
+    [context.organizationId, contractId, eventType, summary, JSON.stringify(details), context.userId ?? null]);
+}
+
+// What an approval is for (supplier, period, currency and every line), and the value the approval rules look at.
+export async function rateContractApprovalContent(client, organizationId, contract) {
+  const lines = (await client.query(`SELECT item_id, uom_id, rate, max_quantity, max_value FROM tenant.purchase_rate_contract_lines WHERE organization_id = $1 AND contract_id = $2 ORDER BY line_number`,
+    [organizationId, contract.id])).rows;
+  const value = lines.reduce((sum, line) => add(sum, line.max_value !== null ? decimal(line.max_value) : line.max_quantity !== null ? mul(decimal(line.rate), decimal(line.max_quantity)) : 0n), 0n);
+  const content = JSON.stringify([contract.supplier_id, dayOf(contract.valid_from), dayOf(contract.valid_to), String(contract.currency_code).trim(),
+    lines.map((line) => [line.item_id, line.uom_id, String(line.rate), line.max_quantity === null ? null : String(line.max_quantity), line.max_value === null ? null : String(line.max_value)])]);
+  return { amount: formatDecimal(roundMoney(value, 2)), contentKey: createHash("sha256").update(content).digest("hex").slice(0, 24) };
+}
 // The status a person sees: an active contract past its end date has ended.
 const STATUS_SQL = (alias, day) => `CASE WHEN ${alias}.status = 'active' AND ${alias}.valid_to < ${day} THEN 'expired' WHEN ${alias}.status = 'active' AND ${alias}.valid_from > ${day} THEN 'scheduled'
   ELSE ${alias}.status END`;
@@ -45,14 +68,14 @@ export async function listPurchaseRateContracts(client, context, filters = {}) {
   if (search) {
     const term = bind(`%${search.replace(/[\\%_]/g, (character) => `\\${character}`)}%`);
     where += ` AND (contract.contract_number ILIKE ${term} OR party.display_name ILIKE ${term} OR contract.supplier_reference ILIKE ${term}
-      OR EXISTS (SELECT 1 FROM tenant.purchase_rate_contract_lines line JOIN tenant.items item ON item.organization_id = line.organization_id AND item.id = line.item_id
-                  WHERE line.organization_id = contract.organization_id AND line.contract_id = contract.id AND (item.name ILIKE ${term} OR item.code ILIKE ${term})))`;
+      OR EXISTS (SELECT 1 FROM tenant.purchase_rate_contract_lines line LEFT JOIN tenant.items item ON item.organization_id = line.organization_id AND item.id = line.item_id
+                  WHERE line.organization_id = contract.organization_id AND line.contract_id = contract.id AND (item.name ILIKE ${term} OR item.code ILIKE ${term} OR line.description ILIKE ${term})))`;
   }
   return pagedList(client,
     `SELECT contract.id, contract.contract_number, ${STATUS_SQL("contract", "$2::date")} AS status, contract.valid_from, contract.valid_to, contract.supplier_id, party.display_name AS supplier_name,
             btrim(contract.currency_code) AS currency_code, contract.supplier_reference,
-            (SELECT string_agg(item.name, ', ' ORDER BY line.line_number) FROM tenant.purchase_rate_contract_lines line JOIN tenant.items item ON item.organization_id = line.organization_id
-              AND item.id = line.item_id WHERE line.organization_id = contract.organization_id AND line.contract_id = contract.id) AS items
+            (SELECT string_agg(COALESCE(item.name, line.description), ', ' ORDER BY line.line_number) FROM tenant.purchase_rate_contract_lines line LEFT JOIN tenant.items item
+              ON item.organization_id = line.organization_id AND item.id = line.item_id WHERE line.organization_id = contract.organization_id AND line.contract_id = contract.id) AS items
        FROM tenant.purchase_rate_contracts contract
        JOIN tenant.procurement_suppliers supplier ON supplier.organization_id = contract.organization_id AND supplier.id = contract.supplier_id
        JOIN tenant.business_parties party ON party.organization_id = supplier.organization_id AND party.id = supplier.party_id
@@ -78,8 +101,8 @@ export async function getPurchaseRateContract(client, context, contractId) {
   const supplier = (await client.query(`SELECT party.display_name FROM tenant.procurement_suppliers supplier JOIN tenant.business_parties party ON party.organization_id = supplier.organization_id
      AND party.id = supplier.party_id WHERE supplier.organization_id = $1 AND supplier.id = $2`, [context.organizationId, row.supplier_id])).rows[0];
   const lines = (await client.query(
-    `SELECT line.*, item.code AS item_code, item.name AS item_name, uom.code AS uom_code, ${DRAWN_SQL} AS drawn_quantity, ${DRAWN_VALUE_SQL} AS drawn_value
-       FROM tenant.purchase_rate_contract_lines line JOIN tenant.items item ON item.organization_id = line.organization_id AND item.id = line.item_id
+    `SELECT line.*, item.code AS item_code, COALESCE(item.name, line.description) AS item_name, uom.code AS uom_code, ${DRAWN_SQL} AS drawn_quantity, ${DRAWN_VALUE_SQL} AS drawn_value
+       FROM tenant.purchase_rate_contract_lines line LEFT JOIN tenant.items item ON item.organization_id = line.organization_id AND item.id = line.item_id
        LEFT JOIN tenant.units_of_measure uom ON uom.organization_id = line.organization_id AND uom.id = line.uom_id
       WHERE line.organization_id = $1 AND line.contract_id = $2 ORDER BY line.line_number`, [context.organizationId, row.id])).rows;
   const orders = (await client.query(
@@ -88,11 +111,21 @@ export async function getPurchaseRateContract(client, context, contractId) {
        JOIN tenant.purchase_rate_contract_lines line ON line.organization_id = po_line.organization_id AND line.id = po_line.source_rate_contract_line_id
       WHERE line.organization_id = $1 AND line.contract_id = $2 ORDER BY po.order_date DESC`, [context.organizationId, row.id])).rows;
   const manage = poCan(context, PO_PERMISSIONS.create);
+  const history = (await client.query(
+    `SELECT event.event_type, event.summary, event.created_at, actor.full_name AS actor_name FROM tenant.purchase_rate_contract_events event
+       LEFT JOIN public.users actor ON actor.id = event.actor_user_id WHERE event.organization_id = $1 AND event.contract_id = $2 ORDER BY event.created_at DESC`,
+    [context.organizationId, row.id])).rows;
+  const waiting = row.status === "draft" ? (await client.query(
+    `SELECT request.approval_level FROM public.approval_requests request WHERE request.organization_id = $1 AND request.command_key = 'procurement.rate_contract.approve'
+        AND request.entity_id = $2 AND request.status = 'pending' ORDER BY request.requested_at DESC LIMIT 1`, [context.organizationId, row.id])).rows[0] : null;
   return {
+    history: history.map((event) => ({ type: event.event_type, summary: event.summary, at: event.created_at, by: event.actor_name })),
+    waitingApproval: waiting ? { level: waiting.approval_level } : null,
     contract: { id: row.id, number: row.contract_number, status, statusLabel: PURCHASE_RATE_CONTRACT_STATUS_LABELS[status] ?? status, supplierId: row.supplier_id, supplierName: supplier?.display_name ?? null,
       validFrom: dayOf(row.valid_from), validTo: dayOf(row.valid_to), currencyCode: row.currency_code?.trim(), supplierReference: row.supplier_reference, notes: row.notes,
-      activatedAt: row.activated_at },
+      activatedAt: row.activated_at, cancelReason: row.cancel_reason ?? null, cancelledAt: row.cancelled_at ?? null },
     lines: lines.map((line) => ({ id: line.id, lineNumber: line.line_number, productId: line.item_id, productCode: line.item_code, productName: line.item_name, uomId: line.uom_id,
+      description: line.description ?? null, ...oneOffView(line),
       uomCode: line.uom_code, rate: dec(line.rate), maxQuantity: dec(line.max_quantity), maxValue: dec(line.max_value), drawnQuantity: dec(line.drawn_quantity),
       drawnValue: dec(roundMoney(decimal(line.drawn_value), 2)),
       remainingQuantity: line.max_quantity === null ? null : dec(sub(decimal(line.max_quantity), decimal(line.drawn_quantity))),
@@ -115,15 +148,19 @@ async function readInput(client, context, input, current = null) {
   const seen = new Set();
   for (const [index, line] of (lines ?? []).entries()) {
     const label = `Line ${index + 1}`;
-    const itemId = requireUuid(line.productId ?? line.itemId, `${label} item`);
-    const item = (await client.query(`SELECT id, uom_id, purchase_uom_id, status FROM tenant.items WHERE organization_id = $1 AND id = $2`, [context.organizationId, itemId])).rows[0];
-    if (!item || item.status !== "active") fail(`${label}: choose an active item.`, "productId", "RATE_CONTRACT_ITEM_INVALID", 409);
-    const uomId = optionalUuid(line.uomId, `${label} unit`) ?? item.purchase_uom_id ?? item.uom_id;
-    const key = `${itemId}:${uomId}`;
-    if (seen.has(key)) fail(`${label}: the item is on the contract twice in the same unit.`, "lines", "RATE_CONTRACT_LINE_DUPLICATE");
+    // A line outside the catalogue (an annual maintenance contract, a service): priced on order lines with the same description and unit.
+    const oneOff = !line.productId && !line.itemId ? await readOneOffLine(client, context.organizationId, line, label) : null;
+    const itemId = oneOff ? null : requireUuid(line.productId ?? line.itemId, `${label} item`);
+    const item = oneOff ? null : (await client.query(`SELECT id, uom_id, purchase_uom_id, status FROM tenant.items WHERE organization_id = $1 AND id = $2`, [context.organizationId, itemId])).rows[0];
+    if (!oneOff && (!item || item.status !== "active")) fail(`${label}: choose an active item.`, "productId", "RATE_CONTRACT_ITEM_INVALID", 409);
+    const uomId = oneOff ? oneOff.uomId : optionalUuid(line.uomId, `${label} unit`) ?? item.purchase_uom_id ?? item.uom_id;
+    const key = oneOff ? `one-off:${oneOff.description.toLowerCase()}:${uomId}` : `${itemId}:${uomId}`;
+    if (seen.has(key)) fail(`${label}: this is on the contract twice in the same unit.`, "lines", "RATE_CONTRACT_LINE_DUPLICATE");
     seen.add(key);
-    const unit = await normalizeQuantityToBase(client, context.organizationId, item.id, uomId, decimal(1), { purpose: "purchase" });
-    if (!unit.ok) fail(`${label}: ${unit.message}`, "uomId", "RATE_CONTRACT_UOM_INVALID");
+    if (!oneOff) {
+      const unit = await normalizeQuantityToBase(client, context.organizationId, item.id, uomId, decimal(1), { purpose: "purchase" });
+      if (!unit.ok) fail(`${label}: ${unit.message}`, "uomId", "RATE_CONTRACT_UOM_INVALID");
+    }
     const rate = String(line.rate ?? "").trim();
     if (!/^\d+(\.\d{1,6})?$/.test(rate)) fail(`${label}: enter the agreed rate.`, "rate", "RATE_CONTRACT_RATE_INVALID");
     const cap = (value, name) => {
@@ -132,7 +169,8 @@ async function readInput(client, context, input, current = null) {
       if (!/^\d+(\.\d{1,6})?$/.test(raw) || decimal(raw) <= 0n) fail(`${label}: the ${name} must be more than zero.`, name === "most quantity" ? "maxQuantity" : "maxValue");
       return raw;
     };
-    parsed.push({ itemId, uomId, rate, maxQuantity: cap(line.maxQuantity, "most quantity"), maxValue: cap(line.maxValue, "most value") });
+    parsed.push({ itemId, uomId, rate, maxQuantity: cap(line.maxQuantity, "most quantity"), maxValue: cap(line.maxValue, "most value"), description: oneOff?.description ?? null,
+      oneOffType: oneOff?.oneOffType ?? null, expenseAccountId: oneOff?.expenseAccountId ?? null, taxCategoryId: oneOff?.taxCategoryId ?? null, noTax: Boolean(oneOff?.noTax) });
   }
   const currency = (await client.query(`SELECT default_currency FROM tenant.procurement_suppliers WHERE organization_id = $1 AND id = $2`, [context.organizationId, supplierId])).rows[0]?.default_currency;
   return { supplierId, validFrom, validTo, lines: lines ? parsed : null, currencyCode: String(input.currencyCode ?? current?.currency_code ?? currency ?? "INR").trim().slice(0, 3).toUpperCase(),
@@ -144,8 +182,10 @@ async function writeLines(client, context, contractId, lines) {
   await client.query(`DELETE FROM tenant.purchase_rate_contract_lines WHERE organization_id = $1 AND contract_id = $2`, [context.organizationId, contractId]);
   for (const [index, line] of lines.entries())
     await client.query(
-      `INSERT INTO tenant.purchase_rate_contract_lines (organization_id, contract_id, line_number, item_id, uom_id, rate, max_quantity, max_value) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-      [context.organizationId, contractId, index + 1, line.itemId, line.uomId, line.rate, line.maxQuantity, line.maxValue]);
+      `INSERT INTO tenant.purchase_rate_contract_lines (organization_id, contract_id, line_number, item_id, uom_id, rate, max_quantity, max_value, description, one_off_type, expense_account_id,
+         tax_category_id, one_off_no_tax) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
+      [context.organizationId, contractId, index + 1, line.itemId, line.uomId, line.rate, line.maxQuantity, line.maxValue, line.description ?? null, line.oneOffType ?? null,
+        line.expenseAccountId ?? null, line.taxCategoryId ?? null, Boolean(line.noTax)]);
 }
 
 // createPurchaseRateContract. input: { supplierId, validFrom, validTo, supplierReference?, notes?, currencyCode?, lines: [{ productId, uomId?, rate, maxQuantity?, maxValue? }], activate? }
@@ -158,8 +198,9 @@ export async function createPurchaseRateContract(client, context, input = {}) {
      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $9) RETURNING id, contract_number`,
     [context.organizationId, number, data.supplierId, data.validFrom, data.validTo, data.currencyCode, data.supplierReference, data.notes, context.userId ?? null])).rows[0];
   await writeLines(client, context, row.id, data.lines);
-  if (input.activate) await activatePurchaseRateContract(client, context, row.id);
-  return { id: row.id, number: row.contract_number };
+  await recordContractEvent(client, context, row.id, "created", `Recorded ${row.contract_number}`);
+  const activated = input.activate ? await activatePurchaseRateContract(client, context, row.id) : null;
+  return { id: row.id, number: row.contract_number, status: activated?.status ?? "draft", approvalRequired: Boolean(activated?.approvalRequired) };
 }
 
 export async function updatePurchaseRateContract(client, context, contractId, input = {}) {
@@ -171,6 +212,7 @@ export async function updatePurchaseRateContract(client, context, contractId, in
       updated_at = now() WHERE organization_id = $1 AND id = $2`,
     [context.organizationId, current.id, data.supplierId, data.validFrom, data.validTo, data.currencyCode, data.supplierReference, data.notes, context.userId ?? null]);
   if (data.lines) await writeLines(client, context, current.id, data.lines);
+  await recordContractEvent(client, context, current.id, "changed", "Draft changed");
   return { id: current.id };
 }
 
@@ -181,43 +223,61 @@ export async function activatePurchaseRateContract(client, context, contractId) 
   const current = await loadContract(client, context, contractId, { lock: true });
   if (current.status !== "draft") throw new PurchaseOrderError(409, "Only a draft rate contract is activated.", "RATE_CONTRACT_LOCKED");
   const clash = (await client.query(
-    `SELECT other.contract_number, item.name FROM tenant.purchase_rate_contract_lines line
-       JOIN tenant.purchase_rate_contract_lines other_line ON other_line.organization_id = line.organization_id AND other_line.item_id = line.item_id
+    `SELECT other.contract_number, COALESCE(item.name, line.description) AS name FROM tenant.purchase_rate_contract_lines line
+       JOIN tenant.purchase_rate_contract_lines other_line ON other_line.organization_id = line.organization_id
+         AND (other_line.item_id = line.item_id OR (line.item_id IS NULL AND other_line.item_id IS NULL AND lower(btrim(other_line.description)) = lower(btrim(line.description))))
          AND other_line.uom_id IS NOT DISTINCT FROM line.uom_id AND other_line.contract_id <> line.contract_id
        JOIN tenant.purchase_rate_contracts other ON other.organization_id = other_line.organization_id AND other.id = other_line.contract_id AND other.status = 'active'
-       JOIN tenant.items item ON item.organization_id = line.organization_id AND item.id = line.item_id
+       LEFT JOIN tenant.items item ON item.organization_id = line.organization_id AND item.id = line.item_id
       WHERE line.organization_id = $1 AND line.contract_id = $2 AND other.supplier_id = $3 AND other.valid_from <= $5::date AND other.valid_to >= $4::date LIMIT 1`,
     [context.organizationId, current.id, current.supplier_id, dayOf(current.valid_from), dayOf(current.valid_to)])).rows[0];
   if (clash) fail(`${clash.name} is already on rate contract ${clash.contract_number} with this supplier for these dates.`, "lines", "RATE_CONTRACT_OVERLAP", 409);
+  const { amount, contentKey } = await rateContractApprovalContent(client, context.organizationId, current);
+  const approval = await requireRuleApprovals(client, context, { documentType: RATE_CONTRACT_APPROVAL, documentId: current.id, amount, contentKey,
+    title: `Rate contract ${current.contract_number} (${String(current.currency_code).trim()} ${amount})` });
+  if (approval.required && !approval.approved) {
+    await recordContractEvent(client, context, current.id, "approval_asked", `Sent for approval (level ${approval.pending.level}${approval.pending.approver ? `, ${approval.pending.approver}` : ""})`);
+    return { id: current.id, status: "draft", approvalRequired: true, pendingApproval: approval.pending };
+  }
   await client.query(`UPDATE tenant.purchase_rate_contracts SET status = 'active', activated_at = now(), activated_by = $3, updated_by = $3, updated_at = now() WHERE organization_id = $1 AND id = $2`,
     [context.organizationId, current.id, context.userId ?? null]);
-  return { id: current.id, status: "active" };
+  await recordContractEvent(client, context, current.id, "activated", approval.required ? "Activated after approval" : "Activated");
+  return { id: current.id, status: "active", approvalRequired: false };
 }
 
-export async function cancelPurchaseRateContract(client, context, contractId) {
+// input: { reason } — kept on the contract and in its history.
+export async function cancelPurchaseRateContract(client, context, contractId, input = {}) {
   requirePoPermission(context, PO_PERMISSIONS.create, "You do not have permission to cancel rate contracts.");
   const current = await loadContract(client, context, contractId, { lock: true });
   if (!["draft", "active"].includes(current.status)) throw new PurchaseOrderError(409, "This rate contract has already ended.", "RATE_CONTRACT_LOCKED");
-  await client.query(`UPDATE tenant.purchase_rate_contracts SET status = 'cancelled', updated_by = $3, updated_at = now() WHERE organization_id = $1 AND id = $2`,
-    [context.organizationId, current.id, context.userId ?? null]);
+  const reason = text(input.reason, 500);
+  if (!reason || reason.length < 3) fail("Give the reason for cancelling the contract.", "reason", "RATE_CONTRACT_REASON_REQUIRED");
+  await client.query(`UPDATE tenant.purchase_rate_contracts SET status = 'cancelled', cancel_reason = $4, cancelled_at = now(), cancelled_by = $3, updated_by = $3, updated_at = now()
+      WHERE organization_id = $1 AND id = $2`, [context.organizationId, current.id, context.userId ?? null, reason]);
+  await recordContractEvent(client, context, current.id, "cancelled", `Cancelled: ${reason}`);
   return { id: current.id, status: "cancelled" };
 }
 
-// The contract lines that price items for a supplier on a date: Map(`${itemId}:${uomId}` → { lineId, rate, contractNumber, remainingQuantity, remainingValue }).
-export async function contractRatesFor(client, organizationId, { supplierId, itemIds = null, date }) {
+// The contract lines that price items for a supplier on a date, in the order's currency (a contract in another currency never prices it):
+// Map(`${itemId}:${uomId}` → { lineId, rate, contractNumber, remainingQuantity, remainingValue }).
+export async function contractRatesFor(client, organizationId, { supplierId, itemIds = null, date, currencyCode = null }) {
   if (!isUuid(supplierId)) return new Map();
   const rows = (await client.query(
-    `SELECT line.id, line.item_id, line.uom_id, line.rate, line.max_quantity, line.max_value, contract.contract_number, contract.valid_to, ${DRAWN_SQL} AS drawn_quantity,
+    `SELECT line.id, line.item_id, line.uom_id, line.description, line.rate, line.max_quantity, line.max_value, contract.contract_number, contract.valid_to, ${DRAWN_SQL} AS drawn_quantity,
             ${DRAWN_VALUE_SQL} AS drawn_value
        FROM tenant.purchase_rate_contract_lines line JOIN tenant.purchase_rate_contracts contract ON contract.organization_id = line.organization_id AND contract.id = line.contract_id
       WHERE line.organization_id = $1 AND contract.supplier_id = $2 AND contract.status = 'active' AND contract.valid_from <= $3::date AND contract.valid_to >= $3::date
-        AND ($4::uuid[] IS NULL OR line.item_id = ANY($4::uuid[]))`, [organizationId, supplierId, date, itemIds])).rows;
-  return new Map(rows.map((row) => [`${row.item_id}:${row.uom_id}`, {
+        AND ($4::uuid[] IS NULL OR line.item_id = ANY($4::uuid[]) OR line.item_id IS NULL) AND ($5::text IS NULL OR btrim(contract.currency_code) = $5)`,
+    [organizationId, supplierId, date, itemIds, currencyCode ? String(currencyCode).trim().toUpperCase() : null])).rows;
+  return new Map(rows.map((row) => [row.item_id ? `${row.item_id}:${row.uom_id}` : oneOffContractKey(row.description, row.uom_id), {
     lineId: row.id, rate: dec(row.rate), contractNumber: row.contract_number, validTo: dayOf(row.valid_to),
     remainingQuantity: row.max_quantity === null ? null : sub(decimal(row.max_quantity), decimal(row.drawn_quantity)),
     remainingValue: row.max_value === null ? null : sub(decimal(row.max_value), decimal(row.drawn_value)),
   }]));
 }
+
+// The key a one-off order line finds its contract line by: the same description (any case and spacing) and unit.
+export const oneOffContractKey = (description, uomId) => `one-off:${String(description ?? "").trim().toLowerCase().replace(/\s+/g, " ")}:${uomId}`;
 
 // Contract lines that are active today for any supplier, by item — for "no RFQ needed" hints.
 export async function activeContractsByItem(client, organizationId, itemIds, date) {
@@ -227,7 +287,7 @@ export async function activeContractsByItem(client, organizationId, itemIds, dat
        FROM tenant.purchase_rate_contract_lines line JOIN tenant.purchase_rate_contracts contract ON contract.organization_id = line.organization_id AND contract.id = line.contract_id
        JOIN tenant.procurement_suppliers supplier ON supplier.organization_id = contract.organization_id AND supplier.id = contract.supplier_id
        JOIN tenant.business_parties party ON party.organization_id = supplier.organization_id AND party.id = supplier.party_id
-      WHERE line.organization_id = $1 AND line.item_id = ANY($2::uuid[]) AND contract.status = 'active' AND contract.valid_from <= $3::date AND contract.valid_to >= $3::date
+      WHERE line.organization_id = $1 AND line.item_id IS NOT NULL AND line.item_id = ANY($2::uuid[]) AND contract.status = 'active' AND contract.valid_from <= $3::date AND contract.valid_to >= $3::date
       ORDER BY line.item_id, line.rate`, [organizationId, itemIds, date])).rows;
   return new Map(rows.map((row) => [row.item_id, { rate: dec(row.rate), contractNumber: row.contract_number, supplierName: row.supplier_name, supplierId: row.supplier_id }]));
 }

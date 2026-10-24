@@ -7,6 +7,8 @@ import { useState } from "react";
 import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ChevronRight } from "lucide-react";
+import { ReceiptRemindersPanel } from "./ReceiptRemindersPanel";
+import { DepartmentsPanel } from "./DepartmentsPanel";
 import { Button, Checkbox, ErrorState, PageHeader, PermissionState, Select, Tab, TabList, TabPanel, Tabs, TextField } from "@vercentlabs/design-system";
 
 import { LoadingState } from "@/shared/ui/LoadingState";
@@ -88,8 +90,8 @@ function SettingsForm({ options }: { options: PurchaseOrderOptions }) {
             <Panel title="Related settings" description="Configured once for the whole company and used by Procurement.">
               <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
                 <SettingsLink href="/procurement/settings/categories" label="Supplier Categories" hint="Groups suppliers are classified by" />
-                <SettingsLink href="/settings/finance-commercial/payment-terms" label="Payment Terms" hint="Due dates, instalments, advances and early-payment discounts" />
-                <SettingsLink href="/settings/taxes" label="Tax & Accounting" hint="GST rates, TDS sections and the accounts bills post to" />
+                <SettingsLink href="/settings/finance-commercial/payment-terms" label="Payment Terms" hint="Due dates, payments due, advances and early-payment discounts" />
+                <SettingsLink href="/settings/taxes" label="Tax & Accounting" hint="GST rates, TDS sections and the accounts bills are recorded in" />
                 <SettingsLink href="/settings/roles" label="Users & Permissions" hint="Who may buy, receive, bill, return and approve" />
               </div>
             </Panel>
@@ -97,14 +99,14 @@ function SettingsForm({ options }: { options: PurchaseOrderOptions }) {
         </TabPanel>
         <TabPanel id="numbering">
           <div className="pt-4">
-            <Panel title="Document numbering" description="Purchase orders, goods receipts, supplier bills, purchase returns, debit claims and vendor credits are numbered from the company's number series when they are saved; a number is never reused.">
+            <Panel title="Document numbering" description="Every Procurement document gets the next number from the company's series when saved; no number is reused.">
               <SettingsLink href="/settings/numbering" label="Number series" hint="Prefixes, padding and the next number of every document type" />
             </Panel>
           </div>
         </TabPanel>
         <TabPanel id="approvals">
           <div className="pt-4">
-            <Panel title="Approvals" description="Purchase orders over a value ask the approver of each level before they are confirmed; bills and supplier payments follow Finance's approval policy. Approvers decide from the Approvals inbox.">
+            <Panel title="Approvals" description="Orders over a value need each level's approval before confirming; approvers decide in Approvals.">
               <div className="grid gap-2 sm:grid-cols-2">
                 <SettingsLink href="/settings/approval-rules" label="Approval rules" hint="Who approves purchase orders, by value and level" />
                 <SettingsLink href="/approvals" label="Approvals inbox" hint="What is waiting for a decision" />
@@ -114,11 +116,12 @@ function SettingsForm({ options }: { options: PurchaseOrderOptions }) {
         </TabPanel>
         <TabPanel id="purchasing">
           <div className="flex flex-col gap-4 pt-4">
-            <Panel title="Purchase orders" description="A confirmed order is the commitment to the supplier: its lines are changed by an amendment, never edited in place.">
+            <Panel title="Purchase orders" description="A confirmed order is changed with Change the order, never edited in place.">
               <Checkbox isDisabled={!canManage} isSelected={values.requireExpectedDate} onChange={set("requireExpectedDate")}>
                 An expected delivery date is required to confirm an order
               </Checkbox>
             </Panel>
+            <DepartmentsPanel canManage={canManage} people={options.buyers} />
             <Panel title="Indents and RFQs" description="Both are optional: a purchase order stays the usual way to start buying.">
               <div className="flex flex-col gap-3">
                 <Checkbox isDisabled={!canManage} isSelected={values.useIndents}
@@ -137,24 +140,25 @@ function SettingsForm({ options }: { options: PurchaseOrderOptions }) {
         </TabPanel>
         <TabPanel id="receiving">
           <div className="flex flex-col gap-4 pt-4">
-            <Panel title="Goods without an order" description="Small suppliers often deliver without a purchase order. When allowed, the receipt raises and confirms a matching order (marked as created from the receipt, with the reason), so bills still match three ways. Purchase order approval rules still apply.">
+            <ReceiptRemindersPanel canManage={canManage} />
+            <Panel title="Goods without an order" description="Lets the store receive goods without an order; an order is raised with the receipt, and approval rules still apply.">
               <Checkbox isDisabled={!canManage} isSelected={values.allowReceiptWithoutOrder !== false} onChange={set("allowReceiptWithoutOrder")}>
                 Allow receiving goods without a purchase order
               </Checkbox>
             </Panel>
             <Panel title="Receiving accounting" description="Refused goods create no goods receipt.">
               <Checkbox isDisabled={!canManage} isSelected={values.postReceiptAccrual} onChange={set("postReceiptAccrual")}>
-                Book received stock against Goods Received Not Invoiced (Dr Inventory, Cr GRNI); the supplier bill then clears GRNI. Needs the Inventory and GRNI account mappings.
+                Book received stock as owed before the bill arrives (goods received, bill not yet received); the bill then clears it. Needs the Inventory and goods-received account mappings.
               </Checkbox>
             </Panel>
           </div>
         </TabPanel>
         <TabPanel id="matching">
           <div className="pt-4">
-            <Panel title="Billing and matching" description="What a supplier bill may cover — enforced when a bill is posted. Several bills may cover one order; only posted bills count as billed. Services are billed as ordered (or by amount for fixed-value services). A price that differs from the order is always held for an authorised person to accept.">
-              <Select label="Default matching policy for new orders (fixed on each order when confirmed)" isDisabled={!canManage} selectedKey={values.billingBasis}
+            <Panel title="Billing and matching" description="What a bill may cover, checked when it is finalised. A different price always waits for approval.">
+              <Select label="Default how bills are checked for new orders (fixed on each order when confirmed)" isDisabled={!canManage} selectedKey={values.billingBasis}
                 onSelectionChange={(value) => set("billingBasis")(String(value) as "receipt" | "order")}
-                options={[{ value: "receipt", label: "3-Way, receipt-based: once received (recommended for stock)" }, { value: "order", label: "2-Way, PO-based: as ordered, even before delivery (advance invoicing)" }]} />
+                options={[{ value: "receipt", label: "Order and goods received, receipt-based: once received (recommended for stock)" }, { value: "order", label: "Order only, PO-based: as ordered, even before delivery (advance invoicing)" }]} />
               {values.billingBasis === "receipt" && (
                 <Checkbox isDisabled={!canManage} isSelected={values.billHeldGoods} onChange={set("billHeldGoods")}>
                   Goods still on inspection hold may be billed (unticked: acceptance-based — only accepted or released goods)
@@ -167,9 +171,9 @@ function SettingsForm({ options }: { options: PurchaseOrderOptions }) {
           <div className="pt-4">
             <Panel title="Purchase returns" description="The rules every purchase return follows.">
               <ul className="flex list-disc flex-col gap-1 pl-5 text-sm text-text-secondary">
-                <li>Goods are returned only from posted goods receipts, and never more than was received and not already returned.</li>
-                <li>Posting a return moves the stock out once; reversing it brings the stock back.</li>
-                <li>Billed goods are corrected by a Vendor Credit (or a Debit Claim to the supplier); unbilled goods simply reduce what may be billed.</li>
+                <li>Goods are returned only from final goods receipts, and never more than was received and not already returned.</li>
+                <li>Finalising a return moves the stock out once; reversing it brings the stock back.</li>
+                <li>Billed goods are corrected by a Supplier Credit Note (or a Debit Note to the supplier); unbilled goods simply reduce what may be billed.</li>
                 <li>A replacement is received on a replacement purchase order linked to the return.</li>
               </ul>
             </Panel>
@@ -177,8 +181,22 @@ function SettingsForm({ options }: { options: PurchaseOrderOptions }) {
         </TabPanel>
         <TabPanel id="billing">
           <div className="flex flex-col gap-4 pt-4">
-            <Panel title="Payment terms" description="A supplier bill's due dates and instalments come from its payment term, defaulted from the order or the supplier.">
+            <Panel title="Payment terms" description="A supplier bill's due dates and payments due come from its payment term, defaulted from the order or the supplier.">
               <SettingsLink href="/settings/finance-commercial/payment-terms" label="Payment Terms" hint="Manage the company's payment terms" />
+            </Panel>
+            <Panel title="Payment advice" description="Tells suppliers which invoices a payment settles.">
+              <Checkbox isDisabled={!canManage} isSelected={values.paymentAdviceAuto !== false} onChange={set("paymentAdviceAuto")}>
+                Email the payment advice to the supplier when a payment is recorded
+              </Checkbox>
+            </Panel>
+            <Panel title="Bank payment file" description="The file Pay selected makes for the bank's bulk payments.">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <TextField label="Account the bank pays from" isDisabled={!canManage} inputMode="numeric" value={values.bankFileDebitAccount ?? ""}
+                  onChange={(value) => setValues((current) => ({ ...current, bankFileDebitAccount: value.replace(/\s+/g, "") }))} />
+                <Select label="Layout" isDisabled={!canManage} selectedKey={values.bankFileLayout ?? "csv_header"}
+                  onSelectionChange={(key) => setValues((current) => ({ ...current, bankFileLayout: String(key) as "csv_header" | "csv_plain" }))}
+                  options={[{ value: "csv_header", label: "CSV with a header line" }, { value: "csv_plain", label: "CSV without a header line" }]} />
+              </div>
             </Panel>
             <ExpenseCategories />
           </div>
@@ -186,12 +204,17 @@ function SettingsForm({ options }: { options: PurchaseOrderOptions }) {
         <TabPanel id="tds">
           <div className="flex flex-col gap-4 pt-4">
             <Notice tone="info">194C, 194J, 194I, 194H and 194Q come set up with the current rates and limits. 194Q withholds only on purchases above ₹50 lakh in the year; 194C catches up the year&apos;s earlier bills once they cross ₹1 lakh.</Notice>
+            <Panel title="TDS on goods (194Q)" description="Only for a buyer whose turnover passed ₹10 crore last year.">
+              <Checkbox isDisabled={!canManage} isSelected={Boolean(values.tds194qApplies)} onChange={set("tds194qApplies")}>
+                Deduct TDS 194Q on purchases above ₹50 lakh a year from one supplier
+              </Checkbox>
+            </Panel>
             <WithholdingSections />
           </div>
         </TabPanel>
         <TabPanel id="templates">
           <div className="pt-4">
-            <Panel title="Document templates" description="Purchase orders, debit claims and the other Procurement documents print with the company's name, logo, address and registrations.">
+            <Panel title="Document templates" description="Purchase orders, debit notes and the other Procurement documents print with the company's name, logo, address and registrations.">
               <SettingsLink href="/settings/organization" label="Company profile" hint="Name, logo, address and tax registrations printed on every document" />
             </Panel>
           </div>
@@ -219,7 +242,7 @@ function ExpenseCategories() {
   const manage = Boolean(options.data?.capabilities.categories);
   if (query.isError) return null;
   return (
-    <Panel title="Expense categories" description="Used on direct supplier bills. Each category posts to its account; stock and inventory accounts are not allowed — stock is bought on a purchase order.">
+    <Panel title="Expense categories" description="Used on bills without an order. Each category is recorded in its own account; stock needs an order.">
       {save.error && <Notice>{errorMessage(save.error)}</Notice>}
       <ul className="flex flex-col divide-y divide-border text-sm">
         {(query.data ?? []).map((category) => (
@@ -258,7 +281,7 @@ function WithholdingSections() {
   const save = useMutation({ mutationFn: (input: Record<string, unknown>) => saveWithholdingSection(input),
     onSuccess: () => { setDraft({ code: "", name: "", rate: "", thresholdSingle: "", thresholdAnnual: "", rateIndividual: "", rateNoPan: "" }); void queryClient.invalidateQueries({ queryKey: key }); } });
   return (
-    <Panel title="TDS sections" description="Withheld from supplier bills on their taxable value. A supplier carries its usual section; a bill may use another or none. Managed by whoever manages tax rates.">
+    <Panel title="TDS sections" description="Deducted from bills on their taxable value. A supplier has a usual section; a bill may use another.">
       {save.error && <Notice>{errorMessage(save.error)}</Notice>}
       <ul className="flex flex-col divide-y divide-border text-sm">
         {(query.data ?? []).map((section) => (

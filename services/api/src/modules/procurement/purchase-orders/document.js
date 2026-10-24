@@ -31,14 +31,20 @@ export { databaseToday, orgTodaySql } from "../org-day.js";
 
 export async function procurementSettings(client, organizationId) {
   const row = (await client.query(`SELECT billing_basis, require_expected_date, default_warehouse_id, bill_held_goods, post_receipt_accrual, use_indents, use_rfqs, reorder_creates,
-                                            allow_receipt_without_order
+                                            allow_receipt_without_order, tds_194q_applies, bank_file_layout, bank_file_debit_account, payment_advice_auto
                                      FROM tenant.procurement_settings WHERE organization_id = $1`, [organizationId])).rows[0];
   return { billingBasis: row?.billing_basis ?? "receipt", requireExpectedDate: Boolean(row?.require_expected_date), defaultWarehouseId: row?.default_warehouse_id ?? null,
     billHeldGoods: Boolean(row?.bill_held_goods), postReceiptAccrual: Boolean(row?.post_receipt_accrual),
     // Procurement plan Phase 2: purchase indents and RFQs are optional; a reorder opens an indent instead of a draft order when asked.
     useIndents: Boolean(row?.use_indents), useRfqs: Boolean(row?.use_rfqs), reorderCreates: row?.use_indents && row?.reorder_creates === "indent" ? "indent" : "purchase_order",
     // Create-Where-You-Are PR3: goods that arrive without an order may be received, raising the order as they are.
-    allowReceiptWithoutOrder: row?.allow_receipt_without_order !== false };
+    allowReceiptWithoutOrder: row?.allow_receipt_without_order !== false,
+    // TDS 194Q on goods bought: only for a buyer whose turnover passed ₹10 crore last year.
+    tds194qApplies: Boolean(row?.tds_194q_applies),
+    // The bank payment file: its layout and the account the bank pays from.
+    bankFileLayout: row?.bank_file_layout ?? "csv_header", bankFileDebitAccount: row?.bank_file_debit_account ?? null,
+    // The payment advice is emailed to the supplier when a payment is recorded.
+    paymentAdviceAuto: row?.payment_advice_auto !== false };
 }
 
 const ADDRESS_FIELDS = ["name", "line1", "line2", "city", "stateCode", "stateName", "postalCode", "countryCode", "contactName", "phone"];
@@ -98,6 +104,13 @@ export async function linesAsInput(client, organizationId, orderId) {
 
 // input: the order fields (see createPurchaseOrder). order: the stored draft when saving one.
 // Returns { header, priced }.
+export const INCOTERMS = Object.freeze([
+  { code: "EXW", label: "EXW · Ex works" }, { code: "FCA", label: "FCA · Free carrier" }, { code: "FAS", label: "FAS · Free alongside ship" },
+  { code: "FOB", label: "FOB · Free on board" }, { code: "CFR", label: "CFR · Cost and freight" }, { code: "CIF", label: "CIF · Cost, insurance and freight" },
+  { code: "CPT", label: "CPT · Carriage paid to" }, { code: "CIP", label: "CIP · Carriage and insurance paid to" }, { code: "DAP", label: "DAP · Delivered at place" },
+  { code: "DPU", label: "DPU · Delivered at place unloaded" }, { code: "DDP", label: "DDP · Delivered duty paid" },
+]);
+
 export async function resolveOrderDocument(client, context, input, { order = null, today, allowMissingPrice = false } = {}) {
   const organizationId = context.organizationId;
   const supplierId = requireUuid(input.supplierId ?? order?.supplier_id, "Supplier");
@@ -136,7 +149,7 @@ export async function resolveOrderDocument(client, context, input, { order = nul
   // Terms other than the supplier's (or the company default) or the ones the order already has are a purchasing decision.
   if (paymentTermId !== (defaults.paymentTerm?.id ?? null) && paymentTermId !== (sameSupplier ? order.payment_term_id : null) && !poCan(context, PO_PERMISSIONS.changePaymentTerms))
     throw new PurchaseOrderError(403, "You do not have permission to agree payment terms other than the supplier's.", "PURCHASE_ORDER_PAYMENT_TERMS_PERMISSION", { field: "paymentTermId" });
-  const termRegistrationId = has(input, "buyingRegistrationId") ? optionalUuid(input.buyingRegistrationId, "Company registration") : order?.buying_registration_id ?? null;
+  const termRegistrationId = has(input, "buyingRegistrationId") ? optionalUuid(input.buyingRegistrationId, "Our GSTIN") : order?.buying_registration_id ?? null;
   const paymentTerm = await translated(() => purchaseTermSnapshot(client, organizationId, paymentTermId, null, { buyingRegistrationId: termRegistrationId }));
   // The advance the order expects: the term's, unless the order says otherwise.
   const termChanged = !order || order.payment_term_id !== paymentTermId;
@@ -152,7 +165,7 @@ export async function resolveOrderDocument(client, context, input, { order = nul
   }
 
   // The buying company: its registration, bill-to and ship-to.
-  const buyingRegistrationId = has(input, "buyingRegistrationId") ? optionalUuid(input.buyingRegistrationId, "Company registration") : order?.buying_registration_id ?? null;
+  const buyingRegistrationId = has(input, "buyingRegistrationId") ? optionalUuid(input.buyingRegistrationId, "Our GSTIN") : order?.buying_registration_id ?? null;
   const tax = await translated(() => loadTaxContext(client, { organizationId, sellerRegistrationId: buyingRegistrationId , purchase: true }));
   const organization = (await client.query(`SELECT name, legal_name, tax_id, country_code FROM public.organizations WHERE id = $1`, [organizationId])).rows[0];
   const buyerRegistration = tax.registration;
@@ -178,6 +191,10 @@ export async function resolveOrderDocument(client, context, input, { order = nul
     documentDiscountType: has(input, "documentDiscountType") ? input.documentDiscountType || null : order?.document_discount_type ?? null,
     documentDiscountValue: has(input, "documentDiscountValue") ? input.documentDiscountValue ?? "0" : order ? formatDecimal(order.document_discount_value) : "0",
     supplierReference: keep("supplierReference", "supplier_reference", 200),
+    // Incoterms 2020 and the named place (report Phase 3).
+    incoterm: has(input, "incoterm") ? (INCOTERMS.some((entry) => entry.code === input.incoterm) ? input.incoterm : input.incoterm ? fail("Choose an Incoterm from the list.", "incoterm") : null)
+      : order?.incoterm ?? null,
+    incotermPlace: keep("incotermPlace", "incoterm_place", 120),
     supplierQuotationReference: keep("supplierQuotationReference", "supplier_quotation_reference", 200),
     supplierNotes: keep("supplierNotes", "supplier_notes"), internalNotes: keep("internalNotes", "internal_notes"),
     advancePercentage: advancePercentage === null ? null : String(advancePercentage), paymentTermsNote: keep("paymentTermsNote", "payment_terms_note", 1000),
@@ -190,7 +207,8 @@ export async function resolveOrderDocument(client, context, input, { order = nul
   }
   const priced = await calculatePurchaseOrderTotals(client, context, {
     supplier: supplierSnapshot, supplierStateCode: supplierTax?.stateCode ?? shipFrom?.stateCode ?? orderingAddress?.stateCode ?? defaults.supplier.registeredStateCode,
-    buyerStateCode: shipTo?.stateCode ?? buyerRegistration?.stateCode ?? null, buyingRegistrationId: header.buyingRegistrationId, orderDate, supplierId: header.supplierId,
+    // Shipped to our customer (dropship): the supply is to us, so our registration's state, not the delivery address, decides the GST.
+    buyerStateCode: (input.dropship || order?.dropship_sales_order_id ? buyerRegistration?.stateCode ?? shipTo?.stateCode : shipTo?.stateCode ?? buyerRegistration?.stateCode) ?? null, buyingRegistrationId: header.buyingRegistrationId, orderDate, supplierId: header.supplierId,
     currencyCode, priceMode, documentDiscountType: header.documentDiscountType, documentDiscountValue: header.documentDiscountValue,
     defaultWarehouseId: header.defaultWarehouseId, lines,
   }, { allowMissingPrice });
@@ -211,6 +229,6 @@ export function validateForConfirmation(header, priced, { keepsStock = true } = 
     issues.push({ field: "shipTo", message: "Enter where the goods are to be delivered." });
   if (header.settings.requireExpectedDate && !header.expectedDeliveryDate) issues.push({ field: "expectedDeliveryDate", message: "Enter the expected delivery date." });
   if (priced.taxContext.enabled && priced.lines.some((line) => line.components.length) && !header.buyerRegistration)
-    issues.push({ field: "buyingRegistrationId", message: "Choose the company registration the order is placed from." });
+    issues.push({ field: "buyingRegistrationId", message: "Choose our GSTIN the order is placed from." });
   if (issues.length) throw new PurchaseOrderError(422, issues[0].message, "PURCHASE_ORDER_INCOMPLETE", { issues });
 }

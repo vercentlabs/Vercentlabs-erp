@@ -21,7 +21,7 @@ export const RESERVATION_REFERENCE = "sales_order_line";
 export const RELEASE_REASONS = Object.freeze([
   { code: "customer_delay", label: "Customer delay" },
   { code: "warehouse_reassignment", label: "Warehouse reassignment" },
-  { code: "order_amendment", label: "Order amendment" },
+  { code: "order_amendment", label: "Order change" },
   { code: "reservation_correction", label: "Correction to stock kept aside" },
   { code: "other", label: "Other" },
 ]);

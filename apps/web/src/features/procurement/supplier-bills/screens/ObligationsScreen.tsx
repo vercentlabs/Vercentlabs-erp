@@ -7,7 +7,7 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Wallet } from "lucide-react";
+import { Download, Wallet } from "lucide-react";
 import { Button, Checkbox, Dialog, ErrorState, PageHeader, Select, StatusBadge, Tab, TabList, Tabs, TextField } from "@vercentlabs/design-system";
 
 import { LoadingState } from "@/shared/ui/LoadingState";
@@ -26,7 +26,7 @@ type AgingRow = { supplierId: string; supplierName: string; currencyCode: string
 type Payload = { overdue: { today: string; obligations: Obligation[]; statutory: Breach[] }; upcoming: { today: string; until: string; obligations: Obligation[] } };
 
 const VIEWS = [
-  { id: "due-week", label: "Due this week" }, { id: "overdue", label: "Overdue" }, { id: "next-30", label: "Next 30 days" }, { id: "aging", label: "AP ageing" },
+  { id: "due-week", label: "Due this week" }, { id: "overdue", label: "Overdue" }, { id: "next-30", label: "Next 30 days" }, { id: "aging", label: "what is owed, by age" },
 ] as const;
 
 async function get<T>(path: string): Promise<T> {
@@ -50,7 +50,7 @@ function ObligationTable({ rows, showOverdue, selected, onToggle, selectable }: 
         <thead>
           <tr className="text-left text-text-muted">
             {selectable && <th className="w-8 py-1 pr-2 font-normal"><Checkbox aria-label="Choose all" isSelected={allOn} onChange={(on) => rows.forEach((row) => onToggle(row, on))} /></th>}
-            {["Bill", "Supplier", "Instalment", "Due", showOverdue ? "Days overdue" : "", "Outstanding"].map((name, index) =>
+            {["Bill", "Supplier", "Payment due", "Due", showOverdue ? "Days overdue" : "", "Outstanding"].map((name, index) =>
               <th key={index} className={index >= 4 ? "py-1 pr-3 text-right font-normal" : "py-1 pr-3 font-normal"}>{name}</th>)}
           </tr>
         </thead>
@@ -102,7 +102,7 @@ export function ObligationsScreen() {
   return (
     <div className="flex flex-col gap-4">
       <PageHeader title="Due & Overdue"
-        description={`What posted supplier bills still owe, by due date${today ? `, as of ${calendarDate(today)}` : ""}. Micro and small suppliers are listed first: the MSMED Act allows 45 days at most.`}
+        description={`What final bills still owe, by due date${today ? `, as of ${calendarDate(today)}` : ""}. MSME suppliers come first (45 days at most).`}
         secondaryActions={<Link className="text-sm text-brand hover:underline" href="/procurement/payables/msme">MSME payments</Link>} />
       <Tabs selectedKey={view} onSelectionChange={(key) => { list.setView(String(key)); setSelected(new Map()); }}>
         <TabList aria-label="Due & Overdue views">{VIEWS.map((entry) => <Tab key={entry.id} id={entry.id}>{entry.label}</Tab>)}</TabList>
@@ -113,12 +113,18 @@ export function ObligationsScreen() {
             <span key={payment.paymentId} className="block">
               <Link className="font-medium underline" href={`/procurement/payments/${payment.paymentId}`}>{payment.paymentNumber}</Link>{" "}
               {payment.status === "awaiting_approval" ? "awaits Finance's approval" : "recorded"} for {payment.bills.join(", ")}.
+              {payment.advice && <span className="text-text-secondary"> {payment.advice === "sent" ? "Payment advice emailed." : `Payment advice not sent: ${payment.advice}`}</span>}
             </span>
           ))}
+          {done.payments.length > 0 && (
+            <a className="mt-2 inline-flex w-fit items-center gap-1.5 font-medium underline" href={`/api/procurement/payments/bank-file?ids=${done.payments.map((payment) => payment.paymentId).join(",")}`}>
+              <Download className="size-4" aria-hidden="true" />Download bank file
+            </a>
+          )}
         </Notice>
       )}
       {loading ? <LoadingState label="Loading payables" /> : error ? <ErrorState title="Could not load payables" description={errorMessage(error)} /> : view === "aging" ? (
-        <Panel title="AP ageing by instalment" description="Each instalment in the bucket of its own due date.">
+        <Panel title="Owed, by age" description="Each payment due counts in the bucket of its own due date.">
           {!aging.data?.rows.length ? <p className="text-sm text-text-muted">Nothing owed.</p> : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
@@ -146,7 +152,7 @@ export function ObligationsScreen() {
             </Notice>
           )}
           <Panel title={VIEWS.find((entry) => entry.id === view)?.label ?? "Due"}
-            description={view === "due-week" ? "Overdue, and due in the next 7 days." : view === "overdue" ? "Only the instalments past due — a bill's later instalments are not overdue with them." : "Due in the next 30 days."}
+            description={view === "due-week" ? "Overdue, and due in the next 7 days." : view === "overdue" ? "Only the payments due past due — a bill's later payments due are not overdue with them." : "Due in the next 30 days."}
             actions={canPay ? (
               <Button variant="primary" size="compact" isDisabled={!chosen.length} onPress={() => setPaying(true)}>
                 <Wallet className="size-4" aria-hidden="true" />{chosen.length ? `Pay selected (${new Set(chosen.map((row) => row.billId)).size})` : "Pay selected"}

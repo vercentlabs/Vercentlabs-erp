@@ -53,12 +53,16 @@ const OUTCOME: Record<string, string> = {
   crm_reply: "Reply added to its record",
   crm_reference: "Added to the record named in the subject",
   crm_sender: "Added to the sender's lead",
+  bills_received: "Bill waiting in Purchase Bills",
+  no_bill_attached: "No bill attached",
+  bill_files_rejected: "Attachment refused",
 };
 // What each kind of address does, in a sentence, and the name it starts with.
 const TARGET_HELP: Record<string, { title: string; text: string; name: string }> = {
   "support.email_to_ticket": { title: "Support tickets", text: "A new email opens a ticket; replies join the same ticket.", name: "Support inbox" },
   "crm.email_to_lead": { title: "CRM leads", text: "A new email opens a lead; replies join their lead or deal.", name: "Sales enquiries" },
   "sales.email_replies": { title: "Sales replies", text: "Replies to quotations, orders and invoices join their document.", name: "Sales replies" },
+  "procurement.bills_by_email": { title: "Purchase bills", text: "Suppliers' PDF or photo bills wait in Purchase Bills, with the e-invoice QR read.", name: "Purchase bills" },
 };
 
 function recordLink(item: { ticketId?: string | null; recordType?: string | null; recordId?: string | null }) {
@@ -107,7 +111,7 @@ export function InboundEmailPanel({ canManage }: { canManage: boolean }) {
     <div className="flex flex-col gap-4">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <p className="max-w-2xl text-sm text-text-secondary">
-          Turn emails your customers send into Support tickets or CRM leads. Each address you create here is a secure link your mailbox
+          Turn incoming email into Support tickets, CRM leads, replies on Sales documents or purchase bills. Each address you create here is a secure link your mailbox
           forwards new email to.
         </p>
         {canManage && <Button variant="primary" className="w-full sm:w-auto" onPress={() => setCreating(true)}>New inbound address</Button>}

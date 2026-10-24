@@ -50,6 +50,8 @@ export const FILE_ENTITY_TYPES = Object.freeze({
   // On a supplier bill: the supplier's original invoice (PDF or image) and supporting documents.
   "procurement.supplier_bill": { moduleKey: "procurement", purposes: ["attachment"] },
   "procurement.purchase_return": { moduleKey: "procurement", purposes: ["attachment"] },
+  // A supplier's bill that came by email, until it becomes a bill (the file then moves onto the bill) or is set aside.
+  "procurement.bill_inbox": { moduleKey: "procurement", purposes: ["attachment"] },
   // On an opening stock document: the migration evidence (legacy stock reports, count sheets, valuation workings).
   // Evidence on a production quality inspection: photos of defects, measurement sheets, test records.
   "manufacturing.quality_inspection": { moduleKey: "manufacturing", purposes: ["attachment"] },

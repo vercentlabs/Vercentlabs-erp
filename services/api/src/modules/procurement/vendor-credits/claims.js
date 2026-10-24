@@ -21,8 +21,8 @@ export async function recordClaimEvent(client, context, claimId, type, summary, 
 export async function loadClaim(client, context, claimId, { lock = false } = {}) {
   requireClaimView(context);
   const row = (await client.query(`SELECT * FROM tenant.supplier_debit_claims WHERE organization_id = $1 AND id = $2${lock ? " FOR UPDATE" : ""}`,
-    [context.organizationId, requireUuid(claimId, "Debit claim")])).rows[0];
-  if (!row) throw new VendorCreditError(404, "Debit claim not found.", "DEBIT_CLAIM_NOT_FOUND");
+    [context.organizationId, requireUuid(claimId, "Debit note")])).rows[0];
+  if (!row) throw new VendorCreditError(404, "Debit note not found.", "DEBIT_CLAIM_NOT_FOUND");
   return row;
 }
 
@@ -59,7 +59,7 @@ export async function refreshClaimResolution(client, context, claimId) {
   if (next === claim.status) return;
   await client.query(`UPDATE tenant.supplier_debit_claims SET status = $3, updated_at = now(), version = version + 1 WHERE organization_id = $1 AND id = $2`, [context.organizationId, claim.id, next]);
   await recordClaimEvent(client, context, claim.id, next === "resolved" ? "claim.resolved" : "claim.reopened",
-    next === "resolved" ? `Resolved: credits of ${dec(credited.posted)} posted` : `Reopened: credits posted now ${dec(credited.posted)} of ${dec(accepted)} accepted`);
+    next === "resolved" ? `Resolved: credits of ${dec(credited.posted)} final` : `Reopened: credits final now ${dec(credited.posted)} of ${dec(accepted)} accepted`);
 }
 
 // ---------------------------------------------------------------- lines
@@ -81,7 +81,7 @@ async function buildClaimLines(client, context, supplier, input, currency) {
       bill = billLine && (await client.query(`SELECT * FROM tenant.accounting_vendor_bills WHERE organization_id = $1 AND id = $2`, [organizationId, billLine.vendor_bill_id])).rows[0];
       if (!bill || bill.bill_type !== "bill") fail(`${label}: the bill line was not found.`, `lines.${index}.billLineId`, "DEBIT_CLAIM_LINE_INVALID", 404);
       if (bill.party_id !== supplier.party_id) fail(`${label}: ${bill.bill_number} is another supplier's bill.`, `lines.${index}.billLineId`, "DEBIT_CLAIM_SUPPLIER_MISMATCH", 409);
-      if (!POSTED_STATUSES.includes(bill.status)) fail(`${label}: ${bill.bill_number} is not posted.`, `lines.${index}.billLineId`, "DEBIT_CLAIM_BILL_NOT_POSTED", 409);
+      if (!POSTED_STATUSES.includes(bill.status)) fail(`${label}: ${bill.bill_number} is not final.`, `lines.${index}.billLineId`, "DEBIT_CLAIM_BILL_NOT_POSTED", 409);
       if (bill.currency_code.trim() !== currency) fail(`${label}: ${bill.bill_number} is in ${bill.currency_code.trim()}, the claim in ${currency}.`, `lines.${index}.billLineId`, "DEBIT_CLAIM_CURRENCY_MISMATCH", 409);
     }
     const basis = entry.basis === "quantity" ? "quantity" : "amount";
@@ -143,7 +143,7 @@ export async function createSupplierDebitClaim(client, context, input = {}) {
   const lines = await buildClaimLines(client, context, supplier, input, currency);
   const issueDate = readDate(input.issueDate, "Issue date") ?? await databaseToday(client, context.organizationId);
   const firstBill = lines.find((line) => line.supplierBillId);
-  const registration = optionalUuid(input.buyingRegistrationId, "Company registration") ?? (firstBill
+  const registration = optionalUuid(input.buyingRegistrationId, "Our GSTIN") ?? (firstBill
     ? (await client.query(`SELECT buying_registration_id FROM tenant.accounting_vendor_bills WHERE organization_id = $1 AND id = $2`, [context.organizationId, firstBill.supplierBillId])).rows[0]?.buying_registration_id
     : null);
   const number = await nextDocumentNumber(client, { organizationId: context.organizationId }, { documentType: "supplier_debit_claim", at: new Date(`${issueDate}T12:00:00Z`) });
@@ -154,7 +154,7 @@ export async function createSupplierDebitClaim(client, context, input = {}) {
       optionalUuid(input.purchaseReturnId, "Purchase return"), text(input.notes, 2000), context.userId ?? null])).rows[0];
   const total = await writeClaimLines(client, context, row.id, lines);
   await client.query(`UPDATE tenant.supplier_debit_claims SET claimed_amount = $3 WHERE organization_id = $1 AND id = $2`, [context.organizationId, row.id, dec(total)]);
-  await recordClaimEvent(client, context, row.id, "claim.created", `Debit claim ${number} drafted for ${dec(total)} ${currency}`);
+  await recordClaimEvent(client, context, row.id, "claim.created", `Debit note ${number} drafted for ${dec(total)} ${currency}`);
   if (input.issue) await issueDebitClaim(client, context, row.id);
   return { id: row.id, claimNumber: number, status: input.issue ? "issued" : "draft", claimedAmount: dec(total) };
 }
@@ -163,9 +163,9 @@ export async function createSupplierDebitClaim(client, context, input = {}) {
 export async function updateDraftDebitClaim(client, context, claimId, input = {}) {
   requireAny(context, [VC_PERMISSIONS.claimsManage], "You do not have permission to change debit notes to suppliers.");
   const claim = await loadClaim(client, context, claimId, { lock: true });
-  if (claim.status !== "draft") throw new VendorCreditError(409, "Only a draft debit claim can be changed; an issued one is answered by the supplier or closed.", "DEBIT_CLAIM_LOCKED");
+  if (claim.status !== "draft") throw new VendorCreditError(409, "Only a draft debit note can be changed; an issued one is answered by the supplier or closed.", "DEBIT_CLAIM_LOCKED");
   if (input.expectedVersion !== undefined && Number(input.expectedVersion) !== Number(claim.version))
-    throw new VendorCreditError(409, "Someone else changed this debit claim. Reload it.", "DEBIT_CLAIM_VERSION_CONFLICT");
+    throw new VendorCreditError(409, "Someone else changed this debit note. Reload it.", "DEBIT_CLAIM_VERSION_CONFLICT");
   const supplier = await supplierOf(client, context.organizationId, claim.supplier_id);
   const reason = input.reason === undefined ? claim.reason : text(input.reason, 1000);
   if (!reason || reason.length < 3) fail("Give the reason for the claim.", "reason", "DEBIT_CLAIM_REASON_REQUIRED");
@@ -186,7 +186,7 @@ export async function issueDebitClaim(client, context, claimId, input = {}) {
   requireAny(context, [VC_PERMISSIONS.claimsManage], "You do not have permission to issue debit notes to suppliers.");
   const claim = await loadClaim(client, context, claimId, { lock: true });
   if (claim.status === "issued") return { id: claim.id, status: "issued", replayed: true };
-  if (claim.status !== "draft") throw new VendorCreditError(409, `The debit claim is ${CLAIM_STATUS_LABELS[claim.status].toLowerCase()}.`, "DEBIT_CLAIM_LOCKED");
+  if (claim.status !== "draft") throw new VendorCreditError(409, `The debit note is ${CLAIM_STATUS_LABELS[claim.status].toLowerCase()}.`, "DEBIT_CLAIM_LOCKED");
   const lines = (await client.query(`SELECT count(*)::int AS count FROM tenant.supplier_debit_claim_lines WHERE organization_id = $1 AND claim_id = $2`, [context.organizationId, claim.id])).rows[0].count;
   if (!lines || decimal(claim.claimed_amount) <= 0n) fail("Add what is being claimed before issuing.", "lines", "DEBIT_CLAIM_NO_LINES", 409);
   const supplier = await supplierOf(client, context.organizationId, claim.supplier_id);
@@ -203,7 +203,7 @@ export async function recordSupplierClaimResponse(client, context, claimId, inpu
   requireAny(context, [VC_PERMISSIONS.claimsRespond], "You do not have permission to record supplier responses.");
   const claim = await loadClaim(client, context, claimId, { lock: true });
   if (!OPEN_FOR_RESPONSE.includes(claim.status) && !(claim.status === "accepted" && input.decision !== "accepted"))
-    throw new VendorCreditError(409, claim.status === "draft" ? "Issue the debit claim before recording the supplier's response." : `The debit claim is ${CLAIM_STATUS_LABELS[claim.status].toLowerCase()}.`,
+    throw new VendorCreditError(409, claim.status === "draft" ? "Issue the debit note before recording the supplier's response." : `The debit note is ${CLAIM_STATUS_LABELS[claim.status].toLowerCase()}.`,
       "DEBIT_CLAIM_NOT_OPEN");
   const decision = ["accepted", "partially_accepted", "rejected"].includes(input.decision) ? input.decision : fail("Record whether the supplier accepted, partly accepted or rejected the claim.", "decision");
   const claimed = decimal(claim.claimed_amount);
@@ -242,9 +242,9 @@ export async function closeSupplierDebitClaim(client, context, claimId, input = 
   const claim = await loadClaim(client, context, claimId, { lock: true });
   if (claim.status === "closed") return { id: claim.id, status: "closed", replayed: true };
   const reason = text(input.reason, 1000);
-  if (!reason || reason.length < 3) fail("Give the reason for closing the debit claim.", "reason", "DEBIT_CLAIM_REASON_REQUIRED");
+  if (!reason || reason.length < 3) fail("Give the reason for closing the debit note.", "reason", "DEBIT_CLAIM_REASON_REQUIRED");
   const credited = await claimCredited(client, context.organizationId, claim.id);
-  if (credited.live > credited.posted) fail("A draft credit is raised against this claim: post or cancel it first.", "reason", "DEBIT_CLAIM_CREDIT_PENDING", 409);
+  if (credited.live > credited.posted) fail("A draft credit is raised against this claim: finalise or cancel it first.", "reason", "DEBIT_CLAIM_CREDIT_PENDING", 409);
   await client.query(`UPDATE tenant.supplier_debit_claims SET status = 'closed', closed_by = $3, closed_at = now(), close_reason = $4, updated_by = $3, updated_at = now(), version = version + 1
      WHERE organization_id = $1 AND id = $2`, [context.organizationId, claim.id, context.userId ?? null, reason]);
   await recordClaimEvent(client, context, claim.id, "claim.closed", `Closed: ${reason}`);

@@ -70,7 +70,7 @@ export type ProcurementPickRow = {
   gstin?: string | null; msme?: boolean;
   // products
   code?: string; item_type?: string; track_inventory?: boolean; purchase_uom_id?: string | null; uom_id?: string | null; tax_category_id?: string | null;
-  last_purchase_price?: string | null; contract_rate?: string | null; contract_number?: string | null;
+  last_purchase_price?: string | null; contract_rate?: string | null; contract_number?: string | null; supplier_rate?: string | null; supplier_item_code?: string | null; lead_time_days?: number | null;
 };
 export const searchProcurementOptions = (input: { kind: "suppliers" | "products"; search?: string; ids?: string[]; supplierId?: string | null; activeOnly?: boolean }) =>
   request<{ suppliers?: ProcurementPickRow[]; products?: ProcurementPickRow[] }>(`/options/search${qs({

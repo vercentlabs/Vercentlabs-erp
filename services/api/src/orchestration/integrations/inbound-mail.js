@@ -26,6 +26,8 @@ import { deliverEmailToSupport } from "../../modules/support/desk/sd-mail.js";
 import { prepareAttachmentUpload as prepareCrmAttachment } from "../../modules/crm/attachments/records.js";
 import { deliverInboundEmailToCrm } from "../../modules/crm/email/inbound.js";
 import { deliverInboundEmailToSales } from "../../modules/sales/document-emails.js";
+import { deliverInboundEmailToProcurement, isBillDocument } from "../../modules/procurement/supplier-bills/inbox.js";
+import { preparePurchaseOrderFileUpload } from "../../modules/procurement/purchase-orders/files.js";
 
 const MAX_RAW_BODY = 30 * 1024 * 1024;
 
@@ -48,7 +50,7 @@ async function prepareAttachments(message, env, target = "support.email_to_ticke
 }
 
 async function assertModuleAvailable(client, organizationId, env, moduleKey = "support") {
-  const label = moduleKey === "crm" ? "CRM" : moduleKey === "sales" ? "Sales" : "Support";
+  const label = moduleKey === "crm" ? "CRM" : moduleKey === "sales" ? "Sales" : moduleKey === "procurement" ? "Procurement" : "Support";
   const enabled = await getEnabledModuleKeys(client, organizationId);
   if (!enabled.has(moduleKey)) throw new InboundMailError(409, `${label} is not enabled for this organisation.`, "PLATFORM_INBOUND_MAIL_TARGET_UNAVAILABLE");
   let billing = null;
@@ -74,6 +76,23 @@ export async function receiveInboundMail({ runPlatform, runTenant }, { routeKey,
   return processInboundMail({ runTenant }, route, { rawBody, signature }, env);
 }
 
+// Bills by email: each PDF or photo, scanned for malware and kept with its bytes for the QR reader; anything else is noted, not kept.
+async function prepareBillDocuments(message, env) {
+  const documents = [];
+  const notes = [];
+  for (const attachment of message.attachments) {
+    if (!isBillDocument(attachment)) { notes.push({ fileName: attachment.fileName, status: "rejected", reason: "NOT_A_BILL_FILE" }); continue; }
+    const bytes = Buffer.from(attachment.contentBase64, "base64");
+    try {
+      documents.push({ fileName: attachment.fileName, contentType: attachment.contentType, bytes, prepared: await preparePurchaseOrderFileUpload({ fileName: attachment.fileName, bytes }, env) });
+      notes.push({ fileName: attachment.fileName, status: "accepted" });
+    } catch (error) {
+      notes.push({ fileName: attachment.fileName, status: "rejected", reason: error?.code || "FILE_INVALID" });
+    }
+  }
+  return { documents, notes };
+}
+
 // "Send test email" (Settings › Integrations › Inbound email): a sample customer email, signed with the address's own secret, through
 // exactly the steps a provider's delivery takes (signature, idempotency, Support or CRM delivery). It opens a real ticket or lead, named
 // as a test, so the whole path is seen working before a mailbox is pointed at it.
@@ -81,14 +100,17 @@ export async function sendInboundMailTest({ runTenant }, session, routeId, env =
   const route = await runTenant(session.organizationId, (client) => loadInboundMailRoute(client, session.organizationId, routeId));
   const crm = route.target === "crm.email_to_lead";
   const sales = route.target === "sales.email_replies";
+  const bills = route.target === "procurement.bills_by_email";
   const stamp = new Date().toISOString();
   const rawBody = JSON.stringify({
     provider: "test",
     messageId: `test-${randomUUID()}@vercentlabs.test`,
     from: { email: "test.customer@example.com", name: "Test Customer" },
     to: ["inbound@example.com"],
-    subject: sales ? "Test reply from the inbound email setup" : crm ? "Test enquiry from the inbound email setup" : "Test support request from the inbound email setup",
-    text: sales
+    subject: bills ? "Test bill from the inbound email setup" : sales ? "Test reply from the inbound email setup" : crm ? "Test enquiry from the inbound email setup" : "Test support request from the inbound email setup",
+    text: bills
+      ? `This is a test message sent from Settings › Integrations › Inbound email at ${stamp}. It has no bill attached, so nothing is added: a supplier's PDF or photo waits in Purchase Bills › By email.`
+      : sales
       ? `This is a test message sent from Settings › Integrations › Inbound email at ${stamp}. It names no document, so it is logged as unmatched: a real reply joins its quotation, order or invoice.`
       : `This is a test message sent from Settings › Integrations › Inbound email at ${stamp}. It shows that email sent to "${route.name}" ${crm ? "opens a CRM lead" : "opens a Support ticket"}. You can close or delete it.`,
   });
@@ -111,14 +133,18 @@ async function processInboundMail({ runTenant }, route, { rawBody, signature }, 
 
   const crm = route.target === "crm.email_to_lead";
   const sales = route.target === "sales.email_replies";
+  const bills = route.target === "procurement.bills_by_email";
   // Sales keeps the reply's text on the document; its attachments are named, not kept.
-  const { prepared, notes } = sales ? { prepared: [], notes: [] } : await prepareAttachments(message, env, route.target);
+  const billFiles = bills ? await prepareBillDocuments(message, env) : { documents: [], notes: [] };
+  const documents = billFiles.documents;
+  const { prepared, notes } = bills ? { prepared: [], notes: billFiles.notes } : sales ? { prepared: [], notes: [] } : await prepareAttachments(message, env, route.target);
   try {
     const result = await runTenant(route.organization_id, async (client) => {
-      await assertModuleAvailable(client, route.organization_id, env, crm ? "crm" : sales ? "sales" : "support");
+      await assertModuleAvailable(client, route.organization_id, env, crm ? "crm" : sales ? "sales" : bills ? "procurement" : "support");
       const delivered = crm
         ? await deliverInboundEmailToCrm(client, route, message, prepared, { inboundEventId: event.id })
         : sales ? await deliverInboundEmailToSales(client, route, message)
+        : bills ? await deliverInboundEmailToProcurement(client, route, message, documents, { env, inboundEventId: event.id })
         : await deliverEmailToSupport(client, route, message, prepared, { env });
       await completeInboundMailEvent(client, event.id, { status: "processed", ...delivered, attachmentNotes: notes });
       return delivered;

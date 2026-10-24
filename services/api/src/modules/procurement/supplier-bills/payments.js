@@ -25,7 +25,7 @@ async function finance(work) {
 async function openBill(client, context, billId) {
   const bill = await loadBill(client, context, billId, { lock: true });
   if (bill.bill_type !== "bill" || !OPEN.includes(bill.status) || decimal(bill.outstanding_amount) <= 0n)
-    throw new SupplierBillError(409, "Only a posted bill with a balance due can be paid.", "SUPPLIER_BILL_NOT_PAYABLE");
+    throw new SupplierBillError(409, "Only a final bill with a balance due can be paid.", "SUPPLIER_BILL_NOT_PAYABLE");
   return bill;
 }
 
@@ -79,10 +79,10 @@ export async function applySupplierAdvance(client, context, billId, input = {}) 
 
 // applySupplierCredit: a posted vendor credit with credit left reduces the bill (the same checks as applying it from the credit). input: { creditId, amount? }
 export async function applySupplierCredit(client, context, billId, input = {}) {
-  requirePoPermission(context, BILL_PERMISSIONS.payments, "You do not have permission to apply supplier credits.");
+  requirePoPermission(context, BILL_PERMISSIONS.payments, "You do not have permission to apply supplier credit notes.");
   const bill = await openBill(client, context, billId);
   const note = (await client.query(`SELECT id, party_id, outstanding_amount FROM tenant.accounting_vendor_bills WHERE organization_id = $1 AND id = $2 AND bill_type = 'credit_note'`,
-    [context.organizationId, requireUuid(input.creditId, "Vendor credit")])).rows[0];
+    [context.organizationId, requireUuid(input.creditId, "Supplier credit note")])).rows[0];
   if (!note || note.party_id !== bill.party_id) fail("The credit must be one of this supplier's.", "creditId", "SUPPLIER_CREDIT_INVALID", 409);
   const amount = input.amount ? String(input.amount).trim() : dec(decimal(note.outstanding_amount) < decimal(bill.outstanding_amount) ? note.outstanding_amount : bill.outstanding_amount);
   await allocateVendorCreditToBills(client, context, note.id, { allocations: [{ billId: bill.id, amount }], idempotencyKey: input.idempotencyKey });
@@ -91,6 +91,6 @@ export async function applySupplierCredit(client, context, billId, input = {}) {
 
 // reverseSupplierPayment: a payment that did not happen (bounced, in error). Finance reverses it and the bills it settled are owed again. input: { reason }
 export async function reverseSupplierPayment(client, context, paymentId, input = {}) {
-  requirePoPermission(context, "accounting.payments.approve", "You do not have permission to reverse supplier payments.");
+  requirePoPermission(context, "accounting.payments.approve", "You do not have permission to cancel supplier payments.");
   return finance(() => reverseVendorPayment(client, fin(context), requireUuid(paymentId, "Payment"), { reason: input.reason }));
 }

@@ -33,7 +33,7 @@ export const DISCREPANCY_LABELS = Object.freeze({
 export const RECEIPT_CODES = Object.freeze(["MISSING_GOODS_RECEIPT", "INSUFFICIENT_RECEIVED_QUANTITY", "INSUFFICIENT_ACCEPTED_QUANTITY", "RECEIPT_ALREADY_ALLOCATED",
   "REJECTED_RETURNED_GOODS", "INVALID_GRN_STATUS"]);
 // The order's matching policy: 3-Way on accepted goods (default for stock), 3-Way on physically received goods, or 2-Way (billing before receipt).
-export const MATCHING_POLICIES = Object.freeze({ three_way_accepted: "3-Way — acceptance required", three_way_received: "3-Way — physical receipt", two_way: "2-Way — PO-based billing" });
+export const MATCHING_POLICIES = Object.freeze({ three_way_accepted: "Order and goods received — acceptance required", three_way_received: "Order and goods received — physical receipt", two_way: "Order only — PO-based billing" });
 export const policyOf = (order, settings = null) => order.matching_policy
   ?? (settings?.billing_basis === "order" ? "two_way" : settings?.bill_held_goods ? "three_way_received" : "three_way_accepted");
 // What may be accepted as an exception (with its accounting): commercial value differences only.
@@ -41,23 +41,23 @@ export const APPROVABLE_CODES = Object.freeze(["PRICE_MISMATCH", "DISCOUNT_MISMA
 const GUIDANCE = {
   SUPPLIER_MISMATCH: "Record the invoice against the order of the supplier that issued it. A supplier difference cannot be accepted as an exception.",
   COMPANY_MISMATCH: "Use the order's buying company (the invoice must be addressed to it). A company difference cannot be accepted as an exception.",
-  CURRENCY_MISMATCH: "Bill in the order's currency, or have the order amended.",
-  INVALID_PO: "Only a confirmed order is billed: reconfirm an amended order; a cancelled or closed order takes no new bills.",
-  UNMATCHED_PO_LINE: "Remove the line, or amend the order to include the product. It cannot be accepted as an exception.",
+  CURRENCY_MISMATCH: "Bill in the order's currency, or have the order changed.",
+  INVALID_PO: "Only a confirmed order is billed: reconfirm a changed order; a cancelled or closed order takes no new bills.",
+  UNMATCHED_PO_LINE: "Remove the line, or change the order to include the product. It cannot be accepted as an exception.",
   PRODUCT_MISMATCH: "Correct the draft line to the ordered product, or ask the supplier for a corrected invoice.",
   UOM_MISMATCH: "Enter the quantity in the order's unit, or set up the item's unit conversion.",
-  QUANTITY_EXCEEDED: "Bill only what the order still commits: ask the supplier for a corrected invoice, or amend the order.",
-  VALUE_EXCEEDED: "Bill only the service's remaining agreed value: ask for a corrected invoice, or amend the order.",
-  PRICE_MISMATCH: "Correct the draft if mistyped, amend the order if the price was agreed, ask for a corrected invoice — or have an authorised approver accept the variance.",
-  DISCOUNT_MISMATCH: "Enter the discount the invoice shows; if it differs from the agreed one, amend the order, ask for a corrected invoice or have the variance accepted.",
-  AMOUNT_MISMATCH: "The supplier's invoice total does not reconcile with the lines: check quantities, prices, discounts and taxes.",
-  UNAUTHORIZED_CHARGE: "Amend the order to include the charge, ask for a corrected invoice, or have an authorised approver accept it as a charge.",
-  MISSING_GOODS_RECEIPT: "Wait for the goods and post their goods receipt. Billing before receipt needs the order's policy changed to 2-Way by an authorised user.",
-  INSUFFICIENT_RECEIVED_QUANTITY: "Bill only what was received: ask for a corrected invoice, or wait for the rest of the goods and post their receipt.",
+  QUANTITY_EXCEEDED: "Bill only what the order still commits: ask the supplier for a corrected invoice, or change the order.",
+  VALUE_EXCEEDED: "Bill only the service's remaining agreed value: ask for a corrected invoice, or change the order.",
+  PRICE_MISMATCH: "Correct the draft if mistyped, change the order if the price was agreed, ask for a corrected invoice — or have an authorised approver accept the difference.",
+  DISCOUNT_MISMATCH: "Enter the discount the invoice shows; if it differs from the agreed one, change the order, ask for a corrected invoice or have the difference accepted.",
+  AMOUNT_MISMATCH: "The supplier's invoice total does not agree with the lines: check quantities, prices, discounts and taxes.",
+  UNAUTHORIZED_CHARGE: "Change the order to include the charge, ask for a corrected invoice, or have an authorised approver accept it as a charge.",
+  MISSING_GOODS_RECEIPT: "Wait for the goods and finalise their goods receipt. Billing before receipt needs the order's policy changed to Order only by an authorised user.",
+  INSUFFICIENT_RECEIVED_QUANTITY: "Bill only what was received: ask for a corrected invoice, or wait for the rest of the goods and finalise their receipt.",
   INSUFFICIENT_ACCEPTED_QUANTITY: "Part of the goods is still on inspection hold: complete the quality acceptance (release), then check matching again.",
-  RECEIPT_ALREADY_ALLOCATED: "Those received goods are already billed by another posted bill: ask the supplier for a corrected invoice.",
+  RECEIPT_ALREADY_ALLOCATED: "Those received goods are already billed by another final bill: ask the supplier for a corrected invoice.",
   REJECTED_RETURNED_GOODS: "Part of the goods was rejected or returned: bill only what was kept, or record a replacement receipt.",
-  INVALID_GRN_STATUS: "A goods receipt this bill drew on is no longer valid (reversed): check matching again to draw on valid receipts.",
+  INVALID_GRN_STATUS: "A goods receipt this bill drew on is no longer valid (cancelled): check matching again to draw on valid receipts.",
 };
 
 // The fingerprint an approved exception is bound to: the line's order line, the discrepancy, quantity, price, discount, net value and the
@@ -188,7 +188,8 @@ export async function evaluateTwoWayMatch(client, context, { order, header, line
       expectedTax = roundMoney(div(mul(orderLine.tax_total ?? 0, line.quantity), orderLine.ordered_quantity), places);
       // 3-Way for goods on a receipt policy (validateGoodsReceiptMatch): the bill's quantity against what posted receipts still support.
       const threeWay = state.receiptRequired && state.billingBasis === "receipt" && line.billingBasis !== "amount";
-      figures.basis = threeWay ? policy : "two_way";
+      // A line billed on receipt by its item on an order-only policy is matched on accepted goods.
+      figures.basis = threeWay ? (policy === "two_way" ? "three_way_accepted" : policy) : "two_way";
       if (threeWay && uomOk) {
         const available = receipts.filter((entry) => entry.purchaseOrderLineId === orderLine.id);
         const remaining = available.reduce((total, entry) => add(total, entry.remaining), 0n);
@@ -201,17 +202,17 @@ export async function evaluateTwoWayMatch(client, context, { order, header, line
         figures.allocations = allocations;
         for (const allocation of allocations) {
           const entry = receipts.find((candidate) => candidate.goodsReceiptLineId === allocation.goodsReceiptLineId);
-          if (!entry) flag("INVALID_GRN_STATUS", `${label}: goods receipt ${allocation.receiptNumber ?? ""} is no longer posted (reversed or cancelled).`.replace("  ", " "));
+          if (!entry) flag("INVALID_GRN_STATUS", `${label}: goods receipt ${allocation.receiptNumber ?? ""} is no longer final (cancelled).`.replace("  ", " "));
           else if (decimal(allocation.quantity) > entry.remaining)
-            flag("RECEIPT_ALREADY_ALLOCATED", `${label}: only ${dec(entry.remaining)} of ${entry.receiptNumber} is still unbilled; ${dec(allocation.quantity)} is claimed — another posted bill already took the rest.`,
+            flag("RECEIPT_ALREADY_ALLOCATED", `${label}: only ${dec(entry.remaining)} of ${entry.receiptNumber} is still unbilled; ${dec(allocation.quantity)} is claimed — another final bill already took the rest.`,
               { expected: dec(entry.remaining), actual: dec(allocation.quantity), difference: dec(sub(allocation.quantity, entry.remaining)) });
         }
         if (line.quantity > remaining && !found.some((entry) => RECEIPT_CODES.includes(entry.code))) {
           const values = { expected: dec(remaining), actual: dec(line.quantity), difference: dec(sub(line.quantity, remaining)) };
           const shortBy = `invoice quantity ${dec(line.quantity)}, ${dec(remaining)} eligible (difference ${dec(sub(line.quantity, remaining))})`;
           if (state.received <= 0n) flag("MISSING_GOODS_RECEIPT", `${label}: no goods received yet against this order line — ${shortBy}.`, values);
-          else if (allocatedOthers > 0n && line.quantity <= eligibleTotal) flag("RECEIPT_ALREADY_ALLOCATED", `${label}: the received quantity is already allocated to other posted bills — ${shortBy}.`, values);
-          else if (policy === "three_way_accepted" && line.quantity <= add(remaining, state.openInspection))
+          else if (allocatedOthers > 0n && line.quantity <= eligibleTotal) flag("RECEIPT_ALREADY_ALLOCATED", `${label}: the received quantity is already matched to other final bills — ${shortBy}.`, values);
+          else if (figures.basis === "three_way_accepted" && line.quantity <= add(remaining, state.openInspection))
             flag("INSUFFICIENT_ACCEPTED_QUANTITY", `${label}: ${dec(state.openInspection)} received is still on inspection hold — ${shortBy}.`, values);
           else if (add(state.returned, state.qualityRejected) > 0n && line.quantity <= sub(state.received, allocatedOthers))
             flag("REJECTED_RETURNED_GOODS", `${label}: part of the received goods was rejected or returned — ${shortBy}.`, values);

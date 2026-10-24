@@ -16,11 +16,23 @@ import { normalizeQuantityToBase } from "../../products/uom.js";
 import { poCan } from "./access.js";
 import { PO_PERMISSIONS, PurchaseOrderError, fail, optionalUuid, readDate, text } from "./constants.js";
 import { stockOn } from "../../../core/products/tracking.js";
-import { contractOverdraw, contractRatesFor } from "../rate-contracts/index.js";
+import { contractOverdraw, contractRatesFor, oneOffContractKey } from "../rate-contracts/index.js";
+import { supplierRateFor } from "../supplier-rates/index.js";
+import { purchaseWarningsFor } from "../warnings.js";
+import { databaseToday } from "../org-day.js";
 
 export const dec = (value) => formatDecimal(value);
 const QTY = /^\d+(?:\.\d{1,6})?$/;
 const MONEY = /^\d+(?:\.\d{1,6})?$/;
+
+// The order line's cost centre (report Phase 3): an active one of the company, or none.
+async function costCenterOf(client, organizationId, value, label) {
+  const id = optionalUuid(value, `${label} cost centre`);
+  if (!id) return null;
+  if (!(await client.query(`SELECT 1 FROM public.cost_centers WHERE organization_id = $1 AND id = $2 AND status = 'active'`, [organizationId, id])).rowCount)
+    fail(`${label}: choose an active cost centre.`, "costCenterId", "PURCHASE_ORDER_COST_CENTER_INVALID", 409);
+  return id;
+}
 
 export async function currencyPlaces(client, organizationId, code) {
   const row = (await client.query(`SELECT decimal_places FROM tenant.currencies WHERE organization_id = $1 AND code = $2`, [organizationId, code])).rows[0];
@@ -84,7 +96,8 @@ export async function calculatePurchaseOrderTotals(client, context, document, { 
   const inclusive = document.priceMode === "inclusive";
   const warnings = [];
   // The supplier's active rate contracts on the order date (Procurement plan Phase 3): a contracted item's price defaults to the contract rate.
-  const contracts = await contractRatesFor(client, organizationId, { supplierId: document.supplierId, date: document.orderDate ?? new Date().toISOString().slice(0, 10) });
+  const priceDate = document.orderDate ?? (await databaseToday(client, organizationId));
+  const contracts = await contractRatesFor(client, organizationId, { supplierId: document.supplierId, date: priceDate, currencyCode: document.currencyCode ?? null });
   const priced = [];
   // Without the Stock app nothing bought is kept in stock: products are non-stock lines with no receiving warehouse.
   const keepsStock = await stockOn(client, context);
@@ -139,9 +152,14 @@ export async function calculatePurchaseOrderTotals(client, context, document, { 
       if (roundMoney(quantity, decimals) !== quantity) fail(`${label}: ${uom.code} allows ${decimals} decimal place${decimals === 1 ? "" : "s"}.`, "quantity", "PURCHASE_ORDER_QUANTITY_INVALID");
     }
 
-    const contract = item ? contracts.get(`${item.id}:${uom.id}`) ?? null : null;
+    const contract = item ? contracts.get(`${item.id}:${uom.id}`) ?? null : contracts.get(oneOffContractKey(description, uom.id)) ?? null;
     let rawPrice = input.unitPrice === undefined || input.unitPrice === null ? "" : String(input.unitPrice).trim();
     if (rawPrice === "" && contract) rawPrice = contract.rate;
+    // Without a contract, the supplier's price list (Supplier Rates) for this unit, currency and quantity.
+    if (rawPrice === "" && !contract && item) {
+      const listed = await supplierRateFor(client, organizationId, { supplierId: document.supplierId, itemId: item.id, uomId: uom.id, quantity, date: priceDate, currencyCode: document.currencyCode ?? null });
+      if (listed) rawPrice = listed.rate;
+    }
     if (contract && rawPrice !== "" && MONEY.test(rawPrice) && decimal(rawPrice) !== decimal(contract.rate))
       warnings.push({ line: index + 1, code: "CONTRACT_RATE_DIFFERS", message: `${label}: rate contract ${contract.contractNumber} agrees ${contract.rate}.` });
     let unitPrice = null;
@@ -167,6 +185,7 @@ export async function calculatePurchaseOrderTotals(client, context, document, { 
       taxCategoryId: taxCategoryId ?? null, expenseAccountId, label,
       warehouseId: productType === "service" || !keepsStock ? null : optionalUuid(input.warehouseId ?? input.receivingWarehouseId ?? document.defaultWarehouseId, "Warehouse"),
       expectedDeliveryDate: readDate(input.expectedDeliveryDate, `${label} expected date`),
+      costCenterId: await costCenterOf(client, organizationId, input.costCenterId, label), costCenterGiven: input.costCenterId !== undefined,
       sourceQuotationLineId: optionalUuid(input.sourceQuotationLineId, "Quotation line"),
       // The indent line this order line buys for (Procurement plan Phase 2); checked against the indent below.
       sourceIndentLineId: optionalUuid(input.sourceIndentLineId, "Indent line"),
@@ -180,6 +199,9 @@ export async function calculatePurchaseOrderTotals(client, context, document, { 
   for (const [index, line] of priced.entries()) if (line.contract)
     for (const issue of contractOverdraw(line.contract, line.quantity, line.net))
       warnings.push({ line: index + 1, code: "CONTRACT_OVERDRAWN", message: `${line.label}: ${issue}.` });
+  // Purchase warnings on the supplier and items; a blocked item cannot go on a new line.
+  warnings.push(...(await purchaseWarningsFor(client, organizationId, { supplierId: document.supplierId,
+    lines: priced.map((line) => ({ itemId: line.item?.id ?? null, label: line.label, carried: Boolean(line.input?.carried || line.sourceQuotationLineId) })) })));
 
   // An order line bought for an indent line names an approved indent's open line for the same item.
   const indentLineIds = priced.map((line) => line.sourceIndentLineId).filter(Boolean);
@@ -230,7 +252,7 @@ export async function calculatePurchaseOrderTotals(client, context, document, { 
       zeroPriceReason: line.unitPrice === 0n ? line.zeroPriceReason : null, discountType: line.discount.type, discountValue: line.discount.value, gross: line.gross,
       lineDiscount: line.lineDiscount, allocatedDocumentDiscount: line.allocated ?? decimal(0), taxableAmount: computed.taxableAmount, taxCategoryId: line.taxCategoryId,
       taxTreatment: resolved.treatment, taxRate: resolved.rate, taxTotal: computed.taxAmount, lineTotal, components: computed.components,
-      warehouseId: line.warehouseId, expectedDeliveryDate: line.expectedDeliveryDate, sourceQuotationLineId: line.sourceQuotationLineId, sourceIndentLineId: line.sourceIndentLineId ?? null, sourceRateContractLineId: line.contract?.lineId ?? null,
+      warehouseId: line.warehouseId, expectedDeliveryDate: line.expectedDeliveryDate, costCenterId: line.costCenterId ?? null, costCenterGiven: Boolean(line.costCenterGiven), sourceQuotationLineId: line.sourceQuotationLineId, sourceIndentLineId: line.sourceIndentLineId ?? null, sourceRateContractLineId: line.contract?.lineId ?? null,
       expenseAccountId: line.expenseAccountId,
       productSnapshot: line.item
         ? { id: line.item.id, code: line.item.code, name: line.item.name, type: line.productType, itemType: line.item.item_type, trackingType: line.item.tracking_type, hsnSacCode: line.item.hsn_sac_code }

@@ -16,11 +16,11 @@ import { pagingOf } from "../paging.js";
 const dec = (value) => (value === null || value === undefined ? null : formatDecimal(value));
 export const SUPPLIER_PAYMENT_METHODS = Object.freeze({ bank_transfer: "Bank transfer (NEFT/RTGS/IMPS)", upi: "UPI", cheque: "Cheque", cash: "Cash", card: "Card", gateway: "Payment gateway", other: "Other" });
 export const SUPPLIER_PAYMENT_STATUS_LABELS = Object.freeze({
-  draft: "Draft", pending_approval: "Awaiting approval", approved: "Approved", posted: "Paid", partially_applied: "Paid (part advance)", applied: "Paid", reversed: "Reversed", cancelled: "Cancelled",
+  draft: "Draft", pending_approval: "Awaiting approval", approved: "Approved", posted: "Paid", partially_applied: "Paid (part advance)", applied: "Paid", reversed: "Cancelled", cancelled: "Cancelled",
 });
 export const SUPPLIER_PAYMENT_VIEWS = Object.freeze([
   { key: "all", label: "All" }, { key: "this_month", label: "This month" }, { key: "advances", label: "Advances" }, { key: "awaiting_approval", label: "Awaiting approval" },
-  { key: "reversed", label: "Reversed" },
+  { key: "reversed", label: "Cancelled" },
 ]);
 const PAID = "('posted', 'partially_applied', 'applied')";
 const NOT_REVERSED = `NOT EXISTS (SELECT 1 FROM tenant.accounting_vendor_payment_allocation_reversals reversal WHERE reversal.organization_id = allocation.organization_id AND reversal.allocation_id = allocation.id)`;
@@ -169,7 +169,7 @@ export async function paySupplierBills(client, context, input = {}) {
   const groups = new Map();
   for (const bill of bills) {
     if (bill.bill_type !== "bill" || !["posted", "partially_paid", "overdue", "disputed"].includes(bill.status) || decimal(bill.outstanding_amount) <= 0n)
-      fail(`${bill.bill_number} has nothing to pay (only posted bills with a balance due can be paid).`, "bills", "SUPPLIER_BILL_NOT_PAYABLE", 409);
+      fail(`${bill.bill_number} has nothing to pay (only final bills with a balance due can be paid).`, "bills", "SUPPLIER_BILL_NOT_PAYABLE", 409);
     const asked = requested.find((entry) => entry.billId === bill.id)?.amount;
     const raw = asked === undefined || asked === null || asked === "" ? dec(bill.outstanding_amount) : String(asked).trim();
     if (!/^\d+(?:\.\d{1,6})?$/.test(raw) || decimal(raw) <= 0n) fail(`${bill.bill_number}: enter the amount to pay.`, "bills", "SUPPLIER_PAYMENT_AMOUNT_INVALID");
@@ -234,7 +234,8 @@ export async function getSupplierAdvances(client, context, filters = {}) {
 }
 
 // MSME Payments (MSMED Act s.15 and s.43B(h)): every open statutory deadline with what its bill still owes, oldest obligation settled
-// first (as complianceDeadlinesOf works it out), bucketed by the days left. filters: { bucket?: overdue | due_7 | due_15 | due_45 | disputed, supplierId?, search? }
+// first (as complianceDeadlinesOf works it out), bucketed by the days left. filters: { bucket?: overdue | due_7 | due_15 | due_45 | disputed, supplierId?, search?,
+// limit?, offset? } — the counts cover every open deadline; the rows are one page of the chosen view, with its total.
 export const MSME_PAYMENT_BUCKETS = Object.freeze([
   { key: "all", label: "All open" }, { key: "overdue", label: "Overdue" }, { key: "due_7", label: "Due in 7 days" }, { key: "due_15", label: "Due in 15 days" },
   { key: "due_45", label: "Due in 45 days" }, { key: "disputed", label: "Disputed" },
@@ -248,7 +249,7 @@ export async function listMsmePayments(client, context, filters = {}) {
   let where = "";
   if (isUuid(filters.supplierId)) { values.push(filters.supplierId); where += ` AND bill.supplier_id = $${values.length}`; }
   const search = text(filters.search, 120);
-  if (search) { values.push(`%${search}%`); where += ` AND (bill.bill_number ILIKE $${values.length} OR party.display_name ILIKE $${values.length} OR COALESCE(bill.supplier_invoice_reference, bill.supplier_invoice_number) ILIKE $${values.length})`; }
+  if (search) { values.push(`%${search.replace(/[\\%_]/g, (character) => `\\${character}`)}%`); where += ` AND (bill.bill_number ILIKE $${values.length} OR party.display_name ILIKE $${values.length} OR COALESCE(bill.supplier_invoice_reference, bill.supplier_invoice_number) ILIKE $${values.length})`; }
   const rows = (await client.query(
     `SELECT deadline.*, bill.bill_number, bill.grand_total, bill.outstanding_amount, btrim(bill.currency_code) AS currency_code, bill.supplier_id,
             COALESCE(bill.supplier_invoice_reference, bill.supplier_invoice_number) AS supplier_invoice, party.display_name AS supplier_name, supplier.msme_registration_number
@@ -295,6 +296,11 @@ export async function listMsmePayments(client, context, filters = {}) {
     || (bucket === "due_45" && (entry.bucket === "due_7" || entry.bucket === "due_15"));
   return {
     today, until45: addDays(today, 45), bucket, buckets: MSME_PAYMENT_BUCKETS.map((entry) => ({ ...entry, count: counts[entry.key], total: dec(totals[entry.key]) })),
-    rows: entries.filter(inBucket),
+    ...(() => {
+      const chosen = entries.filter(inBucket);
+      const limit = Math.min(500, Math.max(1, Number.parseInt(filters.limit, 10) || 50));
+      const offset = Math.max(0, Number.parseInt(filters.offset, 10) || 0);
+      return { rows: chosen.slice(offset, offset + limit), total: chosen.length, limit, offset };
+    })(),
   };
 }

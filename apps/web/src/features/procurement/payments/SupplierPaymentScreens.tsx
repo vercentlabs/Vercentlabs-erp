@@ -26,13 +26,14 @@ import { SupplierFilter } from "@/features/procurement/shared/ProcurementSearchP
 import { ProcApiError } from "@/features/procurement/shared/http";
 import { calendarDate, money } from "@/features/procurement/shared/format";
 
+import { PaymentAdvicePanel } from "./PaymentAdvicePanel";
 import { completeSupplierPayment, errorMessage, getSupplierPayment, listSupplierPayments, paymentAdviceUrl, type SupplierPaymentRow } from "./api";
 
 type Tone = "neutral" | "info" | "success" | "warning" | "danger";
 const STATUS_TONE: Record<string, Tone> = { draft: "neutral", pending_approval: "warning", approved: "info", posted: "success", partially_applied: "success", applied: "success",
   reversed: "danger", cancelled: "neutral" };
 const VIEWS = [{ key: "all", label: "All" }, { key: "this_month", label: "This month" }, { key: "advances", label: "Advances" }, { key: "awaiting_approval", label: "Awaiting approval" },
-  { key: "reversed", label: "Reversed" }];
+  { key: "reversed", label: "Cancelled" }];
 
 export function SupplierPaymentsScreen() {
   const workspace = useWorkspaceContext();
@@ -63,7 +64,7 @@ export function SupplierPaymentsScreen() {
   const forbidden = query.error instanceof ProcApiError && query.error.status === 403;
   return (
     <EnterpriseListPage header={{ title: "Supplier Payments",
-      description: "Every payment made to a supplier and the bills it settled. Pay one bill from the bill, or several at once from Due & Overdue.",
+      description: "Payments made to suppliers and the bills they settled. Pay several at once from Due to Pay.",
       primaryAction: <LinkButton variant="primary" href="/procurement/reports/payment-obligations"><Wallet className="size-4" aria-hidden="true" />Pay bills</LinkButton> }}
       savedViews={{ views: (query.data?.views ?? VIEWS).map((entry) => ({ id: entry.key, label: entry.label })), activeViewId: view_, onSelect: (next) => setView(next.replace(/_/g, "-")) }}
       actionBar={{ end: <ListStateViews listKey="supplier-payments" list={list} />, start: (
@@ -79,7 +80,7 @@ export function SupplierPaymentsScreen() {
           state={query.isLoading ? "loading" : query.isError ? "error" : rows.length === 0 ? (filtered ? "no-results" : "empty") : "ready"}
           loadingContent={<LoadingState label="Loading supplier payments" rows={6} />}
           errorContent={<ErrorState title="Could not load supplier payments" description={errorMessage(query.error)} action={{ label: "Try again", onPress: () => void query.refetch() }} />}
-          emptyContent={<EmptyState title="No supplier payments yet" description="Pay a posted bill from the bill, or several from Due & Overdue." />}
+          emptyContent={<EmptyState title="No supplier payments yet" description="Pay a final bill from the bill, or several from Due & Overdue." />}
           noResultsContent={<NoResultsState title="Nothing in this view" description="Try another view, supplier or search." />}
           onRowClick={(row) => router.push(`/procurement/payments/${row.id}`)}
           renderMobileCard={(row) => <div className="flex flex-col gap-1"><span className="font-medium tabular-nums">{row.number} · {row.supplierName}</span>
@@ -106,15 +107,15 @@ export function SupplierPaymentDetailScreen({ paymentId }: { paymentId: string }
   const settled = allocations.filter((row) => !row.reversed);
   return (
     <div className="flex flex-col gap-4">
-      {payment.reversedAt && <Notice tone="warning">This payment was reversed{payment.reversalReason ? `: ${payment.reversalReason}` : ""}. The bills it paid are owed again.</Notice>}
-      {waiting && <Notice tone="info">{payment.status === "approved" ? "Finance approved this payment. Post it to settle the bills below." : "This payment awaits Finance's approval. Once approved, post it to settle the bills below."}</Notice>}
+      {payment.reversedAt && <Notice tone="warning">This payment was cancelled{payment.reversalReason ? `: ${payment.reversalReason}` : ""}. The bills it paid are owed again.</Notice>}
+      {waiting && <Notice tone="info">{payment.status === "approved" ? "Finance approved this payment. Finalise it to settle the bills below." : "This payment awaits Finance's approval. Once approved, finalise it to settle the bills below."}</Notice>}
       {complete.error && <Notice>{errorMessage(complete.error)}</Notice>}
       <DocumentChain type="supplier_payment" id={payment.id} />
       <RecordDetailsPage
         header={{
           title: payment.number,
           status: <StatusBadge tone={STATUS_TONE[payment.status] ?? "neutral"}>{payment.statusLabel}</StatusBadge>,
-          primaryAction: payment.canPost ? <Button variant="primary" isLoading={complete.isPending} onPress={() => complete.mutate()}>Post payment</Button> : undefined,
+          primaryAction: payment.canPost ? <Button variant="primary" isLoading={complete.isPending} onPress={() => complete.mutate()}>Finalise payment</Button> : undefined,
           fields: [
             { label: "Supplier", value: <Link className="hover:underline" href={`/procurement/suppliers/${supplier.id}`}>{supplier.name}</Link> },
             { label: "Paid on", value: calendarDate(payment.date) },
@@ -133,7 +134,7 @@ export function SupplierPaymentDetailScreen({ paymentId }: { paymentId: string }
       >
         <Panel title={waiting ? "Bills it will settle" : "Bills settled"}
           description={Number(payment.unapplied) > 0 && !waiting ? `${money(currency, payment.unapplied)} is not applied yet: apply it from the supplier's next bill.` : undefined}>
-          <LinesTable columns={["Bill", "Supplier invoice", "Invoice date", { label: "Bill amount", numeric: true }, { label: "TDS withheld", numeric: true }, { label: "Paid", numeric: true }]}
+          <LinesTable columns={["Bill", "Supplier invoice", "Invoice date", { label: "Bill amount", numeric: true }, { label: "TDS deducted", numeric: true }, { label: "Paid", numeric: true }]}
             empty={(waiting ? planned.length : allocations.length) ? undefined : "Kept as an advance: no bill settled yet."}>
             {waiting ? planned.map((row) => (
               <tr key={row.billId}>
@@ -156,9 +157,10 @@ export function SupplierPaymentDetailScreen({ paymentId }: { paymentId: string }
             ))}
           </LinesTable>
           {!waiting && settled.length > 0 && Number(payment.tdsWithheld) > 0 && (
-            <p className="mt-2 text-xs text-text-muted">TDS is withheld when each bill is booked; the payment advice shows it so the supplier can match it with Form 26AS.</p>
+            <p className="mt-2 text-xs text-text-muted">TDS is deducted when each bill is booked; the payment advice shows it so the supplier can match it with Form 26AS.</p>
           )}
         </Panel>
+        {!waiting && !payment.reversedAt && <PaymentAdvicePanel paymentId={payment.id} />}
         <Panel title="Details">
           <Facts items={[
             { label: "Paid from", value: payment.bankAccount ?? "The company's default bank account" },

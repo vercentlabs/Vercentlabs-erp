@@ -1,7 +1,8 @@
 "use client";
 
-// Bought or made for this order (Sales report Phase 3): what the order's "buy" and "make" lines raised when it was confirmed — a purchase
-// indent, draft purchase orders or draft manufacturing orders — or why a line could not be raised, to do by hand.
+// Bought or made for this order (Sales report Phase 3): what the order's "buy", "make" and "ship from supplier" lines raised when it was
+// confirmed — a purchase indent, draft purchase orders (to the customer's address for ship from supplier) or draft manufacturing orders —
+// or why a line could not be raised, to do by hand.
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 
@@ -10,7 +11,7 @@ import { Panel } from "@/shared/ui/Panel";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 
-type Supply = { sequence: number; itemName: string | null; route: "buy" | "make"; quantity: number; documentType: "purchase_indent" | "purchase_order" | "manufacturing_order" | null;
+type Supply = { sequence: number; itemName: string | null; route: "buy" | "make" | "dropship"; quantity: number; documentType: "purchase_indent" | "purchase_order" | "manufacturing_order" | null;
   documentId: string | null; documentNumber: string | null; error: string | null; at: string };
 
 const LINKS = { purchase_indent: ["Purchase indent", "/procurement/indents/"], purchase_order: ["Draft purchase order", "/procurement/purchase-orders/"],
@@ -29,7 +30,7 @@ export function SupplyPanel({ orderId }: { orderId: string }) {
           <li key={`${row.at}-${row.sequence}-${row.route}`} className="flex flex-col gap-0.5 py-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
             <span className="min-w-0">
               <span className="font-medium">{`Line ${row.sequence}`}</span>
-              <span className="text-text-secondary">{` · ${row.itemName ?? "Item"} · ${row.quantity} · ${row.route === "buy" ? "Buy" : "Make"}`}</span>
+              <span className="text-text-secondary">{` · ${row.itemName ?? "Item"} · ${row.quantity} · ${row.route === "buy" ? "Buy" : row.route === "dropship" ? "Ship from supplier" : "Make"}`}</span>
             </span>
             {row.documentType && row.documentId ? (
               <Link className="text-accent hover:underline" href={`${LINKS[row.documentType][1]}${row.documentId}`}>{`${LINKS[row.documentType][0]} ${row.documentNumber ?? ""}`.trim()}</Link>

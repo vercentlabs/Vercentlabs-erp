@@ -39,7 +39,7 @@ export function statutoryRuleFor(supplier, acceptanceDate = null) {
     effectiveFrom: effective, evidence: supplier.msme_evidence_reference, writtenAgreement: Boolean(supplier.written_payment_agreement), agreedDays: supplier.agreed_payment_days,
     agreementReference: supplier.payment_agreement_reference } : null;
   if (!["micro", "small"].includes(classification))
-    return { applies: false, classification, reason: classification === "medium" ? "Medium enterprises are outside the statutory payment deadline." : "The supplier is not classified as a micro or small enterprise.", snapshot };
+    return { applies: false, classification, reason: classification === "medium" ? "Medium enterprises are outside the legal payment deadline." : "The supplier is not classified as a micro or small enterprise.", snapshot };
   if (effective && acceptanceDate && effective > acceptanceDate)
     return { applies: false, classification, reason: `The ${classification} classification is effective from ${effective}, after the acceptance.`, snapshot };
   const written = Boolean(supplier.written_payment_agreement) && supplier.agreed_payment_days !== null && supplier.agreed_payment_days !== undefined;
@@ -63,7 +63,7 @@ export async function validateStatutoryPaymentDeadline(client, context, input = 
   const limit = addDays(reference, rule.statutoryDays);
   const exceeds = Boolean(latest && latest > limit) || (rule.agreedDays !== null && rule.agreedDays > STATUTORY_MAX_AGREED_DAYS);
   const message = exceeds
-    ? `Payment term exceeds statutory limit: ${supplier.display_name} is a ${rule.classification} enterprise — payment is due within ${rule.statutoryDays} days of acceptance (${rule.reason.toLowerCase()}), whatever the commercial terms say.`
+    ? `Payment term exceeds legal limit: ${supplier.display_name} is a ${rule.classification} enterprise — payment is due within ${rule.statutoryDays} days of acceptance (${rule.reason.toLowerCase()}), whatever the commercial terms say.`
     : null;
   return { applies: true, statutoryDays: rule.statutoryDays, exceeds, message, rule, commercialLatestDueDate: latest, statutoryLimitDate: limit };
 }
@@ -142,7 +142,7 @@ export async function recordAcceptanceDispute(client, context, deadlineId, input
     throw new PurchaseOrderError(403, "You do not have permission to record acceptance disputes.", "PERMISSION_DENIED");
   const row = (await client.query(`SELECT * FROM tenant.supplier_payment_compliance_deadlines WHERE organization_id = $1 AND id = $2 FOR UPDATE`,
     [context.organizationId, requireUuid(deadlineId, "Deadline")])).rows[0];
-  if (!row || row.status !== "open") throw new PurchaseOrderError(404, "The statutory deadline was not found (or is no longer open).", "COMPLIANCE_DEADLINE_NOT_FOUND");
+  if (!row || row.status !== "open") throw new PurchaseOrderError(404, "The MSME due date (by law) was not found (or is no longer open).", "COMPLIANCE_DEADLINE_NOT_FOUND");
   const reference = text(input.reference, 300);
   if (!reference || reference.length < 3) fail("Enter the objection's reference (the documented objection).", "reference", "COMPLIANCE_DISPUTE_REFERENCE_REQUIRED");
   const raisedOn = readDate(input.raisedOn, "Objection raised on") ?? dayOf(row.dispute_raised_on) ?? await companyToday(client, context.organizationId);

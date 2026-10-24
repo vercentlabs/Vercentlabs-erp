@@ -19,6 +19,12 @@ export class RecordThreadError extends Error {
 }
 
 const lazy = (path, name) => async (client, context, id) => (await import(path))[name](client, context, id);
+// The first of these fields on the record or one level down (reads return { rfq: {...} }, { claim: {...} } and so on).
+const field = (...keys) => (record) => {
+  for (const source of [record, ...Object.values(record ?? {}).filter((value) => value && typeof value === "object" && !Array.isArray(value))])
+    for (const key of keys) if (source?.[key]) return source[key];
+  return null;
+};
 // type -> { module (app key), label, href, read (the module's own visibility-checked read), title(record) }
 export const RECORD_THREAD_TYPES = Object.freeze({
   "sales.quotation": { module: "sales", label: "Quotation", href: (id) => `/sales/quotations/${id}`, read: lazy("../../../modules/sales/quotations/records.js", "getQuotation"),
@@ -45,6 +51,20 @@ export const RECORD_THREAD_TYPES = Object.freeze({
     read: lazy("../../../modules/procurement/purchase-orders/records.js", "getPurchaseOrder"), title: (record) => record?.order?.purchase_order_number ?? record?.purchaseOrderNumber ?? record?.purchase_order_number },
   "procurement.supplier_bill": { module: "procurement", label: "Supplier bill", href: (id) => `/procurement/supplier-bills/${id}`,
     read: lazy("../../../modules/procurement/supplier-bills/records.js", "getSupplierBill"), title: (record) => record?.bill?.billNumber ?? record?.billNumber },
+  "procurement.supplier": { module: "procurement", label: "Supplier", href: (id) => `/procurement/suppliers/${id}`,
+    read: lazy("../../../modules/procurement/suppliers/records.js", "getSupplier"), title: field("supplierName") },
+  "procurement.indent": { module: "procurement", label: "Purchase request", href: (id) => `/procurement/indents/${id}`,
+    read: lazy("../../../modules/procurement/indents/index.js", "getPurchaseIndent"), title: field("number") },
+  "procurement.rfq": { module: "procurement", label: "Price request", href: (id) => `/procurement/rfqs/${id}`,
+    read: lazy("../../../modules/procurement/rfqs/index.js", "getPurchaseRfq"), title: field("number") },
+  "procurement.goods_receipt": { module: "procurement", label: "Goods received", href: (id) => `/procurement/goods-receipts/${id}`,
+    read: lazy("../../../modules/procurement/purchase-orders/receipt-records.js", "getGoodsReceipt"), title: field("receiptNumber") },
+  "procurement.purchase_return": { module: "procurement", label: "Return to supplier", href: (id) => `/procurement/purchase-returns/${id}`,
+    read: lazy("../../../modules/procurement/purchase-returns/records.js", "getPurchaseReturn"), title: field("returnNumber") },
+  "procurement.debit_note": { module: "procurement", label: "Debit note", href: (id) => `/procurement/debit-notes-credits/claims/${id}`,
+    read: lazy("../../../modules/procurement/vendor-credits/claims.js", "getSupplierDebitClaim"), title: field("claimNumber", "number") },
+  "procurement.supplier_credit": { module: "procurement", label: "Supplier credit note", href: (id) => `/procurement/debit-notes-credits/vendor-credits/${id}`,
+    read: lazy("../../../modules/procurement/vendor-credits/records.js", "getVendorCredit"), title: field("creditNumber", "billNumber", "number") },
   "products.item": { module: null, label: "Item", href: (id) => `/inventory/items/${id}`, read: lazy("../../../modules/products/records.js", "getProduct"),
     title: (record) => record?.product?.name ?? record?.name ?? record?.item?.name },
   "assets.asset": { module: "assets", label: "Asset", href: (id) => `/assets/register/${id}`, read: lazy("../../../modules/assets/asset-register/register-read.js", "getAsset"),

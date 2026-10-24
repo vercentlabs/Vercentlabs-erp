@@ -28,7 +28,7 @@ export type BillPaymentSchedule = {
 
 const STATE_TONE: Record<string, "neutral" | "info" | "success" | "warning" | "danger"> = { paid: "success", overdue: "danger", due_today: "warning", partially_paid: "info", upcoming: "neutral",
   draft: "neutral", breached: "danger", within_deadline: "success", settled: "success", disputed: "warning", superseded: "neutral", void: "neutral" };
-const BASIS: Record<string, string> = { invoice_date: "Invoice date", invoice_received: "Invoice received", posting_date: "Posting date" };
+const BASIS: Record<string, string> = { invoice_date: "Invoice date", invoice_received: "Invoice received", posting_date: "Accounting date" };
 
 async function post(path: string, body: unknown) {
   const response = await fetch(`/api/procurement/supplier-bills${path}`, { method: "POST", credentials: "same-origin", headers: { Accept: "application/json", "Content-Type": "application/json" },
@@ -51,17 +51,17 @@ export function PaymentSchedulePanel({ schedule }: { schedule: BillPaymentSchedu
   const term = schedule.paymentTerm;
   return (
     <div className="flex flex-col gap-4">
-      <Panel title="Payment terms" description="The terms the bill was posted with, kept as they were; changing the master never moves them.">
+      <Panel title="Payment terms" description="The terms the bill was finalised with, kept as they were; changing the master never moves them.">
         <Facts columns={3} items={[
           { label: "Payment term", value: term ? `${term.name}${term.version > 1 ? ` (v${term.version})` : ""}` : "—" },
           { label: "Rule", value: term?.summary ?? "—" },
-          { label: "Invoice date / received / posted", value: `${calendarDate(schedule.invoiceDate)} / ${schedule.invoiceReceivedDate ? calendarDate(schedule.invoiceReceivedDate) : "—"} / ${calendarDate(schedule.postingDate)}` },
+          { label: "Invoice date / received / final", value: `${calendarDate(schedule.invoiceDate)} / ${schedule.invoiceReceivedDate ? calendarDate(schedule.invoiceReceivedDate) : "—"} / ${calendarDate(schedule.postingDate)}` },
           ...(schedule.supplierStatedTerms ? [{ label: "Terms on the supplier's invoice", value: schedule.supplierStatedTerms }] : []),
           ...(schedule.paymentTermChangeReason ? [{ label: "Why the agreed terms were changed", value: schedule.paymentTermChangeReason }] : []),
         ]} />
       </Panel>
-      <Panel title="Payment schedule" description="One payable, due in these parts. What remains of each part is what Finance's payments, advances and credits left — the oldest due first.">
-        {!schedule.totals.reconciled && <Notice tone="warning">The instalments ({c(schedule.totals.outstanding)}) do not add up to what Accounts Payable says is owed ({c(schedule.totals.billOutstanding)}).</Notice>}
+      <Panel title="Payment schedule" description="One payable in parts. Payments, advances and credits clear the oldest part first.">
+        {!schedule.totals.reconciled && <Notice tone="warning">The payments due ({c(schedule.totals.outstanding)}) do not add up to what Accounts Payable says is owed ({c(schedule.totals.billOutstanding)}).</Notice>}
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead><tr className="text-left text-text-muted">{["#", "Due date", "Counted from", "Scheduled", "Settled", "Outstanding", "Status", ""].map((name, index) =>
@@ -105,7 +105,7 @@ export function PaymentSchedulePanel({ schedule }: { schedule: BillPaymentSchedu
         </Panel>
       )}
       {schedule.compliance.length > 0 && (
-        <Panel title="Statutory payment deadlines (MSMED Act)" description="For a micro or small supplier: payment within the written agreement's days (at most 45) or 15 days from acceptance. Separate from the commercial schedule; a reschedule never moves it.">
+        <Panel title="Legal payment deadlines (MSMED Act)" description="MSME suppliers must be paid within the agreed days (at most 45), else 15 days from acceptance.">
           <ul className="flex flex-col divide-y divide-border text-sm">
             {schedule.compliance.map((entry) => (
               <li key={entry.id} className="flex flex-wrap items-center justify-between gap-2 py-2">
@@ -138,7 +138,7 @@ function RescheduleDialog({ billId, scheduleId, onClose, onDone }: { billId: str
   const [values, setValues] = useState({ newDueDate: "", reason: "" });
   const run = useMutation({ mutationFn: () => post(`/${billId}/reschedules`, { scheduleId, ...values }), onSuccess: onDone });
   return (
-    <Dialog isOpen onOpenChange={(open) => !open && onClose()} title="Request a reschedule" description="Finance approves it (not whoever requests it). The original due date is kept; the statutory deadline does not move." size="md">
+    <Dialog isOpen onOpenChange={(open) => !open && onClose()} title="Request a reschedule" description="Finance approves it. The original and the MSME due date (by law) do not move." size="md">
       <div className="flex flex-col gap-3">
         {run.error && <Notice>{run.error instanceof Error ? run.error.message : "Could not request the reschedule."}</Notice>}
         <TextField label="New due date" type="date" value={values.newDueDate} onChange={(value) => setValues((current) => ({ ...current, newDueDate: value }))} />
@@ -155,7 +155,7 @@ function DisputeDialog({ deadlineId, onClose, onDone }: { deadlineId: string; on
   const run = useMutation({ mutationFn: () => post(`/compliance/${deadlineId}/dispute`, { reference: values.reference, raisedOn: values.raisedOn || undefined,
     resolvedOn: values.state === "resolved" ? values.resolvedOn : undefined }), onSuccess: onDone });
   return (
-    <Dialog isOpen onOpenChange={(open) => !open && onClose()} title="Record an objection to the goods or services" description="A documented objection. Once it is resolved, the statutory deadline counts from the day it was resolved." size="md">
+    <Dialog isOpen onOpenChange={(open) => !open && onClose()} title="Record an objection to the goods or services" description="A documented objection. Once it is resolved, the MSME due date (by law) counts from the day it was resolved." size="md">
       <div className="flex flex-col gap-3">
         {run.error && <Notice>{run.error instanceof Error ? run.error.message : "Could not record the objection."}</Notice>}
         <TextField label="Objection reference" value={values.reference} onChange={(value) => setValues((current) => ({ ...current, reference: value }))} />

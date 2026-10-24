@@ -18,6 +18,10 @@ export const APPROVAL_COMMANDS = Object.freeze([
   // Shared Platform plan 6: raised by the approval rules (core/platform/approvals/rules.js), one request per level.
   { key: "procurement.purchase_order.approve", moduleKey: "procurement", entityType: "procurement_purchase_order", label: "Purchase order approval", entityLabel: "Purchase order",
     requiredPermission: "procurement.po.approve", payload: ["documentId", "contentKey", "level"], dedupeKey: (p) => `${p.documentId}:${p.contentKey}:${p.level}` },
+  { key: "procurement.indent.approve", moduleKey: "procurement", entityType: "procurement_indent", label: "Purchase request approval", entityLabel: "Purchase request",
+    requiredPermission: "procurement.requisition.approve", payload: ["documentId", "contentKey", "level"], dedupeKey: (p) => `${p.documentId}:${p.contentKey}:${p.level}` },
+  { key: "procurement.rate_contract.approve", moduleKey: "procurement", entityType: "procurement_rate_contract", label: "Rate contract approval", entityLabel: "Rate contract",
+    requiredPermission: "procurement.po.approve", payload: ["documentId", "contentKey", "level"], dedupeKey: (p) => `${p.documentId}:${p.contentKey}:${p.level}` },
   { key: "pos.payment.override.approve", moduleKey: "point-of-sale", entityType: "pos_payment", label: "Payment override approval", entityLabel: "POS payment", requiredPermission: "pos.payment.override", payload: ["paymentId"], dedupeKey: field("paymentId") },
 ]);
 

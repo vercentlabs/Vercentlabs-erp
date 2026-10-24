@@ -1,12 +1,14 @@
-// A supplier's link to a purchase order's PDF (Procurement plan Phase 3): shared on WhatsApp, opened without signing in. The token is the
-// only credential — 24 random bytes, kept hashed for lookup and encrypted so the same link is given every time; revoking it ends it. The
-// link shows the order as currently confirmed (a draft is not shared).
-import { createHash, randomBytes } from "node:crypto";
+// A supplier's link to a purchase order (Procurement plan Phase 3; the supplier's page, report H5): shared on WhatsApp, opened without
+// signing in. The token is the only credential — 24 random bytes, kept hashed for lookup and encrypted so the same link is given every
+// time; revoking it ends it. The link opens the supplier's page for the order as currently confirmed (a draft is not shared), where they
+// confirm it, propose a date, download the PDF and send their invoice.
+import { createHash } from "node:crypto";
 import { setTenantContext } from "@vercentlabs/database";
+import { whatsappNumber } from "@vercentlabs/shared-types";
 
-import { decryptSecret, encryptSecret } from "../../../core/platform/secrets/index.js";
 import { loadPurchaseOrder, requirePoPermission } from "./access.js";
 import { PO_PERMISSIONS, PurchaseOrderError } from "./constants.js";
+import { supplierLinkToken, supplierPageUrl } from "./supplier-page.js";
 
 const TOKEN = /^[0-9a-f]{48}$/;
 const hash = (value) => createHash("sha256").update(String(value)).digest("hex");
@@ -18,24 +20,15 @@ export async function sharePurchaseOrderLink(client, context, orderId, { phone =
   requirePoPermission(context, PO_PERMISSIONS.send, "You do not have permission to send purchase orders.");
   const order = await loadPurchaseOrder(client, context, orderId);
   if (order.status === "draft" || order.status === "cancelled") throw new PurchaseOrderError(409, "Confirm the order before sending it to the supplier.", "PURCHASE_ORDER_NOT_SHAREABLE");
-  const existing = (await client.query(
-    "SELECT token_encrypted FROM tenant.procurement_share_links WHERE organization_id = $1 AND document_type = 'purchase_order' AND document_id = $2 AND revoked_at IS NULL",
-    [context.organizationId, order.id])).rows[0];
-  let token = existing ? (await decryptSecret(existing.token_encrypted, env))?.token : null;
-  if (!token) {
-    token = randomBytes(24).toString("hex");
-    await client.query(
-      `INSERT INTO tenant.procurement_share_links (organization_id, document_type, document_id, token_hash, token_encrypted, created_by) VALUES ($1, 'purchase_order', $2, $3, $4::jsonb, $5)`,
-      [context.organizationId, order.id, hash(token), JSON.stringify(await encryptSecret({ token }, env)), context.userId ?? null]);
-  }
-  const url = `${String(env.APP_URL ?? "").replace(/\/+$/, "")}/api/procurement/public/purchase-orders/${token}/pdf`;
+  const token = await supplierLinkToken(client, context, "purchase_order", order.id, env);
+  const url = supplierPageUrl(token, env);
   const contact = (await client.query(
     `SELECT COALESCE(contact.mobile, contact.phone) AS phone FROM tenant.procurement_supplier_contacts link JOIN tenant.contacts contact ON contact.organization_id = link.organization_id
         AND contact.id = link.contact_id WHERE link.organization_id = $1 AND link.supplier_id = $2 AND COALESCE(contact.mobile, contact.phone) IS NOT NULL
       ORDER BY (link.contact_id = $3) DESC, link.is_primary DESC NULLS LAST LIMIT 1`, [context.organizationId, order.supplier_id, order.supplier_contact_id])).rows[0];
   const company = (await client.query("SELECT COALESCE(NULLIF(legal_name, ''), name) AS name FROM public.organizations WHERE id = $1", [context.organizationId])).rows[0]?.name ?? "";
-  const digits = String(phone ?? contact?.phone ?? "").replace(/\D/g, "");
-  const number = digits.length === 10 ? `91${digits}` : digits.replace(/^0+/, "");
+  const own = contact?.phone ? null : (await client.query("SELECT primary_phone FROM tenant.procurement_suppliers WHERE organization_id = $1 AND id = $2", [context.organizationId, order.supplier_id])).rows[0]?.primary_phone;
+  const number = whatsappNumber(phone ?? contact?.phone ?? own) ?? "";
   const body = `Purchase order ${order.purchase_order_number} from ${company}${order.expected_delivery_date ? `, needed by ${String(order.expected_delivery_date).slice(0, 10)}` : ""}. Please confirm: ${url}`;
   return { url, body, phone: number || null, whatsapp: `https://wa.me/${number}?text=${encodeURIComponent(body)}` };
 }

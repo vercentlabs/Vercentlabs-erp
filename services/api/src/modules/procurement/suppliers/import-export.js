@@ -8,7 +8,7 @@
 import { parseCsvUpload } from "../../../core/platform/data-exchange/csv.js";
 import { isXlsxFileName, parseXlsxUpload } from "../../../core/platform/data-exchange/xlsx.js";
 import { gstStateCode } from "../../../core/tax/index.js";
-import { GST_REGISTRATION_TYPES, SUPPLIER_CATEGORIES, SUPPLIER_PERMISSIONS, SUPPLIER_TYPES, SupplierError, text } from "./constants.js";
+import { GST_REGISTRATION_TYPES, SUPPLIER_PERMISSIONS, SUPPLIER_TYPES, SupplierError, text } from "./constants.js";
 import { requireSupplierPermission } from "./access.js";
 import { createSupplier, listSuppliers } from "./records.js";
 
@@ -46,7 +46,6 @@ const FIELD_BY_KEY = new Map(SUPPLIER_IMPORT_FIELDS.map((field) => [field.key, f
 const headerKey = (value) => String(value ?? "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
 const byLabel = (list) => new Map(list.flatMap((entry) => [[headerKey(entry.label), entry.code], [headerKey(entry.code), entry.code]]));
 const TYPE_BY_LABEL = byLabel(SUPPLIER_TYPES);
-const CATEGORY_BY_LABEL = byLabel(SUPPLIER_CATEGORIES);
 const REGISTRATION_BY_LABEL = new Map([...byLabel(GST_REGISTRATION_TYPES), ["registered", "registered_regular"], ["regular", "registered_regular"], ["composition", "registered_composition"]]);
 const COUNTRY_BY_NAME = Object.freeze({ india: "IN", "united states": "US", usa: "US", "united kingdom": "GB", uk: "GB", germany: "DE", china: "CN", japan: "JP",
   "united arab emirates": "AE", uae: "AE", singapore: "SG" });
@@ -124,7 +123,8 @@ async function rowToInput(values, lookups, defaults) {
   const input = { origin: "import" };
   for (const field of ["supplierName", "legalName", "primaryEmail", "primaryPhone", "website", "gstin", "pan", "notes"]) if (values[field]) input[field] = values[field];
   input.supplierType = values.supplierType ? TYPE_BY_LABEL.get(headerKey(values.supplierType)) ?? values.supplierType : "business";
-  input.category = values.category ? CATEGORY_BY_LABEL.get(headerKey(values.category)) ?? values.category : text(defaults.category) ?? undefined;
+  // A category name or code; validation matches it to Supplier Categories.
+  input.category = values.category ?? text(defaults.category) ?? undefined;
   const country = values.countryCode ?? text(defaults.countryCode);
   if (country) input.countryCode = country.length === 2 ? country.toUpperCase() : COUNTRY_BY_NAME[country.toLowerCase()] ?? country;
   const currency = values.defaultCurrency ?? text(defaults.currency);

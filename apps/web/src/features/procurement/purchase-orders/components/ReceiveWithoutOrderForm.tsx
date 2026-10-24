@@ -30,22 +30,24 @@ export function ReceiveWithoutOrderForm({ options, onCancel }: { options: Purcha
   const [challan, setChallan] = useState("");
   const [reason, setReason] = useState("");
   const [lines, setLines] = useState<Line[]>([blankLine()]);
+  // Only a buyer sets a price; otherwise each line takes the last price agreed with the supplier.
+  const buyer = Boolean(options.capabilities.create);
   const update = (key: string, patch: Partial<Line>) => setLines((current) => current.map((line) => (line.key === key ? { ...line, ...patch } : line)));
   const filled = lines.filter((line) => line.productId);
-  const valid = supplierId && reason.trim() && filled.length > 0 && filled.every((line) => Number(line.quantity) > 0 && /^\d+(\.\d+)?$/.test(line.unitPrice.trim()))
+  const valid = supplierId && reason.trim() && filled.length > 0 && filled.every((line) => Number(line.quantity) > 0 && (!line.unitPrice.trim() || /^\d+(\.\d+)?$/.test(line.unitPrice.trim())))
     && (!stockOn || warehouseId);
   const save = useMutation({
     mutationFn: () => submit.run(() => receiveWithoutOrder({
       supplierId, reason: reason.trim(), ...(stockOn && warehouseId ? { warehouseId } : {}), ...(receiptDate ? { receiptDate } : {}),
       ...(challan.trim() ? { supplierChallanNumber: challan.trim() } : {}),
-      lines: filled.map((line) => ({ productId: line.productId, quantity: line.quantity, unitPrice: line.unitPrice.trim() })),
+      lines: filled.map((line) => ({ productId: line.productId, quantity: line.quantity, ...(buyer && line.unitPrice.trim() ? { unitPrice: line.unitPrice.trim() } : {}) })),
     })),
     onSuccess: (result) => { if (result.receipt) router.replace(`/procurement/goods-receipts/${result.receipt.id}/edit`); },
   });
   const waiting = save.data && !save.data.receipt ? save.data : null;
 
   return (
-    <Panel title="Receive without an order" description="For goods that arrived with no purchase order. A matching order is raised and confirmed with this receipt, so the supplier's bill still matches order, receipt and bill.">
+    <Panel title="Receive without an order" description="An order is raised with this receipt at the last agreed prices, so bills still match.">
       <div className="grid gap-3 sm:grid-cols-2">
         <ProcurementSearchPicker kind="suppliers" label="Supplier" isRequired activeOnly known={options.suppliers} value={supplierId || null} onPick={(id) => setSupplierId(id)} />
         {stockOn && (
@@ -60,14 +62,14 @@ export function ReceiveWithoutOrderForm({ options, onCancel }: { options: Purcha
       <div className="flex flex-col gap-3">
         <p className="text-sm font-medium">What arrived</p>
         {lines.map((line, index) => (
-          <div key={line.key} className="grid gap-2 rounded-[var(--radius-control)] border border-border p-3 sm:grid-cols-[minmax(0,2fr)_minmax(0,0.7fr)_minmax(0,0.8fr)_auto] sm:items-end">
+          <div key={line.key} className={`grid gap-2 rounded-[var(--radius-control)] border border-border p-3 sm:items-end ${buyer ? "sm:grid-cols-[minmax(0,2fr)_minmax(0,0.7fr)_minmax(0,0.8fr)_auto]" : "sm:grid-cols-[minmax(0,2fr)_minmax(0,0.7fr)_auto]"}`}>
             <ProcurementSearchPicker kind="products" label={index === 0 ? "Product" : undefined} aria-label={`Line ${index + 1} product`} known={options.products}
               value={line.productId || null} supplierId={supplierId || null}
               onPick={(id, row) => update(line.key, { productId: id, unitPrice: line.unitPrice || String((row as { last_purchase_price?: string | null } | null)?.last_purchase_price ?? "") })} />
             <TextField label={index === 0 ? "Quantity" : undefined} aria-label={`Line ${index + 1} quantity`} inputMode="decimal" value={line.quantity}
               onChange={(value) => update(line.key, { quantity: value.replace(/[^0-9.]/g, "") })} />
-            <TextField label={index === 0 ? "Price per unit" : undefined} aria-label={`Line ${index + 1} price`} inputMode="decimal" value={line.unitPrice}
-              onChange={(value) => update(line.key, { unitPrice: value.replace(/[^0-9.]/g, "") })} />
+            {buyer && <TextField label={index === 0 ? "Price per unit" : undefined} aria-label={`Line ${index + 1} price`} inputMode="decimal" value={line.unitPrice}
+              placeholder="Last agreed price" onChange={(value) => update(line.key, { unitPrice: value.replace(/[^0-9.]/g, "") })} />}
             <Button variant="ghost" size="compact" isDisabled={lines.length === 1} onPress={() => setLines((current) => current.filter((candidate) => candidate.key !== line.key))}>Remove</Button>
           </div>
         ))}

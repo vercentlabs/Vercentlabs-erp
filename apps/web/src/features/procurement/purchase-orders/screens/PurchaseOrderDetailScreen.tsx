@@ -7,8 +7,9 @@ import { useRef, useState } from "react";
 import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Download, Eye, Pencil, Send, Truck } from "lucide-react";
+import { SupplierPagePanel } from "../components/SupplierPagePanel";
 import {
-  Button, Dialog, ErrorState, LinkButton, MetricStrip, PermissionState, RecordDetailsPage, Select, StatusBadge, Tab, TabList, TabPanel, Tabs, TextArea, TextField, buttonVariants,
+  Button, Checkbox, Dialog, ErrorState, LinkButton, MetricStrip, PermissionState, RecordDetailsPage, Select, StatusBadge, Tab, TabList, TabPanel, Tabs, TextArea, TextField, buttonVariants,
 } from "@vercentlabs/design-system";
 
 import { LoadingState } from "@/shared/ui/LoadingState";
@@ -25,7 +26,7 @@ import {
 } from "../api/purchase-orders-api";
 import { BillingBadge, CommunicationBadge, LifecycleBadge, OverdueBadge, PaymentBadge, ReceiptBadge } from "../components/PurchaseOrderBadges";
 import {
-  AcknowledgeDialog, AmendDialog, CancelDialog, CancelRemainingDialog, CloseDialog, ConfirmDialog, ExpectedDatesDialog, MarkSentDialog, SendDialog,
+  AcknowledgeDialog, AmendDialog, CancelDialog, CancelRemainingDialog, CloseDialog, ConfirmDialog, DeliveredToCustomerDialog, ExpectedDatesDialog, MarkSentDialog, SendDialog,
 } from "../components/PurchaseOrderDialogs";
 import { DockRejectionDialog, RejectionTable } from "./RejectionScreens";
 import { getOrderBilling } from "@/features/procurement/supplier-bills/api/supplier-bills-api";
@@ -33,7 +34,7 @@ import { MatchBadge } from "@/features/procurement/supplier-bills/screens/TwoWay
 import { useTabParam } from "@/features/procurement/shared/navigation";
 import { Facts, Notice, Panel } from "@/shared/ui/Panel";
 
-type DialogName = "confirm" | "amend" | "cancel" | "cancelRemaining" | "close" | "send" | "markSent" | "acknowledge" | "dates" | "rejection";
+type DialogName = "confirm" | "amend" | "cancel" | "cancelRemaining" | "close" | "send" | "markSent" | "acknowledge" | "dates" | "rejection" | "deliverToCustomer";
 const addressText = (address: Address | null | undefined) =>
   address ? [address.label, address.line1, address.line2, [address.city, address.stateName ?? address.state, address.postalCode].filter(Boolean).join(", ")].filter(Boolean).join(" · ") : "—";
 
@@ -72,7 +73,9 @@ function Detail({ detail, options, notice, onChanged }: { detail: PurchaseOrderD
   return (
     <div className="flex flex-col gap-4">
       {notice && <Notice tone="success">{notice}</Notice>}
-      {order.amending && <Notice tone="warning">Being amended: {order.amendmentReason}. Version {order.versionNumber} stays in force until the amendment is confirmed.</Notice>}
+      {order.dropship && <Notice tone="info">Shipped by the supplier to {order.dropship.customerName ?? "the customer"} for sales order{" "}
+        <Link className="text-brand hover:underline" href={`/sales/orders/${order.dropship.salesOrderId}`}>{order.dropship.salesOrderNumber}</Link>. When the supplier has delivered, record it here: the goods receipt and the customer&apos;s delivery are made together.</Notice>}
+      {order.amending && <Notice tone="warning">Being changed: {order.amendmentReason}. Version {order.versionNumber} stays in force until the change is confirmed.</Notice>}
       {order.status === "cancelled" && <Notice tone="warning">Cancelled{order.cancelledAt ? ` on ${dateTime(order.cancelledAt)}` : ""}{order.cancelledByName ? ` by ${order.cancelledByName}` : ""}: {options.cancelReasons.find((entry) => entry.code === order.cancelReasonCode)?.label ?? order.cancelReasonCode}{order.cancelReason ? ` (${order.cancelReason})` : ""}.</Notice>}
       {order.status === "closed" && <Notice tone="success">Closed{order.closedAt ? ` on ${dateTime(order.closedAt)}` : ""}{order.closedByName ? ` by ${order.closedByName}` : ""}. {tracking.payment !== "paid" && tracking.payment !== "no_payable" ? "Payment of its bills is with Finance." : ""}</Notice>}
       <DocumentChain type="purchase_order" id={order.id} />
@@ -97,6 +100,7 @@ function Detail({ detail, options, notice, onChanged }: { detail: PurchaseOrderD
             { label: "Buyer", value: order.buyerName ?? "—" },
           ],
           primaryAction: actions.confirm ? <Button variant="primary" onPress={() => setDialog("confirm")}>{order.amending ? `Confirm version ${order.versionNumber + 1}` : "Confirm"}</Button>
+            : actions.deliverToCustomer ? <Button variant="primary" onPress={() => setDialog("deliverToCustomer")}><Truck className="size-4" aria-hidden="true" />Delivered to the customer</Button>
             : actions.receive ? <LinkButton variant="primary" href={`/procurement/goods-receipts/new?purchaseOrderId=${order.id}`}><Truck className="size-4" aria-hidden="true" />Create Goods Receipt</LinkButton>
               : actions.bill ? <LinkButton variant="primary" href={`/procurement/supplier-bills/new?source=po&purchaseOrderId=${order.id}`}>Create purchase bill</LinkButton>
                 : actions.close ? <Button variant="primary" onPress={() => setDialog("close")}>Close order</Button> : undefined,
@@ -114,8 +118,8 @@ function Detail({ detail, options, notice, onChanged }: { detail: PurchaseOrderD
               <LinkButton variant="ghost" href={`/procurement/purchase-orders/new?copyFrom=${order.id}`}>Copy as new order</LinkButton>
               {actions.recordRejection && <Button variant="ghost" onPress={() => setDialog("rejection")}>Record rejection</Button>}
               {actions.updateDates && <Button variant="ghost" onPress={() => setDialog("dates")}>Update dates</Button>}
-              {actions.amend && <Button variant="ghost" onPress={() => setDialog("amend")}>Amend</Button>}
-              {actions.cancelRemaining && <Button variant="ghost" onPress={() => setDialog("cancelRemaining")}>Cancel remaining</Button>}
+              {actions.amend && <Button variant="ghost" onPress={() => setDialog("amend")}>Change</Button>}
+              {actions.cancelRemaining && <Button variant="ghost" onPress={() => setDialog("cancelRemaining")}>Cancel what is not received</Button>}
               {actions.cancel && <Button variant="ghost" onPress={() => setDialog("cancel")}>Cancel order</Button>}
             </div>
           ),
@@ -153,6 +157,7 @@ function Detail({ detail, options, notice, onChanged }: { detail: PurchaseOrderD
       {dialog === "markSent" && <MarkSentDialog {...props} />}
       {dialog === "acknowledge" && <AcknowledgeDialog {...props} />}
       {dialog === "dates" && <ExpectedDatesDialog {...props} />}
+      {dialog === "deliverToCustomer" && <DeliveredToCustomerDialog {...props} />}
       {dialog === "rejection" && <DockRejectionDialog orderId={detail.order.id} lines={detail.lines} onClose={() => setDialog(null)} onDone={done} />}
     </div>
   );
@@ -190,6 +195,7 @@ function Overview({ detail }: { detail: PurchaseOrderDetail }) {
           { label: "Prices", value: order.priceMode === "inclusive" ? "Inclusive of tax" : "Exclusive of tax" },
           { label: "Payment terms", value: detail.paymentTerms?.paymentTerm ? `${detail.paymentTerms.paymentTerm.name}${detail.paymentTerms.advance ? ` · ${detail.paymentTerms.advance.percentage}% advance` : ""}` : order.paymentTerm?.name ?? "—" },
           { label: "Supplier reference", value: order.supplierReference ?? "—" },
+          ...(order.incoterm ? [{ label: "Incoterm", value: `${order.incoterm}${order.incotermPlace ? ` ${order.incotermPlace}` : ""}` }] : []),
           { label: "Supplier quotation", value: order.sourceQuotationId ? <Link className="text-brand hover:underline" href={`/procurement/purchase-orders/quotations/${order.sourceQuotationId}`}>{order.sourceQuotationNumber}</Link> : order.supplierQuotationReference ?? "—" },
         ]} />
       </Panel>
@@ -217,8 +223,8 @@ function Overview({ detail }: { detail: PurchaseOrderDetail }) {
             {detail.confirmations.map((entry) => (
               <li key={entry.id} className="flex flex-wrap items-center justify-between gap-2 py-2">
                 <span>Version {entry.version} · {money(currency, entry.grandTotal)} · {dateTime(entry.confirmedAt)}{entry.confirmedBy ? ` by ${entry.confirmedBy}` : ""}
-                  {entry.amendmentReason && <span className="block text-xs text-text-muted">Amendment: {entry.amendmentReason}</span>}</span>
-                <span className="flex items-center gap-2">{entry.current ? <StatusBadge tone="info">Current</StatusBadge> : <StatusBadge tone="neutral">Superseded</StatusBadge>}
+                  {entry.amendmentReason && <span className="block text-xs text-text-muted">Change: {entry.amendmentReason}</span>}</span>
+                <span className="flex items-center gap-2">{entry.current ? <StatusBadge tone="info">Current</StatusBadge> : <StatusBadge tone="neutral">Replaced</StatusBadge>}
                   <a className="text-brand hover:underline" href={purchaseOrderPdfUrl(detail.order.id, { version: entry.version, inline: true })} target="_blank" rel="noreferrer">PDF</a></span>
               </li>
             ))}
@@ -347,7 +353,7 @@ function Receipts({ detail }: { detail: PurchaseOrderDetail }) {
   const goods = detail.lines.filter((line) => line.progress?.receiptRequired);
   return (
     <>
-    <Panel title="Receipt summary" description={detail.tracking.receivingComplete ? "Receiving is complete." : "Received from posted goods receipts; cancelled quantities are no longer owed."}
+    <Panel title="Receipt summary" description={detail.tracking.receivingComplete ? "Receiving is complete." : "Received from final goods receipts; cancelled quantities are no longer owed."}
       actions={detail.actions.receive ? <LinkButton size="compact" variant="primary" href={`/procurement/goods-receipts/new?purchaseOrderId=${detail.order.id}`}>Create Goods Receipt</LinkButton> : undefined}>
       {!goods.length ? <p className="text-sm text-text-muted">Nothing on this order is received physically.</p> : (
         <div className="overflow-x-auto">
@@ -371,9 +377,9 @@ function Receipts({ detail }: { detail: PurchaseOrderDetail }) {
           </table>
         </div>
       )}
-      {goods.some((line) => Number(line.progress!.draftReceipt) > 0) && <p className="text-xs text-warning">Draft receipts hold {goods.filter((line) => Number(line.progress!.draftReceipt) > 0).map((line) => `${quantity(line.progress!.draftReceipt)} ${line.uom.code} of ${line.description}`).join(", ")}; they count only once posted.</p>}
+      {goods.some((line) => Number(line.progress!.draftReceipt) > 0) && <p className="text-xs text-warning">Draft receipts hold {goods.filter((line) => Number(line.progress!.draftReceipt) > 0).map((line) => `${quantity(line.progress!.draftReceipt)} ${line.uom.code} of ${line.description}`).join(", ")}; they count only once final.</p>}
     </Panel>
-    <Panel title="Previous goods receipts" description="Each delivery is its own receipt; its stock moved when it was posted.">
+    <Panel title="Previous goods receipts" description="Each delivery is its own receipt; its stock moved when it was final.">
       {!detail.related.receipts.length ? <p className="text-sm text-text-muted">Nothing received yet.</p> : (
         <ul className="flex flex-col divide-y divide-border text-sm">
           {detail.related.receipts.map((receipt) => (
@@ -400,13 +406,15 @@ function PaymentTermsPanel({ detail }: { detail: PurchaseOrderDetail }) {
   const view = detail.paymentTerms;
   const [open, setOpen] = useState(false);
   const [values, setValues] = useState({ amount: view?.advance?.remaining ?? "", reference: "", paymentDate: "" });
+  const [noTds, setNoTds] = useState(false);
   const [key] = useState(() => crypto.randomUUID());
-  const record = useMutation({ mutationFn: () => orderAction(detail.order.id, "advance", { ...values, paymentDate: values.paymentDate || undefined, idempotencyKey: key }),
+  const record = useMutation({ mutationFn: () => orderAction(detail.order.id, "advance", { ...values, paymentDate: values.paymentDate || undefined, idempotencyKey: key,
+    ...(noTds ? { withholdingSectionId: null } : {}) }),
     onSuccess: () => { setOpen(false); void queryClient.invalidateQueries({ queryKey: scopedQueryKey(workspace, "procurement") }); } });
   if (!view) return null;
   const c = (value: string | null | undefined) => money(detail.order.currencyCode, value);
   return (
-    <Panel title="Payment terms" description="Agreed with the supplier and kept as confirmed. The bill's payment schedule comes from them; the order itself owes nothing until a bill is posted."
+    <Panel title="Payment terms" description="Agreed with the supplier. The bill's payment dates come from them; nothing is owed until a bill is final."
       actions={view.actions.recordAdvance ? <Button size="compact" variant="secondary" onPress={() => setOpen(true)}>Record advance</Button> : undefined}>
       {view.statutory?.exceeds && <Notice tone="warning">{view.statutory.message}</Notice>}
       <Facts columns={3} items={[
@@ -415,7 +423,7 @@ function PaymentTermsPanel({ detail }: { detail: PurchaseOrderDetail }) {
         { label: "Counted", value: view.paymentAgreement ?? "—" },
         { label: "Advance requirement", value: view.advance ? `${view.advance.percentage}% · ${c(view.advance.amount)}` : "None" },
         ...(view.advance?.requested !== undefined ? [{ label: "Advance paid / applied / remaining", value: `${c(view.advance.paid)} / ${c(view.advance.allocated)} / ${c(view.advance.remaining)}` }] : []),
-        ...(view.statutory ? [{ label: "Statutory deadline", value: `${view.statutory.statutoryDays} days from acceptance (${view.statutory.classification} enterprise)` }] : []),
+        ...(view.statutory ? [{ label: "MSME due date (by law)", value: `${view.statutory.statutoryDays} days from acceptance (${view.statutory.classification} enterprise)` }] : []),
         { label: "Payment notes", value: view.notes ?? "—" },
         ...(view.changeReason ? [{ label: "Why these terms", value: view.changeReason }] : []),
       ]} />
@@ -426,12 +434,22 @@ function PaymentTermsPanel({ detail }: { detail: PurchaseOrderDetail }) {
         </ul>
       )}
       {open && (
-        <Dialog isOpen onOpenChange={(value) => !value && setOpen(false)} title="Record the supplier advance" description={`Finance pays the advance the terms expect (${c(view.advance?.remaining)} still to pay). It is applied to the bill when the bill posts.`} size="md">
+        <Dialog isOpen onOpenChange={(value) => !value && setOpen(false)} title="Record the supplier advance" description={`Finance pays the advance (${c(view.advance?.remaining)} still to pay); it comes off the bill when it is final.`} size="md">
           <div className="flex flex-col gap-3">
             {record.error && <Notice>{record.error instanceof Error ? record.error.message : "Could not record the advance."}</Notice>}
             <TextField label="Amount" inputMode="decimal" value={values.amount} onChange={(value) => setValues((current) => ({ ...current, amount: value }))} />
             <TextField label="Payment date" type="date" value={values.paymentDate} onChange={(value) => setValues((current) => ({ ...current, paymentDate: value }))} description="Today if empty." />
             <TextField label="Bank reference" value={values.reference} onChange={(value) => setValues((current) => ({ ...current, reference: value }))} />
+            {view.advance?.tds && Number(values.amount) > 0 && (() => {
+              const tds = Math.round(Number(values.amount) * Number(view.advance.tds.rate)) / 100;
+              return (
+                <div className="flex flex-col gap-2 rounded-[var(--radius-control)] border border-border p-3 text-sm">
+                  {!noTds && <p>TDS {view.advance.tds.sectionCode} at {Number(view.advance.tds.rate)}%: {c(String(tds))}. Paid to the supplier: {c(String(Number(values.amount) - tds))}.</p>}
+                  <Checkbox isSelected={noTds} onChange={setNoTds}>No TDS on this advance</Checkbox>
+                </div>
+              );
+            })()}
+            {view.advance?.tdsNote && <p className="text-xs text-text-muted">{view.advance.tdsNote}</p>}
             <div className="flex justify-end gap-2"><Button variant="secondary" onPress={() => setOpen(false)}>Close</Button>
               <Button variant="primary" isLoading={record.isPending} isDisabled={!Number(values.amount)} onPress={() => record.mutate()}>Record advance</Button></div>
           </div>
@@ -451,15 +469,15 @@ function MatchingPolicy({ detail, label }: { detail: PurchaseOrderDetail; label:
   const change = useMutation({ mutationFn: () => orderAction(detail.order.id, "matching-policy", { policy, reason }),
     onSuccess: () => { setOpen(false); setReason(""); void queryClient.invalidateQueries({ queryKey: scopedQueryKey(workspace, "procurement") }); } });
   return (
-    <Panel title="Matching policy" description="How this order's supplier bills are matched: 3-Way against posted goods receipts, or 2-Way against the order alone (billing before receipt). Fixed when the order was confirmed."
+    <Panel title="How bills are checked" description="How this order's bills are checked: against the goods received, or against the order alone. Fixed on confirming."
       actions={detail.actions.changeMatchingPolicy ? <Button size="compact" variant="ghost" onPress={() => setOpen(true)}>Change policy</Button> : undefined}>
       <p className="text-sm"><span className="font-medium">{label}</span>{detail.order.matchingPolicyReason ? <span className="text-text-secondary"> — {detail.order.matchingPolicyReason}</span> : null}</p>
       {open && (
-        <Dialog isOpen onOpenChange={(value) => !value && setOpen(false)} title="Change the matching policy" description="Draft bills are matched again under the new policy; posted bills keep the policy they were posted with. The change and your reason are kept on the order." size="lg">
+        <Dialog isOpen onOpenChange={(value) => !value && setOpen(false)} title="Change how bills are checked" description="Draft bills are checked again the new way; final bills keep the old way. Your reason is kept." size="lg">
           <div className="flex flex-col gap-3">
             {change.error && <Notice>{change.error instanceof Error ? change.error.message : "Could not change the policy."}</Notice>}
-            <Select label="Matching policy" selectedKey={policy} onSelectionChange={(value) => setPolicy(String(value))}
-              options={[{ value: "three_way_accepted", label: "3-Way — acceptance required" }, { value: "three_way_received", label: "3-Way — physical receipt" }, { value: "two_way", label: "2-Way — PO-based billing (before receipt)" }]} />
+            <Select label="How bills are checked" selectedKey={policy} onSelectionChange={(value) => setPolicy(String(value))}
+              options={[{ value: "three_way_accepted", label: "Order and goods received — acceptance required" }, { value: "three_way_received", label: "Order and goods received — physical receipt" }, { value: "two_way", label: "Order only — PO-based billing (before receipt)" }]} />
             <TextArea label="Business reason (at least a sentence)" value={reason} onChange={setReason} />
             <div className="flex justify-end gap-2"><Button variant="secondary" onPress={() => setOpen(false)}>Close</Button>
               <Button variant="primary" isLoading={change.isPending} isDisabled={reason.trim().length < 10} onPress={() => change.mutate()}>Change policy</Button></div>
@@ -484,22 +502,23 @@ function Bills({ detail }: { detail: PurchaseOrderDetail }) {
   const pending = billing.lines.filter((line) => Number(line.remainingCommitment) > 0);
   return (
     <div className="flex flex-col gap-4">
+      <SupplierPagePanel orderId={detail.order.id} currencyCode={detail.order.currencyCode} />
       <PaymentTermsPanel detail={detail} />
       <MatchingPolicy detail={detail} label={billing.matchingPolicy.label} />
-      <Panel title="Billing progress" description={`Only posted bills count as billed. Matching: ${billing.matchingPolicy.label}.`}
+      <Panel title="Billing progress" description={`Only final bills count as billed. Matching: ${billing.matchingPolicy.label}.`}
         actions={createAction}>
         <div className="flex flex-wrap items-center gap-2"><BillingBadge status={billing.status} />
           <span className="text-sm text-text-secondary">{quantity(billing.totals.billed)} of the original {quantity(billing.totals.ordered)} billed
-            {Number(billing.totals.cancelled) > 0 ? ` · ${quantity(billing.totals.cancelled)} cancelled (never billed)` : ""}{billing.bills ? ` through ${billing.bills.filter((bill) => bill.type === "bill" && bill.documentStatus === "posted").length} posted bill(s)` : ""}</span></div>
+            {Number(billing.totals.cancelled) > 0 ? ` · ${quantity(billing.totals.cancelled)} cancelled (never billed)` : ""}{billing.bills ? ` through ${billing.bills.filter((bill) => bill.type === "bill" && bill.documentStatus === "posted").length} final bill(s)` : ""}</span></div>
         <MetricStrip metrics={billing.values ? [
           { label: "Committed value", value: money(currency, billing.values.committed) },
           { label: "Billed value", value: money(currency, billing.values.billed) },
           { label: "Unbilled", value: money(currency, billing.values.unbilled) },
           { label: "Received", value: quantity(billing.totals.received) },
-          { label: "Eligible to bill now", value: quantity(billing.totals.eligibleNow) },
+          { label: "Can be billed now", value: quantity(billing.totals.eligibleNow) },
         ] : [
           { label: "Committed", value: quantity(billing.totals.committed) }, { label: "Billed", value: quantity(billing.totals.billed) },
-          { label: "Remaining commitment", value: quantity(billing.totals.remainingCommitment) }, { label: "Eligible to bill now", value: quantity(billing.totals.eligibleNow) },
+          { label: "Remaining commitment", value: quantity(billing.totals.remainingCommitment) }, { label: "Can be billed now", value: quantity(billing.totals.eligibleNow) },
         ]} />
         {billing.warnings.map((warning) => <Notice key={warning} tone="warning">{warning}</Notice>)}
       </Panel>
@@ -534,7 +553,7 @@ function Bills({ detail }: { detail: PurchaseOrderDetail }) {
                 <tbody className="divide-y divide-border">
                   {billing.bills.map((bill) => (
                     <tr key={bill.id}>
-                      <td className="py-2 pr-3"><Link className="font-medium tabular-nums text-brand hover:underline" href={bill.href}>{bill.billNumber}</Link>{bill.type === "vendor_credit" && <span className="block text-xs text-text-muted">Vendor credit</span>}</td>
+                      <td className="py-2 pr-3"><Link className="font-medium tabular-nums text-brand hover:underline" href={bill.href}>{bill.billNumber}</Link>{bill.type === "vendor_credit" && <span className="block text-xs text-text-muted">Supplier credit note</span>}</td>
                       <td className="py-2 pr-3">{bill.supplierInvoiceNumber ?? "—"}<span className="block text-xs text-text-muted">{calendarDate(bill.billDate)}{bill.receipts.length ? ` · ${bill.receipts.join(", ")}` : ""}</span></td>
                       <td className="py-2 pr-3 tabular-nums">{bill.amount ? money(bill.currencyCode, bill.amount) : bill.quantity ? quantity(bill.quantity) : "—"}</td>
                       <td className="py-2 pr-3"><span className="flex flex-wrap gap-1"><StatusBadge tone={statusTone(bill.documentStatus)}>{statusLabel(bill.documentStatus)}</StatusBadge>
@@ -557,7 +576,7 @@ function Bills({ detail }: { detail: PurchaseOrderDetail }) {
         </Panel>
       )}
       {billing.matching && (
-        <Panel title="Matching results" description="2-Way Matching of the order's bills: each bill against the order's agreed quantities, prices and discounts.">
+        <Panel title="Matching results" description="Checking Against the Order of the order's bills: each bill against the order's agreed quantities, prices and discounts.">
           <div className="flex flex-wrap gap-3 text-sm">
             {(["matched", "mismatch", "approved_exception", "not_checked"] as const).map((result) => (
               <span key={result} className="flex items-center gap-1"><MatchBadge result={result} /><span className="tabular-nums">{billing.matching?.counts[result] ?? 0}</span></span>
@@ -593,7 +612,7 @@ function Bills({ detail }: { detail: PurchaseOrderDetail }) {
 function Returns({ detail }: { detail: PurchaseOrderDetail }) {
   return (
     <>
-      <Panel title="Purchase returns" description="Goods sent back after receipt. The original receipt is kept and the order is not reopened; a replacement is its own purchase order."
+      <Panel title="Purchase returns" description="Goods sent back after receipt. The receipt stays as it was; a replacement is a new order."
         actions={detail.actions.returnGoods ? <LinkButton size="compact" variant="secondary" href={`/procurement/purchase-returns/new?purchaseOrderId=${detail.order.id}`}>Create Purchase Return</LinkButton> : undefined}>
         {!detail.related.returns.length ? <p className="text-sm text-text-muted">No returns.</p> : (
           <ul className="flex flex-col divide-y divide-border text-sm">
@@ -610,7 +629,7 @@ function Returns({ detail }: { detail: PurchaseOrderDetail }) {
         )}
       </Panel>
       <div className="h-4" />
-      <Panel title="Vendor credits" description="The supplier's credits correcting this order's bills; a return does not post one by itself.">
+      <Panel title="Supplier credit notes" description="The supplier's credits correcting this order's bills; a return does not finalise one by itself.">
         {!detail.related.vendorCredits.length ? <p className="text-sm text-text-muted">None.</p> : (
           <ul className="flex flex-col divide-y divide-border text-sm">
             {detail.related.vendorCredits.map((note) => (
@@ -631,7 +650,7 @@ function Related({ detail }: { detail: PurchaseOrderDetail }) {
     { title: "Goods receipts", items: related.receipts.map((entry) => ({ id: entry.id, number: entry.number, href: entry.href, extra: statusLabel(entry.status ?? "") })) },
     { title: "Supplier bills", items: related.bills.map((entry) => ({ id: entry.id, number: entry.number, href: entry.href, extra: statusLabel(entry.status ?? "") })) },
     { title: "Purchase returns", items: related.returns.map((entry) => ({ id: entry.id, number: entry.number, href: entry.href })) },
-    { title: "Vendor credits", items: related.vendorCredits.map((entry) => ({ id: entry.id, number: entry.number, href: entry.href })) },
+    { title: "Supplier credit notes", items: related.vendorCredits.map((entry) => ({ id: entry.id, number: entry.number, href: entry.href })) },
     { title: "Payments", items: related.payments.map((entry) => ({ id: entry.id, number: entry.number, href: entry.href, extra: money(entry.currencyCode, entry.amount) })) },
   ];
   return (
@@ -689,7 +708,7 @@ function Notes({ detail, onChanged }: { detail: PurchaseOrderDetail; onChanged: 
 
 function History({ detail }: { detail: PurchaseOrderDetail }) {
   return (
-    <Panel title="Timeline" description="Confirmations, amendments, sending, receipts, bills, cancellations, returns and closure.">
+    <Panel title="Timeline" description="Confirmations, changes, sending, receipts, bills, cancellations, returns and closure.">
       <ol className="flex flex-col divide-y divide-border text-sm">
         {detail.history.map((entry) => (
           <li key={entry.id} className="grid grid-cols-1 gap-x-3 gap-y-0.5 py-2 sm:grid-cols-[11rem_minmax(0,1fr)]">

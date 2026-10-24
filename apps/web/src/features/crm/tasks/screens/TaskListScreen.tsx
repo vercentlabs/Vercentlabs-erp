@@ -180,12 +180,6 @@ export function TaskListScreen({ tabs }: { tabs?: ReactNode } = {}) {
   };
 
   const columns = useMemo<ColumnDef<Task, unknown>[]>(() => [
-    {
-      id: "done", header: () => <span className="sr-only">Complete</span>, enableSorting: false, enableHiding: false,
-      cell: ({ row }) => row.original.status === "completed"
-        ? <span className="flex size-6 items-center justify-center rounded-full bg-success text-white" title="Completed"><Check className="size-3.5" strokeWidth={3} aria-label="Completed" /></span>
-        : isOpen(row.original) && can?.complete ? <WorkRowActions kind="task" id={row.original.id} layout="check" onDone={() => refresh()} onMessage={setNotice} /> : null,
-    },
     { id: "dueAt", accessorKey: "dueAt", header: "When", cell: ({ row }) => <TaskDue task={row.original} /> },
     {
       id: "title", accessorKey: "title", header: "What", enableHiding: false,
@@ -210,6 +204,12 @@ export function TaskListScreen({ tabs }: { tabs?: ReactNode } = {}) {
     { id: "status", accessorKey: "status", header: "Status", enableSorting: false, cell: ({ row }) => <TaskStatusBadge status={row.original.status} /> },
     { id: "createdBy", accessorKey: "createdByName", header: "Created by", enableSorting: false, cell: ({ row }) => <span className="whitespace-nowrap">{row.original.createdByName ?? ""}</span> },
     { id: "createdAt", accessorKey: "createdAt", header: "Created", cell: ({ row }) => formatDate(row.original.createdAt) },
+    {
+      id: "done", header: () => <span className="sr-only">Actions</span>, enableSorting: false, enableHiding: false,
+      cell: ({ row }) => row.original.status === "completed"
+        ? <span className="flex items-center justify-end gap-1.5 text-xs font-medium text-success"><span className="flex size-5 items-center justify-center rounded-full bg-success text-white"><Check className="size-3" strokeWidth={3} aria-hidden="true" /></span>Completed</span>
+        : isOpen(row.original) && can?.complete ? <WorkRowActions kind="task" id={row.original.id} layout="check" labelled onDone={() => refresh()} onMessage={setNotice} /> : null,
+    },
     // eslint-disable-next-line react-hooks/exhaustive-deps -- refresh only invalidates the list
   ], [can?.complete]);
 

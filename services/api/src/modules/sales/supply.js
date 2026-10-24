@@ -1,12 +1,12 @@
-// Make-to-order (Sales report Phase 3): an order line can be marked "Buy for this order" or "Make for this order". Confirming the order
-// raises them through the bridges — a purchase indent or draft purchase orders (Procurement), a draft manufacturing order (Manufacturing)
+// Make-to-order (Sales report Phase 3): an order line can be marked "Buy for this order", "Make for this order" or (Procurement report
+// Phase 3) "Ship from supplier", a purchase order addressed to the customer. Confirming the order raises them through the bridges — a purchase indent or draft purchase orders (Procurement), a draft manufacturing order (Manufacturing)
 // — and keeps what was raised, or why it could not be, against the order. It never blocks the confirmation, and a line already raised
 // for (the same item and route on the order) is not raised again when the order is confirmed after a change.
-import { buyForSalesOrder } from "./bridges/procurement.js";
+import { buyForSalesOrder, dropshipForSalesOrder } from "./bridges/procurement.js";
 import { makeForSalesOrder } from "./bridges/manufacturing.js";
 
-export const SUPPLY_ROUTES = Object.freeze(["stock", "buy", "make"]);
-export const supplyRouteOf = (value) => (value === "buy" || value === "make" ? value : "stock");
+export const SUPPLY_ROUTES = Object.freeze(["stock", "buy", "make", "dropship"]);
+export const supplyRouteOf = (value) => (value === "buy" || value === "make" || value === "dropship" ? value : "stock");
 
 async function guarded(client, work) {
   await client.query("SAVEPOINT sales_order_supply");
@@ -25,19 +25,20 @@ export async function raiseSupplyForOrder(client, context, order) {
   const lines = (await client.query(
     `SELECT line.id, line.sequence, line.item_id, line.supply_route, line.quantity, line.uom_id, line.warehouse_id, COALESCE(line.promised_delivery_date, line.requested_delivery_date) AS required_by
        FROM tenant.sales_order_lines line
-      WHERE line.organization_id = $1 AND line.sales_order_version_id = $2 AND line.supply_route IN ('buy', 'make') AND line.item_id IS NOT NULL
+      WHERE line.organization_id = $1 AND line.sales_order_version_id = $2 AND line.supply_route IN ('buy', 'make', 'dropship') AND line.item_id IS NOT NULL
         AND NOT EXISTS (SELECT 1 FROM tenant.sales_order_supply supply WHERE supply.organization_id = line.organization_id AND supply.sales_order_id = $3
           AND supply.item_id = line.item_id AND supply.route = line.supply_route AND supply.document_id IS NOT NULL)
       ORDER BY line.sequence`, [context.organizationId, order.current_version_id, order.id])).rows;
   if (!lines.length) return [];
   const day = (value) => (value instanceof Date ? `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, "0")}-${String(value.getDate()).padStart(2, "0")}` : value ?? null);
   const written = [];
-  for (const route of ["buy", "make"]) {
+  for (const route of ["buy", "make", "dropship"]) {
     const routed = lines.filter((line) => line.supply_route === route);
     if (!routed.length) continue;
-    const outcome = await guarded(client, () => (route === "buy"
-      ? buyForSalesOrder(client, context, order, routed.map((line) => ({ sequence: line.sequence, itemId: line.item_id, quantity: String(Number(line.quantity)), uomId: line.uom_id,
-        warehouseId: line.warehouse_id, requiredBy: day(line.required_by) })))
+    const asked = routed.map((line) => ({ sequence: line.sequence, lineId: line.id, itemId: line.item_id, quantity: String(Number(line.quantity)), uomId: line.uom_id,
+      warehouseId: line.warehouse_id, requiredBy: day(line.required_by) }));
+    const outcome = await guarded(client, () => (route === "buy" ? buyForSalesOrder(client, context, order, asked)
+      : route === "dropship" ? dropshipForSalesOrder(client, context, order, asked)
       : makeForSalesOrder(client, context, order, routed.map((line) => ({ sequence: line.sequence, lineId: line.id, itemId: line.item_id })))));
     const results = Array.isArray(outcome) ? outcome : [{ sequences: routed.map((line) => line.sequence), error: outcome.error }];
     for (const result of results)

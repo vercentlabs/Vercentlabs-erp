@@ -29,7 +29,7 @@ const STATUS_TEXT: Record<StatusAction, { title: string; description: string; la
   activate: { title: "Activate supplier", description: "It can be used for new RFQs and purchase orders again.", label: "Activate", reason: "optional" },
   block: {
     title: "Block supplier",
-    description: "A procurement hold: no new purchase orders, and draft orders cannot go forward. Goods already received stay received, and Finance can still pay bills already owed.",
+    description: "No new orders, and drafts stop. Goods received stay received, and Finance can still pay what is owed.",
     label: "Block", reason: "required",
   },
   unblock: { title: "Unblock supplier", description: "The hold is lifted and the supplier can be used again.", label: "Unblock", reason: "required" },

@@ -168,7 +168,7 @@ export function ContactDialog({ supplierId, contact, addresses, options, access,
   const linked = matches.find((match) => match.contactId === linkContactId);
   return (
     <Dialog isOpen onOpenChange={(open) => !open && onClose()} title={contact ? `Edit ${contact.name}` : "Add contact"}
-      description={contact ? "The person's details are a shared contact: a change shows wherever they appear. Documents keep the details they were sent with." : "A person at this supplier, what they do for you, and where."}>
+      description={contact ? "A shared contact: a change shows everywhere they appear. Sent documents keep the old details." : "A person at this supplier, what they do for you, and where."}>
       <div className="flex flex-col gap-3">
         {save.error && <Notice>{errorMessage(save.error)}</Notice>}
         {!contact && matches.length > 0 && (

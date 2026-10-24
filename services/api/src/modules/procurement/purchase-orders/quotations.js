@@ -2,6 +2,7 @@
 // discounts, terms), recorded so a purchase order can be made from it without
 // retyping and without repricing. A quotation converts once; converting it
 // again names the order it already became (unless that order was cancelled).
+import { oneOffOrderLine, readOneOffLine } from "./one-off-lines.js";
 import { beginIdempotentOperation, completeIdempotentOperation } from "../../../core/idempotency.js";
 import { decimal, formatDecimal } from "../../../core/decimal.js";
 import { nextDocumentNumber } from "../../../core/platform/numbering/index.js";
@@ -30,9 +31,11 @@ async function readQuotationInput(client, context, input, current = null) {
   const parsed = [];
   for (const [index, line] of (lines ?? []).entries()) {
     const label = `Line ${index + 1}`;
-    const itemId = requireUuid(line.productId ?? line.itemId, `${label} product`);
-    const item = (await client.query(`SELECT id, uom_id, purchase_uom_id, status FROM tenant.items WHERE organization_id = $1 AND id = $2`, [context.organizationId, itemId])).rows[0];
-    if (!item) fail(`${label}: the product was not found.`, "productId", "PURCHASE_ORDER_PRODUCT_INVALID", 409);
+    // A line outside the catalogue (an RFQ's one-off line): described, with a unit.
+    const oneOff = !line.productId && !line.itemId ? await readOneOffLine(client, context.organizationId, line, label) : null;
+    const itemId = oneOff ? null : requireUuid(line.productId ?? line.itemId, `${label} product`);
+    const item = oneOff ? null : (await client.query(`SELECT id, uom_id, purchase_uom_id, status FROM tenant.items WHERE organization_id = $1 AND id = $2`, [context.organizationId, itemId])).rows[0];
+    if (!oneOff && !item) fail(`${label}: the product was not found.`, "productId", "PURCHASE_ORDER_PRODUCT_INVALID", 409);
     const quantity = String(line.quantity ?? "").trim();
     if (!QTY.test(quantity) || decimal(quantity) <= 0n) fail(`${label}: the quantity must be greater than zero.`, "quantity");
     const price = String(line.unitPrice ?? "").trim();
@@ -40,8 +43,9 @@ async function readQuotationInput(client, context, input, current = null) {
     const discountType = ["percent", "amount"].includes(line.discountType) ? line.discountType : null;
     const discountValue = discountType ? String(line.discountValue ?? "0").trim() : "0";
     if (!QTY.test(discountValue) || (discountType === "percent" && decimal(discountValue) > decimal(100))) fail(`${label}: check the discount.`, "discountValue");
-    parsed.push({ itemId, description: text(line.description, 2000), quantity, uomId: optionalUuid(line.uomId, "Unit") ?? item.purchase_uom_id ?? item.uom_id, unitPrice: price,
-      discountType, discountValue, taxCategoryId: optionalUuid(line.taxCategoryId, "Tax category"), rfqLineId: optionalUuid(line.rfqLineId, "RFQ line") });
+    parsed.push({ itemId, description: oneOff ? oneOff.description : text(line.description, 2000), quantity, uomId: oneOff ? oneOff.uomId : optionalUuid(line.uomId, "Unit") ?? item.purchase_uom_id ?? item.uom_id,
+      unitPrice: price, discountType, discountValue, taxCategoryId: optionalUuid(line.taxCategoryId, "Tax category") ?? oneOff?.taxCategoryId ?? null, rfqLineId: optionalUuid(line.rfqLineId, "RFQ line"),
+      oneOffType: oneOff?.oneOffType ?? null, expenseAccountId: oneOff?.expenseAccountId ?? null, noTax: Boolean(oneOff?.noTax) });
   }
   const discountType = ["percent", "amount"].includes(input.documentDiscountType) ? input.documentDiscountType : has(input, "documentDiscountType") ? null : current?.document_discount_type ?? null;
   return {
@@ -71,10 +75,10 @@ async function writeQuotationLines(client, context, quotationId, lines) {
   for (const [index, line] of lines.entries()) {
     await client.query(
       `INSERT INTO tenant.supplier_quotation_lines (organization_id, supplier_quotation_id, line_number, item_id, description, quantity, uom_id, unit_price, discount_type, discount_value, tax_category_id,
-         rfq_line_id)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
+         rfq_line_id, one_off_type, expense_account_id, one_off_no_tax)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)`,
       [context.organizationId, quotationId, index + 1, line.itemId, line.description, line.quantity, line.uomId, line.unitPrice, line.discountType, line.discountValue, line.taxCategoryId,
-        line.rfqLineId ?? null]);
+        line.rfqLineId ?? null, line.oneOffType ?? null, line.expenseAccountId ?? null, Boolean(line.noTax)]);
   }
 }
 
@@ -134,8 +138,8 @@ export async function getSupplierQuotation(client, context, quotationId) {
       WHERE quotation.organization_id = $1 AND quotation.id = $2`, [context.organizationId, requireUuid(quotationId, "Quotation")])).rows[0];
   if (!row) throw new PurchaseOrderError(404, "Supplier quotation not found.", "SUPPLIER_QUOTATION_NOT_FOUND");
   const lines = (await client.query(
-    `SELECT line.*, item.code AS item_code, item.name AS item_name, uom.code AS uom_code FROM tenant.supplier_quotation_lines line
-       JOIN tenant.items item ON item.organization_id = line.organization_id AND item.id = line.item_id
+    `SELECT line.*, item.code AS item_code, COALESCE(item.name, line.description) AS item_name, uom.code AS uom_code FROM tenant.supplier_quotation_lines line
+       LEFT JOIN tenant.items item ON item.organization_id = line.organization_id AND item.id = line.item_id
        LEFT JOIN tenant.units_of_measure uom ON uom.organization_id = line.organization_id AND uom.id = line.uom_id
       WHERE line.organization_id = $1 AND line.supplier_quotation_id = $2 ORDER BY line.line_number`, [context.organizationId, row.id])).rows;
   return {
@@ -151,7 +155,8 @@ export async function getSupplierQuotation(client, context, quotationId) {
     lines: lines.map((line) => ({
       id: line.id, lineNumber: line.line_number, productId: line.item_id, productCode: line.item_code, productName: line.item_name, description: line.description,
       quantity: dec(line.quantity), uomId: line.uom_id, uomCode: line.uom_code, unitPrice: dec(line.unit_price), discountType: line.discount_type, discountValue: dec(line.discount_value),
-      taxCategoryId: line.tax_category_id, rfqLineId: line.rfq_line_id ?? null,
+      taxCategoryId: line.tax_category_id, rfqLineId: line.rfq_line_id ?? null, oneOff: !line.item_id, oneOffType: line.one_off_type ?? null, expenseAccountId: line.expense_account_id ?? null,
+      noTax: Boolean(line.one_off_no_tax),
     })),
     actions: {
       edit: row.status === "received" && poCan(context, PO_PERMISSIONS.quotations),
@@ -215,11 +220,17 @@ export async function createPurchaseOrderFromQuotation(client, context, quotatio
     supplierQuotationReference: quotation.supplier_reference ?? quotation.quotation_number,
     expectedDeliveryDate: input.expectedDeliveryDate ?? (quotation.delivery_lead_days != null
       ? (await client.query(`SELECT (${orgTodaySql("$2::uuid")} + $1::int)::text AS day`, [quotation.delivery_lead_days, context.organizationId])).rows[0].day : undefined),
-    lines: lines.map((line) => ({
+    lines: lines.map((line) => line.item_id ? ({
       productId: line.item_id, description: line.description ?? undefined, quantity: formatDecimal(line.quantity), uomId: line.uom_id, unitPrice: formatDecimal(line.unit_price),
       discountType: line.discount_type, discountValue: formatDecimal(line.discount_value), priceSource: "quotation", sourceQuotationLineId: line.id,
       carriedTaxCategoryId: line.tax_category_id ?? undefined, zeroPriceReason: decimal(line.unit_price) === 0n ? "Quoted at no charge" : undefined, carried: decimal(line.unit_price) === 0n,
       warehouseId: input.defaultWarehouseId ?? undefined,
+    }) : ({
+      // A one-off line: ordered with its account and tax (from the quotation, or as the buyer gives them: input.accounts[quotationLineId]).
+      ...oneOffOrderLine({ description: line.description, uomId: line.uom_id, oneOffType: line.one_off_type, expenseAccountId: line.expense_account_id, taxCategoryId: line.tax_category_id,
+        noTax: line.one_off_no_tax }, input.accounts?.[line.id], `Line ${line.line_number}`),
+      quantity: formatDecimal(line.quantity), unitPrice: formatDecimal(line.unit_price), discountType: line.discount_type, discountValue: formatDecimal(line.discount_value),
+      priceSource: "quotation", sourceQuotationLineId: line.id,
     })),
   };
   const { header, priced } = await resolveOrderDocument(client, context, document, { today });

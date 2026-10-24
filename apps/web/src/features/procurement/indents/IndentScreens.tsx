@@ -2,6 +2,7 @@
 
 // Procurement → Request → Purchase Indents (Procurement plan Phase 2): a department or the store asks for items by a date; the head approves —
 // from the list, without opening it; the buyer turns approved lines into a purchase order or an RFQ. Optional per company (Procurement Setup).
+import { PurchaseWarningNote } from "@/features/procurement/shared/PurchaseWarningDialog";
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useFormRouter as useRouter } from "@/shell/form-modal/FormModal";
@@ -9,7 +10,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ColumnDef } from "@tanstack/react-table";
 import { Check, Plus, Trash2, X } from "lucide-react";
 import {
-  Button, Dialog, EmptyState, EnterpriseDataGrid, EnterpriseListPage, ErrorState, IconButton, LinkButton, NoResultsState, PageHeader, PermissionState, RecordDetailsPage, SearchField,
+  Button, Dialog, EmptyState, EnterpriseDataGrid, EnterpriseListPage, ErrorState, LinkButton, NoResultsState, PageHeader, PermissionState, RecordDetailsPage, SearchField,
   Select, StatusBadge, TextArea, TextField,
 } from "@vercentlabs/design-system";
 
@@ -23,6 +24,8 @@ import { DocumentChain } from "@/features/procurement/shared/DocumentChain";
 import { ListStateViews } from "@/features/procurement/shared/ListStateViews";
 import { useListState } from "@/features/procurement/shared/navigation";
 import { gridPaging, pageFilters, usePageIndex } from "@/features/procurement/shared/paging";
+import { OneOffAccountFields, OneOffDescription, OneOffToggle, blankOneOff, oneOffAccountInput, oneOffAccountReady, oneOffInput, type OneOffAccount, type OneOffFields } from "@/features/procurement/shared/OneOffLine";
+import { listDepartments } from "@/features/procurement/screens/DepartmentsPanel";
 import { ProcurementSearchPicker, useKnownRows } from "@/features/procurement/shared/ProcurementSearchPicker";
 import { ProcApiError } from "@/features/procurement/shared/http";
 import { calendarDate, money, quantity } from "@/features/procurement/shared/format";
@@ -73,7 +76,7 @@ export function IndentsScreen() {
   const forbidden = query.error instanceof ProcApiError && query.error.status === 403;
   if (forbidden) return <PermissionState title="You don't have access to purchase indents" description="Ask an administrator for a Procurement role." />;
   return (
-    <EnterpriseListPage header={{ title: "Purchase Indents", description: "What departments and the store need, by when. The head of department approves; the buyer orders it or asks suppliers for prices.",
+    <EnterpriseListPage header={{ title: "Purchase Indents", description: "What departments need, and by when. The head approves; the buyer orders or asks for prices.",
       primaryAction: <LinkButton variant="primary" href="/procurement/indents/new"><Plus className="size-4" aria-hidden="true" />New indent</LinkButton> }}
       savedViews={{ views: VIEWS, activeViewId: view, onSelect: (next) => list.setView(next.replace(/_/g, "-")) }}
       actionBar={{ end: <ListStateViews listKey="indents" list={list} />, start: <SearchField aria-label="Search indents" placeholder="Indent, item, purpose or person" className="w-full sm:w-80"
@@ -115,9 +118,9 @@ function RejectDialog({ indentId, number, onClose, onDone }: { indentId: string;
 
 // ---------------------------------------------------------------- form
 
-type Line = { key: number; productId: string; quantity: string; uomId: string; requiredBy: string; notes: string };
+type Line = OneOffFields & { key: number; productId: string; quantity: string; uomId: string; requiredBy: string; notes: string };
 let lineKey = 0;
-const blank = (): Line => ({ key: ++lineKey, productId: "", quantity: "", uomId: "", requiredBy: "", notes: "" });
+const blank = (): Line => ({ key: ++lineKey, productId: "", quantity: "", uomId: "", requiredBy: "", notes: "", ...blankOneOff() });
 
 export function IndentFormScreen({ indentId }: { indentId?: string }) {
   const workspace = useWorkspaceContext();
@@ -135,9 +138,11 @@ function IndentForm({ options, existing }: { options: NonNullable<Awaited<Return
   const router = useRouter();
   const current = existing?.indent;
   const [values, setValues] = useState({ requiredBy: current?.requiredBy ?? "", warehouseId: current?.warehouseId ?? options.settings.defaultWarehouseId ?? "", purpose: current?.purpose ?? "",
-    notes: current?.notes ?? "" });
-  const [lines, setLines] = useState<Line[]>(() => existing?.lines.length ? existing.lines.map((line) => ({ key: ++lineKey, productId: line.productId, quantity: String(Number(line.quantity)),
-    uomId: line.uomId ?? "", requiredBy: line.requiredBy && line.requiredBy !== current?.requiredBy ? line.requiredBy : "", notes: line.notes ?? "" })) : [blank()]);
+    notes: current?.notes ?? "", departmentId: current?.departmentId ?? "" });
+  const departments = useQuery({ queryKey: ["procurement", "departments", "active"], queryFn: () => listDepartments(), staleTime: 60_000 });
+  const [lines, setLines] = useState<Line[]>(() => existing?.lines.length ? existing.lines.map((line) => ({ key: ++lineKey, productId: line.productId ?? "", quantity: String(Number(line.quantity)),
+    uomId: line.uomId ?? "", requiredBy: line.requiredBy && line.requiredBy !== current?.requiredBy ? line.requiredBy : "", notes: line.notes ?? "",
+    oneOff: Boolean(line.oneOff), description: line.oneOff ? line.description ?? "" : "", oneOffType: line.oneOffType ?? "service" })) : [blank()]);
   const [knownProducts, keepProduct] = useKnownRows(options.products);
   const set = (key: keyof typeof values) => (value: string) => setValues((state) => ({ ...state, [key]: value }));
   const setLine = (key: number, change: Partial<Line>) => setLines((state) => state.map((line) => (line.key === key ? { ...line, ...change } : line)));
@@ -145,8 +150,9 @@ function IndentForm({ options, existing }: { options: NonNullable<Awaited<Return
   const save = useMutation({
     mutationFn: (submit: boolean) => submitKey.run(async () => {
       const body = { requiredBy: values.requiredBy || null, warehouseId: values.warehouseId || null, purpose: values.purpose || null, notes: values.notes || null,
-        lines: lines.filter((line) => line.productId).map((line) => ({ productId: line.productId, quantity: line.quantity, uomId: line.uomId || undefined, requiredBy: line.requiredBy || null,
-          notes: line.notes || null })) };
+        departmentId: values.departmentId || null,
+        lines: lines.filter((line) => (line.oneOff ? line.description.trim() : line.productId)).map((line) => ({ ...(line.oneOff ? oneOffInput(line) : { productId: line.productId, uomId: line.uomId || undefined }),
+          quantity: line.quantity, requiredBy: line.requiredBy || null, notes: line.notes || null })) };
       if (existing) {
         await updateIndent(existing.indent.id, body);
         if (submit) await indentAction(existing.indent.id, "submit");
@@ -156,7 +162,7 @@ function IndentForm({ options, existing }: { options: NonNullable<Awaited<Return
     }),
     onSuccess: (id) => router.replace(`/procurement/indents/${id}`),
   });
-  const ready = lines.some((line) => line.productId && Number(line.quantity) > 0);
+  const ready = lines.some((line) => (line.oneOff ? line.description.trim() && line.uomId : line.productId) && Number(line.quantity) > 0);
   return (
     <div className="flex flex-col gap-6">
       <PageHeader title={existing ? `Edit ${existing.indent.number}` : "New purchase indent"} description="What you need and by when. Submitting sends it for approval."
@@ -170,25 +176,35 @@ function IndentForm({ options, existing }: { options: NonNullable<Awaited<Return
           <Select label="Deliver to" selectedKey={values.warehouseId || "none"} onSelectionChange={(value) => set("warehouseId")(value === "none" ? "" : String(value))}
             options={[{ value: "none", label: "Not a stock item / not decided" }, ...options.warehouses.map((warehouse) => ({ value: warehouse.id, label: warehouse.name }))]} />
           <TextField label="Purpose" placeholder="Line 2 maintenance, new packing run…" value={values.purpose} onChange={set("purpose")} />
+          {(departments.data?.length ?? 0) > 0 && (
+            <Select label="Department" selectedKey={values.departmentId || "none"} onSelectionChange={(value) => set("departmentId")(value === "none" ? "" : String(value))}
+              description="Its head approves the request." options={[{ value: "none", label: "None" }, ...(departments.data ?? []).map((department) => ({ value: department.id, label: department.name }))]} />
+          )}
         </div>
       </Panel>
       <Panel title="Items" actions={<Button size="compact" variant="secondary" onPress={() => setLines((state) => [...state, blank()])}><Plus className="size-3.5" aria-hidden="true" />Add item</Button>}>
         <div className="flex flex-col gap-3">
           {lines.map((line, index) => (
-            <div key={line.key} className="grid grid-cols-1 items-end gap-2 sm:grid-cols-[2fr_1fr_1fr_1fr_auto]">
-              <ProcurementSearchPicker kind="products" label={`Item ${index + 1}`} value={line.productId || null} known={knownProducts}
-                onPick={(id, row) => {
-                  const product = (row ?? knownProducts.find((entry) => entry.id === id)) as (typeof knownProducts)[number] | undefined;
-                  keepProduct(product ?? null);
-                  setLine(line.key, { productId: id, uomId: product?.purchase_uom_id ?? product?.uom_id ?? "" });
-                }} />
+            <div key={line.key} className="flex flex-col gap-2 rounded-[var(--radius-control)] border border-border p-2 sm:border-0 sm:p-0">
+            <div className="grid grid-cols-1 items-end gap-2 sm:grid-cols-[2fr_1fr_1fr_1fr_auto]">
+              {line.oneOff ? <OneOffDescription line={line} label={`Item ${index + 1}`} onChange={(change) => setLine(line.key, change)} /> : (
+                <ProcurementSearchPicker kind="products" label={`Item ${index + 1}`} value={line.productId || null} known={knownProducts}
+                  onPick={(id, row) => {
+                    const product = (row ?? knownProducts.find((entry) => entry.id === id)) as (typeof knownProducts)[number] | undefined;
+                    keepProduct(product ?? null);
+                    setLine(line.key, { productId: id, uomId: product?.purchase_uom_id ?? product?.uom_id ?? "" });
+                  }} />
+              )}
               <TextField label="Quantity" inputMode="decimal" value={line.quantity} onChange={(value) => setLine(line.key, { quantity: value })} />
               <Select label="Unit" selectedKey={line.uomId || null} onSelectionChange={(value) => setLine(line.key, { uomId: String(value) })}
                 options={options.uoms.map((uom) => ({ value: uom.id, label: uom.code }))} />
-              <TextField label="Needed by" type="date" value={line.requiredBy} onChange={(value) => setLine(line.key, { requiredBy: value })} description={values.requiredBy ? "The indent's date if empty" : undefined} />
-              <IconButton aria-label={`Remove item ${index + 1}`} variant="ghost" isDisabled={lines.length <= 1} onPress={() => setLines((state) => state.filter((entry) => entry.key !== line.key))}>
-                <Trash2 className="size-4" aria-hidden="true" />
-              </IconButton>
+              <TextField label="Needed by" type="date" value={line.requiredBy} onChange={(value) => setLine(line.key, { requiredBy: value })} description={values.requiredBy ? "The request's date if empty" : undefined} />
+              <Button variant="ghost" isDisabled={lines.length <= 1} onPress={() => setLines((state) => state.filter((entry) => entry.key !== line.key))}>
+                <Trash2 className="size-4" aria-hidden="true" />Remove
+              </Button>
+            </div>
+            {!line.oneOff && <PurchaseWarningNote row={knownProducts.find((entry) => entry.id === line.productId) as { purchase_warning?: string | null; purchase_warning_level?: string | null } | undefined} />}
+            <OneOffToggle value={line.oneOff} onChange={(on) => setLine(line.key, { oneOff: on, productId: on ? "" : line.productId, description: on ? line.description : "" })} />
             </div>
           ))}
         </div>
@@ -217,6 +233,7 @@ export function IndentDetailScreen({ indentId }: { indentId: string }) {
     <div className="flex flex-col gap-4">
       <DocumentChain type="purchase_indent" id={indent.id} />
       {act.error && <Notice>{errorMessage(act.error)}</Notice>}
+      {indent.waitingApproval && <Notice tone="info">Approved by {indent.headApprovedBy ?? "the head"}; now waiting for approval level {indent.waitingApproval.level} (by value).</Notice>}
       {indent.status === "rejected" && <Notice tone="warning">Rejected{indent.decidedBy ? ` by ${indent.decidedBy}` : ""}: {indent.decisionNote}. Change it and submit it again.</Notice>}
       <RecordDetailsPage
         header={{
@@ -226,6 +243,7 @@ export function IndentDetailScreen({ indentId }: { indentId: string }) {
             { label: "Raised by", value: indent.requestedBy ?? "—" },
             { label: "Needed by", value: indent.requiredBy ? calendarDate(indent.requiredBy) : "—" },
             { label: "Purpose", value: indent.purpose ?? "—" },
+            ...(indent.departmentName ? [{ label: "Department", value: `${indent.departmentName}${indent.headName ? ` · head ${indent.headName}` : ""}` }] : []),
             ...(indent.decidedBy && indent.status !== "rejected" ? [{ label: "Approved by", value: indent.decidedBy }] : []),
           ],
           primaryAction: actions.approve ? <Button variant="primary" isLoading={act.isPending} onPress={() => act.mutate("approve")}><Check className="size-4" aria-hidden="true" />Approve</Button>
@@ -280,11 +298,13 @@ function OrderDialog({ lines, onClose, onDone }: { lines: IndentLine[]; onClose:
   const [knownSuppliers, keepSupplier] = useKnownRows(options.data?.suppliers ?? []);
   const toOrder = useQuery({ queryKey: scopedQueryKey(workspace, "procurement", "indent-lines-to-order", lines.map((line) => line.id).join(",")),
     queryFn: () => listIndentLinesToOrder({}) });
-  const [rows, setRows] = useState<Record<string, { include: boolean; quantity: string; unitPrice: string }>>(() =>
-    Object.fromEntries(lines.map((line) => [line.id, { include: true, quantity: String(Number(line.remaining)), unitPrice: "" }])));
+  const [rows, setRows] = useState<Record<string, { include: boolean; quantity: string; unitPrice: string; account: OneOffAccount }>>(() =>
+    Object.fromEntries(lines.map((line) => [line.id, { include: true, quantity: String(Number(line.remaining)), unitPrice: "",
+      account: { expenseAccountId: line.expenseAccountId ?? "", taxCategoryId: line.taxCategoryId ?? "", noTax: Boolean(line.noTax) } }])));
   const prices = new Map((toOrder.data ?? []).map((line) => [line.id, line.purchasePrice]));
   const run = useMutation({ mutationFn: () => orderFromIndents({ supplierId, lines: lines.filter((line) => rows[line.id]?.include).map((line) => ({ indentLineId: line.id,
-    quantity: rows[line.id].quantity, unitPrice: rows[line.id].unitPrice || undefined })) }), onSuccess: (result) => onDone(result.id) });
+    quantity: rows[line.id].quantity, unitPrice: rows[line.id].unitPrice || undefined, ...(line.oneOff ? oneOffAccountInput(rows[line.id].account) : {}) })) }), onSuccess: (result) => onDone(result.id) });
+  const oneOffsReady = lines.every((line) => !line.oneOff || !rows[line.id]?.include || (oneOffAccountReady(rows[line.id].account) && Number(rows[line.id].unitPrice) > 0));
   return (
     <Dialog isOpen onOpenChange={(open) => !open && onClose()} title="Create purchase order" size="lg" description="A draft order to one supplier. Prices start from the last price paid to them; change any before saving.">
       <div className="flex flex-col gap-3">
@@ -301,11 +321,17 @@ function OrderDialog({ lines, onClose, onDone }: { lines: IndentLine[]; onClose:
               <Button size="compact" variant="ghost" onPress={() => setRows((state) => ({ ...state, [line.id]: { ...state[line.id], include: !state[line.id].include } }))}>
                 {rows[line.id]?.include ? "Leave out" : "Include"}
               </Button>
+              {line.oneOff && rows[line.id]?.include && (
+                <div className="sm:col-span-4">
+                  <OneOffAccountFields value={rows[line.id].account} accounts={options.data?.expenseAccounts ?? []} taxCategories={options.data?.taxCategories ?? []}
+                    onChange={(account) => setRows((state) => ({ ...state, [line.id]: { ...state[line.id], account } }))} />
+                </div>
+              )}
             </div>
           ))}
         </div>
         <div className="flex justify-end gap-2"><Button variant="secondary" onPress={onClose}>Cancel</Button>
-          <Button variant="primary" isDisabled={!supplierId || !lines.some((line) => rows[line.id]?.include)} isLoading={run.isPending} onPress={() => run.mutate()}>Create draft order</Button></div>
+          <Button variant="primary" isDisabled={!supplierId || !lines.some((line) => rows[line.id]?.include) || !oneOffsReady} isLoading={run.isPending} onPress={() => run.mutate()}>Create draft order</Button></div>
       </div>
     </Dialog>
   );

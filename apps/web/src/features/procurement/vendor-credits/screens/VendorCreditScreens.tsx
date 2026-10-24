@@ -49,9 +49,9 @@ export function VendorCreditFormScreen({ creditId, billId, returnId, claimId, su
   const existing = useQuery({ queryKey: scopedQueryKey(workspace, "procurement", "vendor-credit", creditId), queryFn: () => getCredit(creditId!), enabled: Boolean(creditId) });
   const bill = useQuery({ queryKey: scopedQueryKey(workspace, "procurement", "supplier-bill", billId), queryFn: () => getBill(billId!), enabled: Boolean(billId) && !supplierId });
   const ret = useQuery({ queryKey: scopedQueryKey(workspace, "procurement", "purchase-return", returnId), queryFn: () => getReturn(returnId!), enabled: Boolean(returnId) && !supplierId });
-  if (existing.isLoading || bill.isLoading || ret.isLoading) return <LoadingState label="Loading vendor credit" />;
-  if (creditId && !existing.data) return <ErrorState title="Could not load the vendor credit" description={errorMessage(existing.error)} />;
-  if (existing.data && existing.data.credit.status !== "draft") return <ErrorState title="This vendor credit cannot be edited" description="Only a draft is edited; a posted credit is reversed." />;
+  if (existing.isLoading || bill.isLoading || ret.isLoading) return <LoadingState label="Loading supplier credit note" />;
+  if (creditId && !existing.data) return <ErrorState title="Could not load the supplier credit note" description={errorMessage(existing.error)} />;
+  if (existing.data && existing.data.credit.status !== "draft") return <ErrorState title="This supplier credit note cannot be edited" description="Only a draft is edited; a final credit is cancelled." />;
   const presetSupplier = existing.data?.credit.supplierId ?? supplierId ?? bill.data?.bill.supplierId ?? ret.data?.purchaseReturn.supplierId ?? null;
   return <CreditForm existing={existing.data ?? null} presetSupplierId={presetSupplier} billId={billId ?? null} returnId={returnId ?? null} claimId={claimId ?? null} />;
 }
@@ -138,8 +138,8 @@ function CreditForm({ existing, presetSupplierId, billId, returnId, claimId }: {
   const claimLines = header.origin === "accepted_claim" && header.debitClaimId && !rows.length;
   return (
     <div className="flex flex-col gap-4">
-      <PageHeader title={existing ? `Edit ${existing.credit.number}` : "Record Vendor Credit"}
-        description="The supplier's financial credit. Saved as a draft; posted through Finance it reduces what you owe — then applied to bills or refunded. Posting never applies it by itself." />
+      <PageHeader title={existing ? `Edit ${existing.credit.number}` : "Record Supplier Credit Note"}
+        description="The supplier's credit. Once final it reduces what you owe; then apply it to bills or record a refund." />
       <Errors error={save.error} />
       <Panel title="Credit">
         <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
@@ -154,19 +154,19 @@ function CreditForm({ existing, presetSupplierId, billId, returnId, claimId }: {
           </div>
           <TextField label="Supplier credit note date" type="date" value={header.supplierCreditNoteDate} onChange={set("supplierCreditNoteDate")} />
           {(header.origin === "accepted_claim" || data.claims.length > 0) && (
-            <Select label={header.origin === "accepted_claim" ? "Accepted debit claim" : "Resolves debit claim (optional)"} selectedKey={header.debitClaimId || "none"}
+            <Select label={header.origin === "accepted_claim" ? "Accepted debit note" : "Resolves debit note (optional)"} selectedKey={header.debitClaimId || "none"}
               onSelectionChange={(value) => set("debitClaimId")(value === "none" ? "" : String(value))}
               options={[...(header.origin === "accepted_claim" ? [] : [{ value: "none", label: "None" }]),
                 ...data.claims.map((entry) => ({ value: entry.id, label: `${entry.number} — ${entry.remaining} of ${entry.accepted} to credit` }))]} />
           )}
           <TextField label="Credit date" type="date" value={header.creditDate} onChange={set("creditDate")} />
-          <TextField label="Posting date" type="date" value={header.postingDate} onChange={set("postingDate")} />
+          <TextField label="Accounting date" type="date" value={header.postingDate} onChange={set("postingDate")} />
         </div>
         {duplicate && <Notice tone="warning">Supplier credit note {header.supplierCreditNoteNumber}: {duplicate}</Notice>}
         <TextArea label="Reason" value={header.reason} onChange={set("reason")} />
         {header.origin === "other_authorized" && <TextArea label="Documented basis for this credit (required — e.g. the rebate agreement)" value={header.authorizationReason} onChange={set("authorizationReason")} />}
       </Panel>
-      <Panel title="What is credited" description="Lines of the supplier's posted bills (several bills of one company and currency may share a credit), the billed part of posted returns, or an amount on account."
+      <Panel title="What is credited" description="Lines of the supplier's final bills, the billed part of returns, or an amount on account."
         actions={
           <div className="flex flex-wrap gap-2">
             <Select aria-label="Add a bill line" size="compact" selectedKey={null} placeholder="Add bill line…" isDisabled={!supplierId}
@@ -184,7 +184,7 @@ function CreditForm({ existing, presetSupplierId, billId, returnId, claimId }: {
               label: "On account", hint: "", basis: "amount", quantity: "", amount: "", taxAmount: "", reason: "commercial_settlement", description: "" }])}>Add on-account line</Button>
           </div>
         }>
-        {claimLines && <Notice tone="info">No lines: the credit takes the accepted debit claim&apos;s lines, scaled to what is still to be credited.</Notice>}
+        {claimLines && <Notice tone="info">No lines: the credit takes the accepted debit note&apos;s lines, scaled to what is still to be credited.</Notice>}
         {!rows.length ? (!claimLines && <p className="text-sm text-text-muted">{supplierId ? "Add what the supplier credited." : "Choose the supplier first."}</p>) : (
           <div className="flex flex-col divide-y divide-border">
             {rows.map((row) => (
@@ -205,7 +205,7 @@ function CreditForm({ existing, presetSupplierId, billId, returnId, claimId }: {
           </div>
         )}
       </Panel>
-      <Panel title="Taxes and totals" description="Calculated by the server: GST components proportional to the bill lines (none for a financial-only credit); TDS follows the credited value."
+      <Panel title="Taxes and totals" description="Worked out by the server: GST in proportion to the bill lines; TDS follows the credited value."
         actions={<Button size="compact" variant="secondary" isLoading={calculate.isPending} isDisabled={!supplierId || (!rows.length && !claimLines)} onPress={() => calculate.mutate()}>Calculate</Button>}>
         <Errors error={calculate.error} />
         {preview ? (
@@ -225,7 +225,7 @@ function CreditForm({ existing, presetSupplierId, billId, returnId, claimId }: {
       <div className="flex flex-wrap justify-end gap-2">
         <LinkButton variant="secondary" href={existing ? `/procurement/debit-notes-credits/vendor-credits/${existing.credit.id}` : "/procurement/debit-notes-credits"}>Cancel</LinkButton>
         <Button variant="secondary" isLoading={(save.isPending || save.isSuccess) && save.variables === false} isDisabled={save.isPending || save.isSuccess || !supplierId || (!rows.length && !claimLines)} onPress={() => save.mutate(false)}>Save Draft</Button>
-        {data.permissions.post && <Button variant="primary" isLoading={(save.isPending || save.isSuccess) && save.variables === true} isDisabled={save.isPending || save.isSuccess || !supplierId || (!rows.length && !claimLines)} onPress={() => save.mutate(true)}>Save &amp; Post</Button>}
+        {data.permissions.post && <Button variant="primary" isLoading={(save.isPending || save.isSuccess) && save.variables === true} isDisabled={save.isPending || save.isSuccess || !supplierId || (!rows.length && !claimLines)} onPress={() => save.mutate(true)}>Save &amp; Finalise</Button>}
       </div>
     </div>
   );
@@ -244,10 +244,10 @@ export function VendorCreditDetailScreen({ creditId }: { creditId: string }) {
   const [dialog, setDialog] = useState<DialogName | null>(null);
   const [refundToReverse, setRefundToReverse] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
-  const approve = useMutation({ mutationFn: () => creditAction(creditId, "approve"), onSuccess: () => changed("Approved and posted.") });
+  const approve = useMutation({ mutationFn: () => creditAction(creditId, "approve"), onSuccess: () => changed("Approved and final.") });
   function changed(message: string) { setDialog(null); setRefundToReverse(null); setNotice(message); void queryClient.invalidateQueries({ queryKey: scopedQueryKey(workspace, "procurement") }); }
-  if (query.isLoading) return <LoadingState label="Loading vendor credit" />;
-  if (!query.data) return <ErrorState title="Could not load this vendor credit" description={errorMessage(query.error)} action={{ label: "Retry", onPress: () => query.refetch() }} />;
+  if (query.isLoading) return <LoadingState label="Loading supplier credit note" />;
+  if (!query.data) return <ErrorState title="Could not load this supplier credit note" description={errorMessage(query.error)} action={{ label: "Retry", onPress: () => query.refetch() }} />;
   const detail = query.data;
   const { credit, actions } = detail;
   const c = (value: string | null | undefined) => money(credit.currencyCode, value);
@@ -255,9 +255,9 @@ export function VendorCreditDetailScreen({ creditId }: { creditId: string }) {
     <div className="flex flex-col gap-4">
       {notice && <Notice tone="success">{notice}</Notice>}
       <Errors error={approve.error} />
-      {credit.status === "reversed" && <Notice tone="warning">Reversed{credit.reversalReason ? `: ${credit.reversalReason}` : ""}. Its bills, returns and debit claim can be credited again.</Notice>}
+      {credit.status === "reversed" && <Notice tone="warning">Cancelled{credit.reversalReason ? `: ${credit.reversalReason}` : ""}. Its bills, returns and debit note can be credited again.</Notice>}
       {credit.status === "cancelled" && <Notice tone="info">Cancelled{credit.cancelReason ? `: ${credit.cancelReason}` : ""}.</Notice>}
-      {credit.status === "posted" && credit.settlementStatus === "unapplied" && <Notice tone="info">Posted and unapplied: apply it to the supplier&apos;s open bills, or record the supplier&apos;s refund.</Notice>}
+      {credit.status === "posted" && credit.settlementStatus === "unapplied" && <Notice tone="info">Final and unapplied: apply it to the supplier&apos;s open bills, or record the supplier&apos;s refund.</Notice>}
       <RecordDetailsPage header={{
         title: credit.number,
         status: <span className="flex flex-wrap gap-2"><StatusBadge tone={CREDIT_TONE[credit.status] ?? "neutral"}>{credit.statusLabel}</StatusBadge>
@@ -268,8 +268,8 @@ export function VendorCreditDetailScreen({ creditId }: { creditId: string }) {
           { label: "Credit total", value: <span className="font-semibold">{c(credit.total)}</span> },
           { label: "Unapplied", value: c(credit.available) },
         ],
-        primaryAction: actions.post ? <Button variant="primary" onPress={() => setDialog("post")}>Post</Button>
-          : actions.approve ? <Button variant="primary" isLoading={approve.isPending} onPress={() => approve.mutate()}>Approve &amp; Post</Button>
+        primaryAction: actions.post ? <Button variant="primary" onPress={() => setDialog("post")}>Finalise</Button>
+          : actions.approve ? <Button variant="primary" isLoading={approve.isPending} onPress={() => approve.mutate()}>Approve &amp; Finalise</Button>
             : actions.allocate ? <Button variant="primary" onPress={() => setDialog("allocate")}>Apply to Bills</Button> : undefined,
         secondaryActions: (
           <div className="flex flex-wrap gap-2">
@@ -277,19 +277,19 @@ export function VendorCreditDetailScreen({ creditId }: { creditId: string }) {
             {actions.refund && <Button variant="ghost" onPress={() => setDialog("refund")}>Record Supplier Refund</Button>}
             {actions.unapply && <Button variant="ghost" onPress={() => setDialog("unapply")}>Unapply</Button>}
             {actions.cancel && <Button variant="ghost" onPress={() => setDialog("cancel")}>Cancel Draft</Button>}
-            {actions.reverse && <Button variant="ghost" onPress={() => setDialog("reverse")}>Reverse</Button>}
+            {actions.reverse && <Button variant="ghost" onPress={() => setDialog("reverse")}>Cancel</Button>}
             <a className={buttonVariants({ variant: "ghost" })} href={creditVoucherUrl(credit.id, true)} target="_blank" rel="noreferrer"><Eye className="size-4" aria-hidden="true" />Voucher</a>
             <a className={buttonVariants({ variant: "ghost" })} href={creditVoucherUrl(credit.id)} download><Download className="size-4" aria-hidden="true" />PDF</a>
           </div>
         ),
       }}>
         <Tabs selectedKey={tab} onSelectionChange={(value) => setTab(String(value))}>
-          <TabList aria-label="Vendor credit sections">
+          <TabList aria-label="Supplier credit note sections">
             <Tab id="overview">Overview</Tab>
             <Tab id="lines">Credit Lines</Tab>
             <Tab id="sources">Original Bills &amp; Returns</Tab>
-            <Tab id="taxes">Taxes &amp; Withholding</Tab>
-            <Tab id="settlement">Allocations &amp; Refunds</Tab>
+            <Tab id="taxes">Taxes &amp; TDS</Tab>
+            <Tab id="settlement">Matches &amp; Refunds</Tab>
             <Tab id="accounting">Accounting</Tab>
             <Tab id="documents">Supplier Credit Note Attachment</Tab>
             <Tab id="notes">Notes &amp; Attachments</Tab>
@@ -297,15 +297,15 @@ export function VendorCreditDetailScreen({ creditId }: { creditId: string }) {
           </TabList>
           <TabPanel id="overview">
             <div className="pt-4">
-              <Panel title="Vendor credit">
+              <Panel title="Supplier credit note">
                 <Facts columns={3} items={[
                   { label: "Supplier", value: `${credit.supplier?.legalName ?? credit.supplierName ?? "—"}${credit.supplier?.gstin ? ` · ${credit.supplier.gstin}` : ""}` },
                   { label: "Origin", value: credit.originLabel },
                   { label: "Supplier credit note", value: [credit.supplierCreditNoteNumber, credit.supplierCreditNoteDate && calendarDate(credit.supplierCreditNoteDate)].filter(Boolean).join(" dated ") || "—" },
-                  { label: "Debit claim", value: credit.claim ? <Link className="text-brand hover:underline" href={credit.claim.href}>{credit.claim.number}</Link> : "—" },
-                  { label: "Credit date", value: calendarDate(credit.date) }, { label: "Posting date", value: calendarDate(credit.postingDate) },
+                  { label: "Debit note", value: credit.claim ? <Link className="text-brand hover:underline" href={credit.claim.href}>{credit.claim.number}</Link> : "—" },
+                  { label: "Credit date", value: calendarDate(credit.date) }, { label: "Accounting date", value: calendarDate(credit.postingDate) },
                   { label: "Tax treatment", value: credit.taxTreatmentLabel }, { label: "Place of supply", value: credit.placeOfSupply ?? "—" },
-                  { label: "Posted", value: credit.postedAt ? dateTime(credit.postedAt) : "Not posted" },
+                  { label: "Final", value: credit.postedAt ? dateTime(credit.postedAt) : "Not final" },
                   { label: "Taxable", value: c(credit.taxable) }, { label: "Tax", value: c(credit.tax) }, { label: "TDS adjusted", value: c(credit.withholding) },
                   { label: "Applied to bills", value: c(credit.applied) }, { label: "Refunded", value: c(credit.refunded) }, { label: "Unapplied", value: c(credit.available) },
                   { label: "Reason", value: credit.reason ?? "—" },
@@ -342,7 +342,7 @@ export function VendorCreditDetailScreen({ creditId }: { creditId: string }) {
           </TabPanel>
           <TabPanel id="sources">
             <div className="flex flex-col gap-4 pt-4">
-              <Panel title="Bills corrected" description="The bills stay as posted; the credit corrects them.">
+              <Panel title="Bills corrected" description="The bills stay as final; the credit corrects them.">
                 {!detail.sourceBills.length ? <p className="text-sm text-text-muted">On account — no bill.</p> : (
                   <ul className="flex flex-col divide-y divide-border text-sm">
                     {detail.sourceBills.map((bill) => <li key={bill.id} className="flex flex-wrap justify-between gap-2 py-2"><span><Link className="text-brand hover:underline" href={bill.href}>{bill.number}</Link>
@@ -362,7 +362,7 @@ export function VendorCreditDetailScreen({ creditId }: { creditId: string }) {
           </TabPanel>
           <TabPanel id="taxes">
             <div className="pt-4">
-              <Panel title="Taxes and withholding" description={credit.taxTreatment === "financial_only" ? "A financial-only credit: no GST is adjusted." : "GST components reduced in proportion to the credited value of each bill line."}>
+              <Panel title="Taxes and TDS" description={credit.taxTreatment === "financial_only" ? "A financial-only credit: no GST is adjusted." : "GST components reduced in proportion to the credited value of each bill line."}>
                 <ul className="flex flex-col divide-y divide-border text-sm">
                   {detail.lines.map((line) => <li key={line.id} className="py-2"><span className="font-medium">{line.description}</span>
                     <span className="block text-xs text-text-muted">{line.components.map((component) => `${component.label} ${Number(component.rate)}% on ${component.taxable}: ${component.amount}`).join(" · ") || "No tax components"}
@@ -386,9 +386,9 @@ export function VendorCreditDetailScreen({ creditId }: { creditId: string }) {
                 {!detail.refunds.length ? <p className="text-sm text-text-muted">No refunds.</p> : (
                   <ul className="flex flex-col divide-y divide-border text-sm">
                     {detail.refunds.map((entry) => <li key={entry.id} className="flex flex-wrap items-center justify-between gap-2 py-2"><span><span className="font-medium tabular-nums">{entry.refundNumber}</span> · {calendarDate(entry.date)}
-                      {entry.bankName ? ` · ${entry.bankName}` : ""} · {entry.reference}{entry.status === "reversed" ? ` · reversed: ${entry.reversalReason ?? ""}` : ""}</span>
+                      {entry.bankName ? ` · ${entry.bankName}` : ""} · {entry.reference}{entry.status === "reversed" ? ` · cancelled: ${entry.reversalReason ?? ""}` : ""}</span>
                       <span className="flex items-center gap-2 tabular-nums">{c(entry.amount)}
-                        {entry.status === "posted" && actions.reverseRefund && <Button size="compact" variant="ghost" onPress={() => setRefundToReverse(entry.id)}>Reverse</Button>}</span></li>)}
+                        {entry.status === "posted" && actions.reverseRefund && <Button size="compact" variant="ghost" onPress={() => setRefundToReverse(entry.id)}>Cancel</Button>}</span></li>)}
                   </ul>
                 )}
               </Panel>
@@ -396,7 +396,7 @@ export function VendorCreditDetailScreen({ creditId }: { creditId: string }) {
           </TabPanel>
           <TabPanel id="accounting">
             <div className="flex flex-col gap-4 pt-4">
-              {[["Posting", detail.accounting.journal], ["Reversal", detail.accounting.reversal]].map(([title, journal]) => journal && typeof journal === "object" ? (
+              {[["Finalising", detail.accounting.journal], ["Reversal", detail.accounting.reversal]].map(([title, journal]) => journal && typeof journal === "object" ? (
                 <Panel key={String(title)} title={`${title} · ${journal.number}`} description={`${statusLabel(journal.status)} · ${calendarDate(journal.date)}`}>
                   <ul className="flex flex-col divide-y divide-border text-sm">
                     {journal.lines.map((line, index) => <li key={index} className="flex flex-wrap justify-between gap-2 py-2"><span>{line.account}<span className="block text-xs text-text-muted">{line.description}</span></span>
@@ -404,14 +404,14 @@ export function VendorCreditDetailScreen({ creditId }: { creditId: string }) {
                   </ul>
                 </Panel>
               ) : null)}
-              {!detail.accounting.journal && <p className="text-sm text-text-muted">Nothing posted yet: a draft has no accounting.</p>}
+              {!detail.accounting.journal && <p className="text-sm text-text-muted">Nothing final yet: a draft has no accounting.</p>}
             </div>
           </TabPanel>
           <TabPanel id="documents"><div className="pt-4"><CreditFiles creditId={credit.id} canEdit={actions.edit || actions.allocate || actions.post} /></div></TabPanel>
           <TabPanel id="notes">
             <div className="flex flex-col gap-4 pt-4">
               <Panel title="Notes">{credit.notes ? <p className="whitespace-pre-wrap text-sm">{credit.notes}</p> : <p className="text-sm text-text-muted">No notes.</p>}</Panel>
-              {credit.authorizationReason && <Panel title="Authorised basis" description="Why this credit was recognised without a supplier credit note or an accepted debit claim."><p className="text-sm">{credit.authorizationReason}</p></Panel>}
+              {credit.authorizationReason && <Panel title="Authorised basis" description="Why this credit was recognised without a supplier credit note or an accepted debit note."><p className="text-sm">{credit.authorizationReason}</p></Panel>}
             </div>
           </TabPanel>
           <TabPanel id="history">
@@ -428,14 +428,14 @@ export function VendorCreditDetailScreen({ creditId }: { creditId: string }) {
       </RecordDetailsPage>
       {dialog === "post" && <PostDialog creditId={credit.id} total={c(credit.total)} onClose={() => setDialog(null)} onDone={changed} />}
       {dialog === "cancel" && <ReasonDialog title="Cancel the draft credit" label="Cancel draft" run={(reason) => creditAction(credit.id, "cancel", { reason })} onClose={() => setDialog(null)} onDone={() => changed("Draft cancelled.")} />}
-      {dialog === "reverse" && <ReasonDialog title="Reverse the vendor credit" description="Its journals and tax entries are reversed; applications are taken off the bills (they are owed again). Not while a supplier refund stands."
-        label="Reverse" run={(reason) => creditAction(credit.id, "reverse", { reason })} onClose={() => setDialog(null)} onDone={() => changed("Reversed.")} />}
+      {dialog === "reverse" && <ReasonDialog title="Cancel the supplier credit note" description="Its entries are cancelled and its bills are owed again. Not while a supplier refund stands."
+        label="Cancel" run={(reason) => creditAction(credit.id, "reverse", { reason })} onClose={() => setDialog(null)} onDone={() => changed("Cancelled.")} />}
       {dialog === "unapply" && <ReasonDialog title="Take the credit off its bills" description="Every bill it was applied to is owed again; the credit is available again."
         label="Unapply" run={(reason) => creditAction(credit.id, "unapply", { reason })} onClose={() => setDialog(null)} onDone={() => changed("Unapplied.")} />}
       {dialog === "allocate" && <AllocateDialog detail={detail} onClose={() => setDialog(null)} onDone={changed} />}
       {dialog === "refund" && <RefundDialog detail={detail} options={options.data ?? null} onClose={() => setDialog(null)} onDone={changed} />}
-      {refundToReverse && <ReasonDialog title="Reverse the refund" description="The refund's entry is reversed and the credit gets the amount back." label="Reverse refund"
-        run={(reason) => reverseRefund(refundToReverse, reason)} onClose={() => setRefundToReverse(null)} onDone={() => changed("Refund reversed.")} />}
+      {refundToReverse && <ReasonDialog title="Cancel the refund" description="The refund's entry is cancelled and the credit gets the amount back." label="Cancel refund"
+        run={(reason) => reverseRefund(refundToReverse, reason)} onClose={() => setRefundToReverse(null)} onDone={() => changed("Refund cancelled.")} />}
     </div>
   );
 }
@@ -443,16 +443,16 @@ export function VendorCreditDetailScreen({ creditId }: { creditId: string }) {
 function PostDialog({ creditId, total, onClose, onDone }: { creditId: string; total: string; onClose: () => void; onDone: (message: string) => void }) {
   const check = useQuery({ queryKey: ["vendor-credit-validate", creditId], queryFn: () => creditAction(creditId, "validate") });
   const mutation = useMutation({ mutationFn: () => creditAction(creditId, "post"),
-    onSuccess: (result) => onDone(result.status === "awaiting_approval" ? "Submitted for Finance's approval." : "Posted: the payable is reduced. Apply it to bills or record the supplier's refund.") });
+    onSuccess: (result) => onDone(result.status === "awaiting_approval" ? "Submitted for Finance's approval." : "Final: the payable is reduced. Apply it to bills or record the supplier's refund.") });
   const issues = (check.data?.issues as Array<{ message: string }> | undefined) ?? [];
   return (
-    <Dialog isOpen onOpenChange={(open) => !open && onClose()} title="Post the vendor credit" description={`${total} is posted through Finance (Dr Accounts Payable). It is not applied to any bill by itself.`} size="md">
+    <Dialog isOpen onOpenChange={(open) => !open && onClose()} title="Finalise the supplier credit note" description={`${total} is recorded through Finance (Dr Accounts Payable). It is not applied to any bill by itself.`} size="md">
       <div className="flex flex-col gap-3">
         <Errors error={mutation.error ?? check.error} />
         {issues.length > 0 && <Notice>{issues.map((issue) => <p key={issue.message}>{issue.message}</p>)}</Notice>}
         <div className="flex justify-end gap-2">
           <Button variant="secondary" onPress={onClose}>Back</Button>
-          <Button variant="primary" isLoading={mutation.isPending || check.isLoading} isDisabled={issues.length > 0} onPress={() => mutation.mutate()}>Post</Button>
+          <Button variant="primary" isLoading={mutation.isPending || check.isLoading} isDisabled={issues.length > 0} onPress={() => mutation.mutate()}>Finalise</Button>
         </div>
       </div>
     </Dialog>

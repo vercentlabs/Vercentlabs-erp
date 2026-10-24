@@ -47,10 +47,10 @@ const ReceiptStatus = ({ status }: { status: string }) => <StatusBadge tone={REC
 const RECEIPT_LIST_VIEWS = [
   // The store's day first (Procurement plan Phase 1): received today and drafts not yet posted; then goods still to bill.
   { id: "today", label: "Today" }, { id: "to_bill", label: "To bill" },
-  { id: "all", label: "All Goods Receipts" }, { id: "draft", label: "Draft" }, { id: "posted", label: "Posted" }, { id: "cancelled_reversed", label: "Cancelled / Reversed" },
+  { id: "all", label: "All Goods Receipts" }, { id: "draft", label: "Draft" }, { id: "posted", label: "Final" }, { id: "cancelled_reversed", label: "Cancelled" },
   { id: "partially_billed", label: "Partially Matched to Bills" }, { id: "not_billed", label: "Not Yet Billed" }, { id: "with_rejections", label: "With Rejections / Discrepancies" },
   { id: "mine", label: "My Receipts" }, { id: "receiving-issues", label: "Receiving Issues" }, { id: "issues-before-custody", label: "↳ Before-Custody Refusals" },
-  { id: "issues-shortages", label: "↳ Shortages / Wrong Deliveries" }, { id: "issues-pending-quality", label: "↳ Pending Quality" }, { id: "issues-after-custody", label: "↳ Post-Custody Rejections" },
+  { id: "issues-shortages", label: "↳ Shortages / Wrong Deliveries" }, { id: "issues-pending-quality", label: "↳ Pending Quality" }, { id: "issues-after-custody", label: "↳ Rejections after receipt" },
 ];
 const ISSUE_VIEWS: Record<string, string> = { "receiving-issues": "open", "issues-before-custody": "before_custody", "issues-shortages": "shortages_wrong",
   "issues-pending-quality": "awaiting_quality", "issues-after-custody": "after_custody" };
@@ -89,10 +89,11 @@ export function GoodsReceiptsScreen() {
   ], []);
   return (
     <EnterpriseListPage header={{ title: issueView ? "Receiving Issues" : "Goods Receipts (GRN)",
-      description: issueView ? "Dock refusals (no goods receipt), shortages and wrong deliveries, goods awaiting Quality and rejections after receipt — each its own case until resolved." : "Goods received against confirmed purchase orders.",
+      description: issueView ? "Goods refused at the gate, short or wrong deliveries, and rejections after receipt, each until resolved." : "Goods received against confirmed purchase orders.",
       primaryAction: issueView ? <LinkButton variant="primary" href="/procurement/receiving-issues/new"><Plus className="size-4" aria-hidden="true" />Report Issue</LinkButton>
         : options.data?.capabilities.receive ? <NewDocumentMenu label="New GRN" sources={[{ id: "po", label: "Against a purchase order", href: "/procurement/goods-receipts/new" },
-          { id: "refused", label: "Goods refused at the gate (no GRN)", href: "/procurement/receiving-issues/new" }]} /> : undefined }}
+          { id: "refused", label: "Goods refused at the gate (no GRN)", href: "/procurement/receiving-issues/new" }]} /> : undefined,
+      secondaryActions: !issueView && options.data?.capabilities.receive ? <LinkButton variant="secondary" href="/procurement/gate">Receive at the gate</LinkButton> : undefined }}
       savedViews={{ views: RECEIPT_LIST_VIEWS, activeViewId: view, onSelect: setView }}
       actionBar={{ end: <ListStateViews listKey="goods-receipts" list={list} />,  start: issueView ? (
         <>
@@ -147,7 +148,7 @@ export function GoodsReceiptDetailScreen({ receiptId }: { receiptId: string }) {
     <div className="flex flex-col gap-4">
       {notice && <Notice tone="success">{notice}</Notice>}
       {cancel.error && <Notice>{errorMessage(cancel.error)}</Notice>}
-      {receipt.status === "reversed" && <Notice tone="warning">Reversed {dateTime(receipt.reversedAt)}{receipt.reversedByName ? ` by ${receipt.reversedByName}` : ""}: {receipt.reversalReason}. Its stock was taken back out; it no longer counts as received.</Notice>}
+      {receipt.status === "reversed" && <Notice tone="warning">Cancelled {dateTime(receipt.reversedAt)}{receipt.reversedByName ? ` by ${receipt.reversedByName}` : ""}: {receipt.reversalReason}. Its stock was taken back out; it no longer counts as received.</Notice>}
       <DocumentChain type="goods_receipt" id={receipt.id} />
       <RecordDetailsPage header={{
         title: receipt.receiptNumber,
@@ -157,9 +158,9 @@ export function GoodsReceiptDetailScreen({ receiptId }: { receiptId: string }) {
           { label: "Supplier", value: receipt.supplierName },
           { label: "Warehouse", value: receipt.warehouseName ?? "—" },
           { label: "Received on", value: calendarDate(receipt.receiptDate) },
-          { label: "Received by", value: receipt.receivedByName ?? (receipt.status === "draft" ? "Whoever posts it" : "—") },
+          { label: "Received by", value: receipt.receivedByName ?? (receipt.status === "draft" ? "Whoever finalises it" : "—") },
         ],
-        primaryAction: actions.post ? <Button variant="primary" onPress={() => setDialog("post")}>Post receipt</Button>
+        primaryAction: actions.post ? <Button variant="primary" onPress={() => setDialog("post")}>Finalise receipt</Button>
           : actions.returnGoods ? <LinkButton variant="secondary" href={`/procurement/purchase-returns/new?goodsReceiptId=${receipt.id}`}>Create Purchase Return</LinkButton> : undefined,
         secondaryActions: (
           <div className="flex flex-wrap gap-2">
@@ -168,7 +169,7 @@ export function GoodsReceiptDetailScreen({ receiptId }: { receiptId: string }) {
             {actions.createBill && <LinkButton variant="secondary" href={`/procurement/supplier-bills/new?source=grn&goodsReceiptIds=${receipt.id}`}>Create Purchase Bill</LinkButton>}
             {(actions.recordRejection || actions.recordQualityRejection) && <Button variant="ghost" onPress={() => setDialog("rejection")}>Record rejection</Button>}
             {actions.recordDiscrepancy && <Button variant="ghost" onPress={() => setDialog("discrepancy")}>Record discrepancy</Button>}
-            {actions.reverse && <Button variant="ghost" onPress={() => setDialog("reverse")}>Reverse</Button>}
+            {actions.reverse && <Button variant="ghost" onPress={() => setDialog("reverse")}>Cancel</Button>}
             <a className={buttonVariants({ variant: "ghost" })} href={goodsReceiptPdfUrl(receipt.id, true)} target="_blank" rel="noreferrer"><Eye className="size-4" aria-hidden="true" />{actions.preview ? "Preview" : "Print"}</a>
             <a className={buttonVariants({ variant: "ghost" })} href={goodsReceiptPdfUrl(receipt.id)} download><Download className="size-4" aria-hidden="true" />PDF</a>
           </div>
@@ -197,8 +198,8 @@ export function GoodsReceiptDetailScreen({ receiptId }: { receiptId: string }) {
                   { label: "Ships from", value: receipt.shipFrom ? [receipt.shipFrom.label, receipt.shipFrom.city].filter(Boolean).join(" · ") : "—" },
                   { label: "Company", value: receipt.company ? `${receipt.company.legalName ?? receipt.company.name ?? ""}${receipt.company.gstin ? ` · ${receipt.company.gstin}` : ""}` : "—" },
                   { label: "Created", value: `${dateTime(receipt.createdAt)}${receipt.createdByName ? ` by ${receipt.createdByName}` : ""}` },
-                  { label: "Posted", value: receipt.postedAt ? `${dateTime(receipt.postedAt)}${receipt.postedByName ? ` by ${receipt.postedByName}` : ""}` : "Not posted" },
-                  ...(receipt.accrual ? [{ label: "GRNI accrual", value: `${receipt.accrual.entryNumber} · ${receipt.currencyCode ?? ""} ${receipt.accrual.amount}${receipt.accrual.reversalEntryNumber ? ` (reversed by ${receipt.accrual.reversalEntryNumber})` : ""}` }] : []),
+                  { label: "Final", value: receipt.postedAt ? `${dateTime(receipt.postedAt)}${receipt.postedByName ? ` by ${receipt.postedByName}` : ""}` : "Not final" },
+                  ...(receipt.accrual ? [{ label: "goods received, bill not yet received", value: `${receipt.accrual.entryNumber} · ${receipt.currencyCode ?? ""} ${receipt.accrual.amount}${receipt.accrual.reversalEntryNumber ? ` (reversed by ${receipt.accrual.reversalEntryNumber})` : ""}` }] : []),
                 ]} />
               </Panel>
               <Panel title="Received">
@@ -227,7 +228,7 @@ export function GoodsReceiptDetailScreen({ receiptId }: { receiptId: string }) {
           </TabPanel>
           <TabPanel id="items">
             <div className="pt-4">
-              <Panel title="Items and disposition" description="Accepted goods are usable stock; held (inspection or damaged) goods sit in the quality location until released or returned; refused goods were not taken in.">
+              <Panel title="Items and what to do with them" description="Accepted goods are usable; held goods wait in the quality location; refused goods were never taken in.">
                 <ul className="flex flex-col divide-y divide-border text-sm">
                   {lines.map((line) => (
                     <li key={line.id} className="flex flex-col gap-1 py-3">
@@ -256,11 +257,11 @@ export function GoodsReceiptDetailScreen({ receiptId }: { receiptId: string }) {
           </TabPanel>
           <TabPanel id="rejections">
             <div className="flex flex-col gap-4 pt-4">
-              <Panel title="Rejections" description="Refused at the dock: never received, still owed on the order. Rejected after receipt: received here, then blocked until returned, disposed of or accepted back."
+              <Panel title="Rejections" description="Refused at the gate: never received, still owed. Rejected after receipt: blocked until returned or accepted."
                 actions={actions.recordRejection || actions.recordQualityRejection ? <Button size="compact" variant="secondary" onPress={() => setDialog("rejection")}>Record rejection</Button> : undefined}>
                 <RejectionTable rows={detail.rejections} empty="Nothing was refused or rejected on this receipt." />
               </Panel>
-              <Panel title="Discrepancies" description="What the supplier is told about that is not rejected goods: a shortage that never arrived, a wrong item described, an excess."
+              <Panel title="Discrepancies" description="What to tell the supplier that is not a rejection: a shortage, a wrong item or an excess."
                 actions={actions.recordDiscrepancy ? <Button size="compact" variant="ghost" onPress={() => setDialog("discrepancy")}>Record discrepancy</Button> : undefined}>
                 {!detail.discrepancies.length ? <p className="text-sm text-text-muted">No discrepancies.</p> : (
                   <ul className="flex flex-col divide-y divide-border text-sm">
@@ -275,15 +276,15 @@ export function GoodsReceiptDetailScreen({ receiptId }: { receiptId: string }) {
           </TabPanel>
           <TabPanel id="movements">
             <div className="pt-4">
-              <Panel title="Inventory movements" description="Posted by Inventory for this receipt: the receipt itself, releases from hold, returns and any reversal. Each is a Stock Ledger entry, effective on the receipt date.">
+              <Panel title="Inventory movements" description="Stock movements of this receipt: the receipt, releases from hold, returns and cancellations.">
                 {receipt.status !== "draft" && stockLinksOn && <div className="flex flex-wrap gap-3 text-sm">
                   <Link className="text-brand hover:underline" href={`/inventory/transactions?tab=ledger&sourceId=${receipt.id}`}>View in Stock Ledger</Link>
                   {[...new Set(detail.movements.map((movement) => movement.itemId))].map((itemId) => <Link key={itemId} className="text-brand hover:underline" href={`/inventory/stock/items/${itemId}`}>Current stock{new Set(detail.movements.map((movement) => movement.itemId)).size > 1 ? ` (${detail.lines.find((line) => line.productId === itemId)?.description ?? "item"})` : ""}</Link>)}
                 </div>}
                 {detail.reconciliation && (
                   <Notice tone={detail.reconciliation.matched ? "success" : "warning"}>
-                    {detail.reconciliation.matched ? "Inventory reconciles with this receipt: every line's stock movements match what it received."
-                      : `Inventory does not match: ${detail.reconciliation.lines.filter((line) => !line.matched).map((line) => `line ${line.lineNumber} expected ${quantity(line.expectedBaseQuantity)}, posted ${quantity(line.postedBaseQuantity)}`).join("; ")}.`}
+                    {detail.reconciliation.matched ? "Inventory agrees with this receipt: every line's stock movements match what it received."
+                      : `Inventory does not match: ${detail.reconciliation.lines.filter((line) => !line.matched).map((line) => `line ${line.lineNumber} expected ${quantity(line.expectedBaseQuantity)}, final ${quantity(line.postedBaseQuantity)}`).join("; ")}.`}
                   </Notice>
                 )}
                 {!detail.movements.length ? <p className="text-sm text-text-muted">{receipt.status === "draft" ? "A draft moves no stock." : "No stock movements (non-stock goods)."}</p> : (
@@ -397,9 +398,9 @@ function Shell({ title, description, error, onClose, label, isLoading, isDisable
 // The preview before posting: what the server will check, and the quantities.
 function PostDialog({ detail, onClose, onDone }: { detail: GoodsReceiptDetail; onClose: () => void; onDone: (message: string) => void }) {
   const validation = useQuery({ queryKey: ["procurement", "receipt-validation", detail.receipt.id], queryFn: () => validateGoodsReceipt(detail.receipt.id) });
-  const run = useMutation({ mutationFn: () => receiptAction(detail.receipt.id, "post"), onSuccess: () => onDone("Posted: the stock is in.") });
+  const run = useMutation({ mutationFn: () => receiptAction(detail.receipt.id, "post"), onSuccess: () => onDone("Final: the stock is in.") });
   return (
-    <Shell title={`Post ${detail.receipt.receiptNumber}`} error={run.error} onClose={onClose} label="Post receipt" isLoading={run.isPending} isDisabled={!validation.data?.ready} onPress={() => run.mutate()}
+    <Shell title={`Finalise ${detail.receipt.receiptNumber}`} error={run.error} onClose={onClose} label="Finalise receipt" isLoading={run.isPending} isDisabled={!validation.data?.ready} onPress={() => run.mutate()}
       description={`${detail.receipt.supplierName} · ${detail.receipt.purchaseOrderNumber} · ${detail.receipt.warehouseName ?? "no warehouse"}`}>
       <ul className="flex flex-col divide-y divide-border text-sm">
         {detail.lines.map((line) => (
@@ -414,10 +415,10 @@ function PostDialog({ detail, onClose, onDone }: { detail: GoodsReceiptDetail; o
 
 function ReverseDialog({ detail, onClose, onDone }: { detail: GoodsReceiptDetail; onClose: () => void; onDone: (message: string) => void }) {
   const [reason, setReason] = useState("");
-  const run = useMutation({ mutationFn: () => receiptAction(detail.receipt.id, "reverse", { reason }), onSuccess: () => onDone("Reversed: the stock was taken back out.") });
+  const run = useMutation({ mutationFn: () => receiptAction(detail.receipt.id, "reverse", { reason }), onSuccess: () => onDone("Cancelled: the stock was taken back out.") });
   return (
-    <Shell title={`Reverse ${detail.receipt.receiptNumber}`} error={run.error} onClose={onClose} label="Reverse receipt" isLoading={run.isPending} isDisabled={reason.trim().length < 3} onPress={() => run.mutate()}
-      description="Only while nothing has used it: no return, no bill drawing on it, no held goods released, and the stock still where it was received. The receipt and its history stay.">
+    <Shell title={`Cancel ${detail.receipt.receiptNumber}`} error={run.error} onClose={onClose} label="Cancel receipt" isLoading={run.isPending} isDisabled={reason.trim().length < 3} onPress={() => run.mutate()}
+      description="Only while nothing used it: no return, no bill, no released goods, and the stock still in place.">
       <TextArea label="Reason" isRequired value={reason} onChange={setReason} />
     </Shell>
   );
@@ -472,7 +473,7 @@ function ReceiptBillMatching({ receiptId }: { receiptId: string }) {
   if (!query.data) return <Notice>{query.error instanceof Error ? query.error.message : "Could not load bill matching."}</Notice>;
   const billing = query.data;
   return (
-    <Panel title="Supplier bill matching" description={billing.note ?? `${billing.matchingPolicy.label}: each bill draws on the receipt lines it bills, so received goods are never billed twice. Eligible follows the order's policy.`}
+    <Panel title="Supplier bill matching" description={billing.note ?? `${billing.matchingPolicy.label}: each bill takes the receipt lines it bills, so nothing is billed twice.`}
       actions={billing.canBill ? <Link className="text-sm font-medium text-brand hover:underline" href={`/procurement/supplier-bills/new?source=grn&goodsReceiptIds=${billing.receipt.id}`}>Create Purchase Bill</Link> : undefined}>
       <div className="overflow-x-auto">
         <table className="w-full text-sm">

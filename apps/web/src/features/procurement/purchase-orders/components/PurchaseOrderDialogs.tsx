@@ -53,7 +53,7 @@ export function ConfirmDialog({ detail, onClose, onDone }: DialogProps) {
   return (
     <Shell title={detail.order.amending ? `Confirm version ${detail.order.versionNumber + 1}` : "Confirm purchase order"} error={run.error} onClose={onClose} label="Confirm" isLoading={run.isPending}
       onPress={() => run.mutate({ expectedRevision: detail.order.revision })}
-      description="The supplier, lines, prices, warehouses and taxes are checked again against today's records, and the order as it stands is kept as a confirmed version. No stock moves and no payable is created.">
+      description="Checks everything against today's records and keeps this as a confirmed version. No stock or payable moves.">
       <p className="text-sm">Total {detail.order.currencyCode} {Number(detail.order.grandTotal).toLocaleString("en-IN", { minimumFractionDigits: 2 })} for {detail.order.supplierName}.</p>
     </Shell>
   );
@@ -61,9 +61,9 @@ export function ConfirmDialog({ detail, onClose, onDone }: DialogProps) {
 
 export function AmendDialog({ detail, onClose, onDone }: DialogProps) {
   const [reason, setReason] = useState("");
-  const run = useAction(detail, "amend", onDone, "The order is back in draft for the amendment. Confirm it again when it is ready.");
+  const run = useAction(detail, "amend", onDone, "The order is back in draft for the change. Confirm it again when it is ready.");
   return (
-    <Shell title="Amend purchase order" error={run.error} onClose={onClose} label="Start amendment" isLoading={run.isPending} isDisabled={reason.trim().length < 3}
+    <Shell title="Change purchase order" error={run.error} onClose={onClose} label="Change the order" isLoading={run.isPending} isDisabled={reason.trim().length < 3}
       onPress={() => run.mutate({ reason, expectedRevision: detail.order.revision })}
       description={`Version ${detail.order.versionNumber} stays on record. The reconfirmed order becomes version ${detail.order.versionNumber + 1} and must be sent to the supplier again.`}>
       <TextArea label="Reason" isRequired value={reason} onChange={setReason} />
@@ -92,9 +92,9 @@ export function CancelRemainingDialog({ detail, options, onClose, onDone }: Dial
   const [reason, setReason] = useState("");
   const run = useAction(detail, "cancel-remaining", onDone, "The outstanding quantity is cancelled. The ordered quantity is kept.");
   return (
-    <Shell title="Cancel remaining quantity" error={run.error} onClose={onClose} label="Cancel quantity" isLoading={run.isPending} isDisabled={!reasonCode} size="lg"
+    <Shell title="Cancel what is not received yet" error={run.error} onClose={onClose} label="Cancel quantity" isLoading={run.isPending} isDisabled={!reasonCode} size="lg"
       onPress={() => run.mutate({ reasonCode, reason, lines: Object.entries(quantities).filter(([, value]) => Number(value) > 0).map(([lineId, value]) => ({ lineId, quantity: value })) })}
-      description="Only what has not been received (or billed) can be cancelled. A billed quantity needs Finance to correct the bill first.">
+      description="Only what is not received or billed can be cancelled. A billed quantity needs Finance first.">
       {open.map((line) => (
         <TextField key={line.id} label={`Line ${line.lineNumber}: ${line.description} (${line.uom.code})`} inputMode="decimal" value={quantities[line.id] ?? ""}
           onChange={(value) => setQuantities((current) => ({ ...current, [line.id]: value }))} description={`Ordered ${quantity(line.orderedQuantity)} · received ${quantity(line.progress?.received)} · billed ${quantity(line.progress?.billed)}`} />
@@ -176,6 +176,30 @@ export function ExpectedDatesDialog({ detail, onClose, onDone }: DialogProps) {
         <TextField key={line.id} label={`Line ${line.lineNumber}: ${line.description}`} type="date" value={lines[line.id] ?? ""} onChange={(value) => setLines((current) => ({ ...current, [line.id]: value }))} />
       ))}
       <TextArea label="Reason" isRequired value={reason} onChange={setReason} />
+    </Shell>
+  );
+}
+
+// Dropship (report Phase 3): the supplier delivered the goods to our customer. Records the goods receipt and the sales order's delivery
+// together, for everything still to deliver.
+export function DeliveredToCustomerDialog({ detail, onClose, onDone }: DialogProps) {
+  const [deliveredOn, setDeliveredOn] = useState("");
+  const [challan, setChallan] = useState("");
+  const [tracking, setTracking] = useState("");
+  const run = useAction(detail, "deliver-to-customer", onDone, "Recorded: the goods receipt and the customer's delivery.");
+  const left = detail.lines.filter((line) => Number(line.progress?.remainingToReceive ?? 0) > 0);
+  return (
+    <Shell title="Delivered to the customer" error={run.error} onClose={onClose} label="Record delivery" isLoading={run.isPending}
+      onPress={() => run.mutate({ deliveredOn: deliveredOn || undefined, supplierChallanNumber: challan.trim() || undefined, trackingReference: tracking.trim() || undefined })}
+      description={`The supplier delivered to ${detail.order.dropship?.customerName ?? "the customer"}. Records the receipt and the sales delivery together; stock does not change.`}>
+      <ul className="flex flex-col gap-1 text-sm">
+        {left.map((line) => <li key={line.id}>{`Line ${line.lineNumber}: ${line.description} × ${quantity(line.progress?.remainingToReceive ?? "0")}`}</li>)}
+      </ul>
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <TextField label="Delivered on" type="date" value={deliveredOn} onChange={setDeliveredOn} description="Leave empty for today." />
+        <TextField label="Supplier's challan" value={challan} onChange={setChallan} />
+        <TextField label="LR / tracking number" value={tracking} onChange={setTracking} />
+      </div>
     </Shell>
   );
 }

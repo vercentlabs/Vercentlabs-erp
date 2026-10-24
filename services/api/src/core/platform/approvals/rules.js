@@ -8,6 +8,10 @@ import { createApprovalRequest } from "./repository.js";
 export const APPROVAL_RULE_DOCUMENTS = Object.freeze([
   Object.freeze({ key: "procurement.purchase_order", moduleKey: "procurement", label: "Purchase orders", commandKey: "procurement.purchase_order.approve",
     description: "Confirming a purchase order of at least the amount waits for the approver(s)." }),
+  Object.freeze({ key: "procurement.rate_contract", moduleKey: "procurement", label: "Rate contracts", commandKey: "procurement.rate_contract.approve",
+    description: "Activating a rate contract of at least this value waits for the approver(s)." }),
+  Object.freeze({ key: "procurement.indent", moduleKey: "procurement", label: "Purchase requests", commandKey: "procurement.indent.approve",
+    description: "A purchase request of at least this estimated value waits for the approver(s) after the department head." }),
 ]);
 const DOCUMENT = new Map(APPROVAL_RULE_DOCUMENTS.map((document) => [document.key, document]));
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;

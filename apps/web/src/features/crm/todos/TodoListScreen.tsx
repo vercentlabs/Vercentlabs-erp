@@ -2,7 +2,7 @@
 
 // CRM To-dos › All to-dos: tasks and follow-ups in one list, laid out like the Tasks and Follow-ups tabs beside it. Whose to-dos (Mine /
 // Everyone) is a switch in the toolbar; when they are due is a row of counted queues (Overdue · Due today · Upcoming · All open). Columns
-// read When · What · Type · About · Assigned to; each open row starts with the same round Complete button as a task or follow-up row,
+// read When · What · Type · About · Assigned to; each open row ends with the same Complete button (and More, on a follow-up) as a task or follow-up row,
 // and the row opens its own task or follow-up. New tasks and follow-ups open their own tab's form.
 import { useMemo, useState, type ReactNode } from "react";
 import Link from "next/link";
@@ -97,10 +97,6 @@ export function TodoListScreen({ tabs }: { tabs?: ReactNode }) {
   const hasCriteria = Boolean(submittedSearch) || type !== ANY;
 
   const columns = useMemo<ColumnDef<Todo, unknown>[]>(() => [
-    {
-      id: "done", header: () => <span className="sr-only">Complete</span>, enableSorting: false, enableHiding: false,
-      cell: ({ row }) => <WorkRowActions kind={row.original.kind} id={row.original.id} layout="check" onMessage={setNotice} />,
-    },
     { id: "when", header: "When", enableSorting: false, cell: ({ row }) => <TodoDue todo={row.original} /> },
     {
       id: "what", header: "What", enableSorting: false, enableHiding: false,
@@ -117,6 +113,10 @@ export function TodoListScreen({ tabs }: { tabs?: ReactNode }) {
     { id: "type", header: "Type", enableSorting: false, cell: ({ row }) => <span className="whitespace-nowrap">{row.original.typeLabel}</span> },
     { id: "about", header: "About", enableSorting: false, cell: ({ row }) => <TodoAbout todo={row.original} /> },
     { id: "assignee", header: "Assigned to", enableSorting: false, cell: ({ row }) => <span className="whitespace-nowrap">{row.original.assigneeName ?? "Unassigned"}</span> },
+    {
+      id: "done", header: () => <span className="sr-only">Actions</span>, enableSorting: false, enableHiding: false,
+      cell: ({ row }) => <WorkRowActions kind={row.original.kind} id={row.original.id} layout="check" labelled onMessage={setNotice} />,
+    },
   ], []);
 
   // One primary + New: a task or a follow-up, each opening its own tab's form (just the one button when only one may be created).
@@ -148,10 +148,10 @@ export function TodoListScreen({ tabs }: { tabs?: ReactNode }) {
         leading: <ScopeSwitch label="Whose to-dos" scopes={SCOPES} value={scope} onChange={setScope} />,
         start: (
           <>
-            <SearchField aria-label="Search to-dos" placeholder="Search to-dos" className="w-full sm:w-72" value={search} onChange={setSearch}
+            <SearchField aria-label="Search to-dos" placeholder="Search to-dos" className="w-full" value={search} onChange={setSearch}
               onSubmit={(value) => { setSubmittedSearch(value.trim()); setPageIndex(0); }} />
             {/* The one filter, so it sits in the row — one tap, not a Filters panel holding a single field. */}
-            <Select aria-label="Type" className="min-w-0 max-sm:flex-1 sm:w-44" selectedKey={type} onSelectionChange={(key) => setType(String(key))} options={TYPES} />
+            <Select aria-label="Type" className="min-w-0 max-sm:flex-1 sm:w-36" selectedKey={type} onSelectionChange={(key) => setType(String(key))} options={TYPES} />
             {/* The list's saved views, in the same group as its search and filter, so on a narrow screen they wrap together. */}
             <SavedViews size="standard" screen="todos" basePath="/crm/activities" filters={{ scope, queue, type: type !== ANY ? type : undefined, search: submittedSearch || undefined }} />
           </>

@@ -507,6 +507,15 @@ export const NOTIFICATION_CATEGORIES = Object.freeze([
     userConfigurable: true,
   },
   {
+    // Procurement report H5: a supplier answered on their page.
+    key: "procurement_supplier_answer",
+    displayName: "Supplier answers",
+    description: "When a supplier confirms an order, proposes a date, or sends prices or an invoice on their page.",
+    moduleKey: "procurement",
+    defaultInAppEnabled: true,
+    userConfigurable: true,
+  },
+  {
     // Quality: an inspection failed, or a non-conformance was given to you.
     key: "quality_issue",
     displayName: "Quality issues",

@@ -18,6 +18,7 @@ import { getPurchaseOrderOptions } from "@/features/procurement/purchase-orders/
 
 import { getReport, getReportCatalog, type ReportColumn, type ReportFilters, type ReportRow } from "./api";
 import { Panel } from "@/shared/ui/Panel";
+import { LinkTabs } from "@/shared/ui/RouteTabs";
 
 const ALL = "__all";
 // The statuses each report can be narrowed to (the server applies them).
@@ -27,26 +28,57 @@ const STATUS_OPTIONS: Record<string, Array<[string, string]>> = {
   "receiving-discrepancies": [["open", "Open"], ["before_custody", "Refused at the dock"], ["shortages_wrong", "Shortages / wrong deliveries"], ["after_custody", "Rejected after receipt"],
     ["awaiting_quality", "Awaiting quality decision"], ["awaiting_return", "Awaiting purchase return"], ["resolved", "Resolved"], ["cancelled", "Cancelled"]],
   "bills-due-dates": [["overdue", "Overdue"], ["due_today", "Due today"], ["partially_paid", "Partially paid"], ["unpaid", "Unpaid"]],
-  "purchase-return-summary": [["draft", "Draft"], ["posted", "Posted"], ["cancelled", "Cancelled"], ["reversed", "Reversed"]],
+  "purchase-return-summary": [["draft", "Draft"], ["posted", "Final"], ["cancelled", "Cancelled"], ["reversed", "Cancelled"]],
   "vendor-credit-balances": [["unapplied", "Unapplied"], ["partially_applied", "Partially applied"], ["fully_settled", "Fully settled"]],
 };
+// One Reports page (Procurement report): every report under one of four tabs. A report the catalogue adds later and no tab names shows
+// under Purchases.
+const GROUPS = [
+  { id: "registers", label: "Registers", reports: ["purchase-register", "tds-register", "itc-register", "rcm-liability"] },
+  { id: "purchases", label: "Purchases", reports: ["purchases-by-period", "purchases-by-supplier", "purchases-by-item", "purchase-order-progress", "pending-goods-receipts",
+    "unbilled-goods-receipts", "purchase-return-summary", "receiving-discrepancies"] },
+  { id: "payables", label: "Payables", reports: ["bills-due-dates", "bill-matching-issues", "pending-supplier-credits", "vendor-credit-balances"] },
+  { id: "suppliers", label: "Suppliers", reports: ["supplier-scorecard"] },
+] as const;
+type GroupId = (typeof GROUPS)[number]["id"];
+const groupOf = (reportKey: string): GroupId => GROUPS.find((group) => (group.reports as readonly string[]).includes(reportKey))?.id ?? "purchases";
+function ReportTabs({ current }: { current: GroupId }) {
+  return <LinkTabs label="Report groups" current={current} tabs={GROUPS.map((group) => ({ id: group.id, label: group.label, href: `/procurement/reports?tab=${group.id}` }))} />;
+}
+
 // Reports with a fuller screen of their own.
 const RELATED: Record<string, { href: string; label: string }> = {
-  "bills-due-dates": { href: "/procurement/reports/payment-obligations", label: "Payment obligations, AP aging and MSME deadlines" },
+  "bills-due-dates": { href: "/procurement/reports/payment-obligations", label: "Payments due, what is owed, by age and MSME deadlines" },
 };
 
 export function ReportsIndexScreen() {
   const workspace = useWorkspaceContext();
+  const params = useSearchParams();
+  const tab: GroupId = GROUPS.some((group) => group.id === params.get("tab")) ? (params.get("tab") as GroupId) : "registers";
   const query = useQuery({ queryKey: scopedQueryKey(workspace, "procurement", "reports"), queryFn: getReportCatalog });
+  const shown = (query.data ?? []).filter((report) => groupOf(report.key) === tab);
   return (
     <div className="flex flex-col gap-4">
-      <PageHeader title="Procurement Reports" description="Operational reports read from the documents themselves; what is owed and credited comes from Finance." />
+      <PageHeader title="Reports" description="Purchases, GST and TDS registers, what is owed and how suppliers perform." />
+      <ReportTabs current={tab} />
       {query.isLoading && <LoadingState label="Loading reports" />}
       {query.isError && <ErrorState title="Could not load reports" description={query.error instanceof Error ? query.error.message : undefined} action={{ label: "Retry", onPress: () => query.refetch() }} />}
       {query.data && !query.data.length && <PermissionState title="No reports available" description="Your role does not include any Procurement report." />}
-      {query.data && query.data.length > 0 && (
+      {query.data && query.data.length > 0 && !shown.length && <EmptyState title="No reports here for you" description="Your role does not include these reports." />}
+      {shown.length > 0 && (
         <ul className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
-          {query.data.map((report) => (
+          {tab === "purchases" && (
+            <li>
+              <Link href="/procurement/reports/analysis" className="flex h-full items-start justify-between gap-3 rounded-[var(--radius-card)] border border-border bg-surface p-4 transition-colors hover:bg-surface-muted">
+                <span className="flex flex-col gap-1">
+                  <span className="text-sm font-medium text-text">Purchase analysis</span>
+                  <span className="text-xs text-text-muted">Billed by any two of supplier, item, category, buyer, state and month, with Excel.</span>
+                </span>
+                <ChevronRight className="mt-0.5 size-4 shrink-0 text-text-muted" aria-hidden="true" />
+              </Link>
+            </li>
+          )}
+          {shown.map((report) => (
             <li key={report.key}>
               <Link href={`/procurement/reports/${report.key}`} className="flex h-full items-start justify-between gap-3 rounded-[var(--radius-card)] border border-border bg-surface p-4 transition-colors hover:bg-surface-muted">
                 <span className="flex flex-col gap-1">
@@ -89,7 +121,8 @@ function downloadCsv(name: string, columns: ReportColumn[], rows: ReportRow[]) {
   URL.revokeObjectURL(url);
 }
 
-export function ReportScreen({ reportKey }: { reportKey: string }) {
+// tabs: the tab row above the report (the Reports page's groups by default; Order progress passes the orders' own tabs).
+export function ReportScreen({ reportKey, tabs }: { reportKey: string; tabs?: React.ReactNode }) {
   const workspace = useWorkspaceContext();
   const router = useRouter();
   const pathname = usePathname();
@@ -113,6 +146,7 @@ export function ReportScreen({ reportKey }: { reportKey: string }) {
   const missing = report.error instanceof ProcApiError && report.error.status === 404;
   return (
     <div className="flex flex-col gap-4">
+      {tabs ?? <ReportTabs current={groupOf(reportKey)} />}
       <PageHeader title={report.data?.title ?? "Report"} description={report.data?.description}
         secondaryActions={report.data ? (
           <div className="flex flex-wrap gap-2">

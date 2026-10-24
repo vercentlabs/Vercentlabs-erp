@@ -12,6 +12,7 @@ export {
   calculateSupplierBillBalance, getSupplierBill, getSupplierBillAging, getSupplierBillHistory, getSupplierBillOptions, getSupplierBillOverdueStatus, getSupplierBillPaymentStatus,
   listSupplierBills, reconcileSupplierBill,
 } from "./records.js";
+export { BILL_INBOX_FILE_ENTITY, getBillInboxEntry, listBillInbox, readBillInboxFile, setAsideBillInboxEntry } from "./inbox.js";
 export { SUPPLIER_BILL_FILE_ENTITY, listSupplierBillFiles, prepareSupplierBillFileUpload, readSupplierBillFile, removeSupplierBillFile, uploadSupplierBillFile } from "./files.js";
 export {
   addDirectBillExpenseLine, createDirectSupplierBill, getSupplierBillAccounting, getSupplierBillOutstandingBalance, listExpenseCategories, removeDirectBillExpenseLine,

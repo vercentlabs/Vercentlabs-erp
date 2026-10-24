@@ -348,8 +348,8 @@ export async function reconcileSalesReservations(client, context, { repair = fal
   if (repair) {
     for (const entry of excess) {
       const order = await lockOrder(client, context, entry.orderId);
-      const released = await releaseOrderReservations(client, context, order, { lineId: entry.lineId, quantity: round(entry.reserved - entry.needed), how: "released", reasonCode: "reservation_correction", reason: "Reconciliation: more was kept aside than still needed" });
-      await recordOrderEvent(client, context, order.id, "sales_order.stock_released", order.lifecycle_status, order.lifecycle_status, { lines: released, reasonCode: "reservation_correction", reason: "Reconciliation" });
+      const released = await releaseOrderReservations(client, context, order, { lineId: entry.lineId, quantity: round(entry.reserved - entry.needed), how: "released", reasonCode: "reservation_correction", reason: "Correction: more was kept aside than still needed" });
+      await recordOrderEvent(client, context, order.id, "sales_order.stock_released", order.lifecycle_status, order.lifecycle_status, { lines: released, reasonCode: "reservation_correction", reason: "Correction" });
       await refreshSalesOrderProgress(client, context.organizationId, order.id, context.userId ?? null);
     }
   }

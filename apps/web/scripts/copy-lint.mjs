@@ -1,10 +1,10 @@
 #!/usr/bin/env node
-// Copy lint for Sales (Sales report, "Words to change"): the words people read on Sales screens, and the messages the Sales server sends
+// Copy lint for Sales and Procurement (their reports' "Words to change"): the words people read on their screens, and the messages their servers send
 // back, use everyday words. It parses each file and checks only text a person sees — JSX text, and string literals that read as a phrase
 // (they contain a space or start with a capital) — so identifiers, status values and API fields such as "posted" or "reserved" are left
 // alone. It also fails help text (a description, hint or helpText) over 20 words.
 //
-//   node scripts/copy-lint.mjs            check apps/web/src/features/sales and services/api/src/modules/sales
+//   node scripts/copy-lint.mjs            check Sales and Procurement (screens, pages and server modules)
 //   node scripts/copy-lint.mjs <paths…>   check those files or folders
 import fs from "node:fs";
 import path from "node:path";
@@ -13,7 +13,8 @@ import ts from "typescript";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const repo = path.resolve(here, "../../..");
-const DEFAULT_ROOTS = ["apps/web/src/features/sales", "apps/web/src/app/(workspace)/sales", "services/api/src/modules/sales"];
+const DEFAULT_ROOTS = ["apps/web/src/features/sales", "apps/web/src/app/(workspace)/sales", "services/api/src/modules/sales",
+  "apps/web/src/features/procurement", "apps/web/src/app/(workspace)/procurement", "services/api/src/modules/procurement"];
 const MAX_HELP_WORDS = 20;
 
 // Each banned word, and what to say instead.
@@ -23,7 +24,7 @@ const BANNED = [
   { pattern: /\b(un)?reserv(e|ed|es|ing|ation|ations)\b/i, use: "keep stock aside / kept aside" },
   { pattern: /\binvoiceable\b/i, use: "ready to bill" },
   { pattern: /\bpost(ed|ing|s)?\b(?!-dated)/i, use: "finalise / final" },
-  { pattern: /\breverse(d|s)?\b(?! charge)/i, use: "cancel (makes a reversing entry)" },
+  { pattern: /\breverse(d|s)?\b(?![ -]charge)/i, use: "cancel (makes a reversing entry)" },
   { pattern: /\b(un)?allocat(e|ed|es|ion|ions)\b/i, use: "paid against / not used yet" },
   { pattern: /\bdisposition\b/i, use: "what to do with the goods" },
   { pattern: /\bconsignee\b/i, use: "ship to" },
@@ -31,6 +32,21 @@ const BANNED = [
   { pattern: /\bcancel remaining\b/i, use: "cancel what is not delivered yet" },
   { pattern: /\bcredit hold\b/i, use: "waiting for credit approval" },
   { pattern: /\boverrid(e|es|den|ing)\b/i, use: "change the price" },
+  // Procurement report
+  { pattern: /\bGRNI\b|\baccru(al|als|ed)\b/i, use: "goods received, bill not yet received" },
+  { pattern: /\b[23]-way\b|\b(two|three)-way\b|\bmatching polic(y|ies)\b/i, use: "how bills are checked: against the order / and the goods received" },
+  { pattern: /\bdebit claims?\b/i, use: "debit note" },
+  { pattern: /\bvendor credits?\b|\bsupplier credits?\b(?! notes?)/i, use: "supplier credit note" },
+  { pattern: /\bpresented\b/i, use: "brought to the gate" },
+  { pattern: /\breconcil(e|ed|es|iation)\b/i, use: "check" },
+  { pattern: /\binstalments?\b|\bobligations?\b/i, use: "payment due" },
+  { pattern: /\bwithh(olding|eld)\b/i, use: "TDS" },
+  { pattern: /\bvariances?\b/i, use: "difference" },
+  { pattern: /\bamend(ed|ing|ment|ments|s)?\b/i, use: "change the order" },
+  { pattern: /\bstatutory\b/i, use: "by law" },
+  { pattern: /\bquarantin(e|ed)\b/i, use: "on hold for a quality check" },
+  { pattern: /\blanded costs?\b/i, use: "freight added to item cost" },
+  { pattern: /\bcompany registrations?\b/i, use: "our GSTIN" },
 ];
 const HELP_PROPS = new Set(["description", "hint", "helpText"]);
 // Strings that are code, not words people read.

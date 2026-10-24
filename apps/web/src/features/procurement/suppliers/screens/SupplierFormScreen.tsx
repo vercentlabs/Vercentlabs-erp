@@ -198,12 +198,12 @@ function SupplierForm({ options, existing }: { options: SupplierOptions; existin
         </div>
         <div className="grid grid-cols-1 gap-3 pt-2 sm:grid-cols-3">
           {select("msmeClassification", "MSME classification", [{ value: "", label: "Not recorded" }, { value: "micro", label: "Micro enterprise" }, { value: "small", label: "Small enterprise" },
-            { value: "medium", label: "Medium enterprise" }, { value: "not_msme", label: "Not an MSME" }], { description: "Micro and small enterprises have a statutory payment deadline (MSMED Act)." })}
+            { value: "medium", label: "Medium enterprise" }, { value: "not_msme", label: "Not an MSME" }], { description: "Micro and small enterprises have a legal payment deadline (MSMED Act)." })}
           {text("msmeRegistrationNumber", "Udyam registration number")}
           {text("msmeEffectiveFrom", "Classified from", { type: "date" })}
           {text("msmeEvidenceReference", "Evidence (certificate reference)")}
           {select("writtenPaymentAgreement", "Written payment agreement", [{ value: "", label: "No written agreement" }, { value: "true", label: "Yes, in writing" }])}
-          {values.writtenPaymentAgreement && text("agreedPaymentDays", "Agreed payment days", { inputMode: "numeric", description: "The statutory limit is 45 days from acceptance." })}
+          {values.writtenPaymentAgreement && text("agreedPaymentDays", "Agreed payment days", { inputMode: "numeric", description: "The legal limit is 45 days from acceptance." })}
           {values.writtenPaymentAgreement && text("paymentAgreementReference", "Agreement reference")}
         </div>
       </Panel>

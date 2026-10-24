@@ -27,7 +27,7 @@ const KINDS: Record<string, { title: string; description: string; empty: string 
   orders: { title: "Purchase orders", description: "Every purchase order for this supplier, newest first.", empty: "No purchase orders yet." },
   receipts: { title: "Goods receipts", description: "What was received from this supplier.", empty: "No goods receipts yet." },
   returns: { title: "Purchase returns", description: "Goods sent back to this supplier.", empty: "No purchase returns." },
-  bills: { title: "Supplier bills", description: "From Accounts Payable: bills and vendor credits for this supplier.", empty: "No supplier bills yet." },
+  bills: { title: "Supplier bills", description: "From Accounts Payable: bills and supplier credit notes for this supplier.", empty: "No supplier bills yet." },
   payments: { title: "Payments", description: "From Accounts Payable: payments made to this supplier.", empty: "No payments yet." },
 };
 
@@ -75,7 +75,7 @@ export function PaymentDetailsPanel({ detail, options, onChanged }: { detail: Su
   });
   const canManage = query.data?.canManage ?? false;
   return (
-    <Panel title="Payment details" description="Finance's: where this supplier is paid. Only Finance may change it, and every change is recorded. Not needed for RFQs or purchase orders."
+    <Panel title="Payment details" description="Where this supplier is paid. Only Finance may change it; every change is recorded."
       actions={canManage ? <Button size="compact" variant="secondary" onPress={() => setEditing("new")}>Add bank account</Button> : undefined}>
       {deactivate.error && <Notice>{errorMessage(deactivate.error)}</Notice>}
       {query.isLoading ? <p className="text-sm text-text-muted">Loading…</p> : query.isError ? <Notice>{errorMessage(query.error)}</Notice> : !query.data?.accounts.length

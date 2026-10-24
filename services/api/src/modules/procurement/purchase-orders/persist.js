@@ -38,6 +38,7 @@ export async function insertOrder(client, context, header, priced, { sourceQuota
     `INSERT INTO tenant.purchase_orders (organization_id, purchase_order_number, source_quotation_id, ${HEADER_COLUMNS}, created_by, updated_by)
      VALUES ($1, $2, $3, ${placeholders}, $${values.length + 4}, $${values.length + 4}) RETURNING *`,
     [context.organizationId, number, sourceQuotationId, ...values, context.userId ?? null])).rows[0];
+  await writeExtras(client, context, order.id, header);
   await writeLines(client, context, order.id, priced.lines);
   return order;
 }
@@ -48,7 +49,14 @@ export async function updateOrderHeader(client, context, orderId, header, priced
   await client.query(
     `UPDATE tenant.purchase_orders SET ${sets}, revision = revision + 1, updated_by = $${values.length + 3}, updated_at = now() WHERE organization_id = $1 AND id = $2`,
     [context.organizationId, orderId, ...values, context.userId ?? null]);
+  await writeExtras(client, context, orderId, header);
   await writeLines(client, context, orderId, priced.lines);
+}
+
+// The order's Incoterm and its named place (report Phase 3).
+async function writeExtras(client, context, orderId, header) {
+  await client.query(`UPDATE tenant.purchase_orders SET incoterm = $3, incoterm_place = $4 WHERE organization_id = $1 AND id = $2`,
+    [context.organizationId, orderId, header.incoterm ?? null, header.incoterm ? header.incotermPlace ?? null : null]);
 }
 
 // Lines that keep their id are updated, new ones inserted, the rest removed (a draft's lines are referenced by nothing else).
@@ -87,6 +95,12 @@ async function writeLines(client, context, orderId, lines) {
          VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7, $8, $9, $10, $11::jsonb, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30,
                  $31, $32, $33, $34) RETURNING id`, [organizationId, orderId, ...values])).rows[0].id;
     }
+    // A line re-saved without its cost centre (confirming re-prices the stored lines) keeps the one it has.
+    if (line.costCenterGiven) await client.query(`UPDATE tenant.purchase_order_lines SET cost_center_id = $3 WHERE organization_id = $1 AND id = $2`, [organizationId, lineId, line.costCenterId ?? null]);
+    // The item's own bill basis, fixed on the line as it is written (report Phase 3).
+    await client.query(
+      `UPDATE tenant.purchase_order_lines line SET bill_basis = item.purchase_bill_basis FROM tenant.items item
+        WHERE line.organization_id = $1 AND line.id = $2 AND item.organization_id = line.organization_id AND item.id = line.product_id`, [organizationId, lineId]);
     for (const [sequence, component] of line.components.entries()) {
       await client.query(
         `INSERT INTO tenant.purchase_order_line_taxes (organization_id, purchase_order_id, purchase_order_line_id, sequence, tax_type, label, rate, taxable_amount, tax_amount)

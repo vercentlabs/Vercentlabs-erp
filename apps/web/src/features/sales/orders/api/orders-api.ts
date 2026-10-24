@@ -362,7 +362,7 @@ export type StockReservationRecord = {
   consumptions: Array<{ deliveryNumber: string | null; quantity: number; consumedAt: string }>;
 };
 export const RELEASE_REASONS = [
-  { code: "customer_delay", label: "Customer delay" }, { code: "warehouse_reassignment", label: "Warehouse reassignment" }, { code: "order_amendment", label: "Order amendment" },
+  { code: "customer_delay", label: "Customer delay" }, { code: "warehouse_reassignment", label: "Warehouse reassignment" }, { code: "order_amendment", label: "Order change" },
   { code: "reservation_correction", label: "Correction to stock kept aside" }, { code: "other", label: "Other" },
 ];
 

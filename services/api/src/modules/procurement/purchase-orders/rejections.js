@@ -122,8 +122,8 @@ export async function recordDockRejection(client, context, orderId, input = {}) 
       fail(`${label}: the goods delivered are not ${line.description}. Refuse them as a wrong product and describe what arrived.`, "productId", "GOODS_RECEIPT_PRODUCT_MISMATCH", 409);
     if (reason.reason === "wrong_product" && !text(entry.deliveredProductDescription, 500)) fail(`${label}: describe the product that was delivered instead.`, "deliveredProductDescription");
     const quantity = readQuantity(entry.refusedQuantity ?? entry.quantity, `${label} refused quantity`);
-    const presented = readQuantity(entry.presentedQuantity, `${label} presented quantity`, { required: false });
-    if (presented !== null && quantity > presented) fail(`${label}: more cannot be refused (${dec(quantity)}) than was presented (${dec(presented)}).`, "presentedQuantity", "REJECTION_EXCEEDS_PRESENTED");
+    const presented = readQuantity(entry.presentedQuantity, `${label} brought quantity`, { required: false });
+    if (presented !== null && quantity > presented) fail(`${label}: more cannot be refused (${dec(quantity)}) than was brought (${dec(presented)}).`, "presentedQuantity", "REJECTION_EXCEEDS_PRESENTED");
     checkPlaces(quantity, Number(line.decimal_places ?? 6), label);
     entries.push({ line, quantity, presented, reason, deliveredProductDescription: text(entry.deliveredProductDescription, 500), batchNumber: text(entry.batchNumber, 120) });
   }
@@ -155,7 +155,7 @@ async function lockReceiptLine(client, context, receiptLineId) {
   const receipt = (await client.query(`SELECT * FROM tenant.goods_receipts WHERE organization_id = $1 AND id = $2 FOR UPDATE`, [context.organizationId, line.goods_receipt_id])).rows[0];
   const order = await loadPurchaseOrder(client, context, receipt.purchase_order_id);
   if (receipt.status !== "posted" || receipt.reversed_at)
-    throw new PurchaseOrderError(409, "Goods are rejected after receipt only from a posted (and not reversed) goods receipt.", "REJECTION_RECEIPT_NOT_POSTED");
+    throw new PurchaseOrderError(409, "Goods are rejected after receipt only from a final (and not cancelled) goods receipt.", "REJECTION_RECEIPT_NOT_POSTED");
   return { line, receipt, order };
 }
 
@@ -505,8 +505,8 @@ export async function recordRejectionResolution(client, context, rejectionId, in
         WHERE line.organization_id = $1 AND line.id = $2 FOR UPDATE OF line`, [context.organizationId, replacementLineId])).rows[0];
     if (!replacement || replacement.purchase_order_line_id !== rejection.purchase_order_line_id)
       fail("The replacement must be received on the same purchase order line.", "goodsReceiptLineId", "REJECTION_REPLACEMENT_INVALID", 409);
-    if (replacement.status !== "posted" || replacement.reversed_at) fail("The replacement's goods receipt must be posted.", "goodsReceiptLineId", "REJECTION_REPLACEMENT_INVALID", 409);
-    if (new Date(replacement.posted_at) < new Date(rejection.created_at)) fail("That goods receipt was posted before the refusal; it cannot be its replacement.", "goodsReceiptLineId", "REJECTION_REPLACEMENT_INVALID", 409);
+    if (replacement.status !== "posted" || replacement.reversed_at) fail("The replacement's goods receipt must be finalised.", "goodsReceiptLineId", "REJECTION_REPLACEMENT_INVALID", 409);
+    if (new Date(replacement.posted_at) < new Date(rejection.created_at)) fail("That goods receipt was final before the refusal; it cannot be its replacement.", "goodsReceiptLineId", "REJECTION_REPLACEMENT_INVALID", 409);
     const available = sub(add(replacement.accepted_quantity, replacement.held_quantity), replacement.linked);
     if (quantity > available) throw new PurchaseOrderError(409, `${replacement.receipt_number} has only ${dec(available)} not yet counted as a replacement.`, "REJECTION_REPLACEMENT_EXCEEDS");
     result = await applyResolution(client, context, rejection, { type, quantity, notes: notes ?? `Replacement received on ${replacement.receipt_number}`, documentType: "goods_receipt_line",
@@ -519,7 +519,7 @@ export async function recordRejectionResolution(client, context, rejectionId, in
     result = await applyResolution(client, context, rejection, { type, quantity, notes: notes ?? "Outstanding quantity cancelled: no replacement", documentType: "purchase_order_line_cancellation",
       documentId: cancelled.cancelled[0].cancellationId });
   } else if (type === "quality_accepted") {
-    requirePoPermission(context, PO_PERMISSIONS.rejectionsOverride, "Accepting rejected goods back needs the explicit permission to override a rejection.");
+    requirePoPermission(context, PO_PERMISSIONS.rejectionsOverride, "Accepting rejected goods back needs the permission to accept rejected goods.");
     if (!notes || notes.length < 3) fail("Give the reason for accepting rejected goods.", "notes", "REJECTION_RESOLUTION_NOTES_REQUIRED");
     const held = blockedQuantityOf(rejection);
     if (quantity > held) throw new PurchaseOrderError(409, `Only ${dec(held)} is still held for ${rejection.rejection_number}.`, "REJECTION_RESOLUTION_EXCEEDS_OPEN");

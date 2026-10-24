@@ -78,6 +78,7 @@ export const DOCUMENT_TYPES = Object.freeze(
     std("supplier_quotation", "procurement", "Supplier quotation", "SQ", { defaultResetPolicy: "calendar_year" }),
     std("purchase_order", "procurement", "Purchase order", "PO", { defaultResetPolicy: "calendar_year" }),
     std("goods_receipt", "procurement", "Goods receipt", "GRN", { defaultResetPolicy: "calendar_year" }),
+    std("job_work_challan", "procurement", "Job-work challan", "JW", { defaultResetPolicy: "calendar_year" }),
     std("receiving_rejection", "procurement", "Receiving rejection", "RJR", { defaultResetPolicy: "calendar_year" }),
     org("service_entry", "procurement", "Service entry", "SE-", 6),
     std("purchase_return", "procurement", "Purchase return", "PRN", { defaultResetPolicy: "calendar_year" }),

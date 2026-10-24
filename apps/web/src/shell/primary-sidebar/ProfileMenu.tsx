@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { clearOfflineSecrets } from "@/shared/offline/clear-offline-secrets";
-import { useRef, useState } from "react";
+import { useState } from "react";
 import { createPortal } from "react-dom";
 import {
   MenuTrigger,
@@ -13,6 +13,7 @@ import {
   IconButton,
 } from "@vercentlabs/design-system";
 import { HelpCircle, LogOut, User } from "lucide-react";
+import { useRailTooltip } from "./useRailTooltip";
 
 
 export function ProfileMenu({
@@ -27,29 +28,17 @@ export function ProfileMenu({
 }) {
   const router = useRouter();
   const [signingOut, setSigningOut] = useState(false);
-  const triggerRef = useRef<HTMLSpanElement>(null);
+  // Shown on hover or keyboard focus only, and gone on click, leave, Escape, scroll or a page change.
   // Portaled, not inline next to the trigger — see PrimaryNavItem.tsx's
   // comment for why a tooltip must not live inside a clipped/scrollable
   // ancestor. Sits below the trigger and is right-aligned to it: the
   // trigger is the last item in WorkspaceTopBar, so a tooltip above it
   // would be cut off by the viewport top and a centered one by its right
   // edge.
-  const [tooltipPosition, setTooltipPosition] = useState<{
-    top: number;
-    right: number;
-  } | null>(null);
-
-  function showTooltip() {
-    const rect = triggerRef.current?.getBoundingClientRect();
-    if (!rect) return;
-    setTooltipPosition({
-      top: rect.bottom + 6,
-      right: window.innerWidth - rect.right,
-    });
-  }
-  function hideTooltip() {
-    setTooltipPosition(null);
-  }
+  const { ref: triggerRef, position: tooltipPosition, handlers: tooltipHandlers } = useRailTooltip<HTMLSpanElement>((rect) => ({
+    top: rect.bottom + 6,
+    right: window.innerWidth - rect.right,
+  }));
 
   const queryClient = useQueryClient();
 
@@ -78,10 +67,7 @@ export function ProfileMenu({
       <span
         ref={triggerRef}
         className="relative flex"
-        onMouseEnter={showTooltip}
-        onMouseLeave={hideTooltip}
-        onFocus={showTooltip}
-        onBlur={hideTooltip}
+        {...tooltipHandlers}
       >
         {/* The same 42px slot as the search and settings buttons beside it, so the bar keeps one rhythm; the avatar inside is smaller. */}
         <IconButton

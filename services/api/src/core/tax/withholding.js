@@ -10,7 +10,7 @@
 //   no PAN       section 206AA: the rate set for it, else 5% for 194Q and the higher of 20% and twice the rate for the others
 //   certificate  a lower-deduction certificate (section 197) for the supplier and section, valid on the bill's date and within its amount,
 //                replaces the rate
-import { div, formatDecimal, mul } from "../decimal.js";
+import { decimal, div, formatDecimal, max, min, mul, percent } from "../decimal.js";
 import { TAX_PERMISSIONS, TaxError, isUuid, requireTaxPermission, text } from "./constants.js";
 
 const amount = (value) => (value === null || value === undefined || value === "" ? null : String(value));
@@ -116,14 +116,18 @@ export async function deleteTdsCertificate(client, context, certificateId) {
 // The bill's lines withhold at one rate on their taxable value, so the result is returned as the effective rate on this bill:
 // (amount the law taxes ÷ this bill's taxable value) × the section's rate, to six decimals.
 const basisOf = (section) => section.basis ?? (String(section.code ?? "").toUpperCase() === "194Q" ? "excess_over_annual" : "full");
-const rupees = (value) => `₹${Number(value).toLocaleString("en-IN", { maximumFractionDigits: 2 })}`;
+// Amounts as exact decimals: numbers from the database come as strings; a JS number is read to six places.
+const D = (value) => decimal(typeof value === "number" ? value.toFixed(6) : value ?? "0");
+const rupees = (value) => `₹${Number(formatDecimal(value, 2)).toLocaleString("en-IN", { maximumFractionDigits: 2 })}`;
+const pct = (value) => formatDecimal(value).replace(/\.?0+$/, "");
 
-// section: the section row; supplier: { id, supplier_type, pan }; billDate 'YYYY-MM-DD'; taxable: this bill's taxable value (number);
-// excludeBillId: the bill being rebuilt (not counted twice). Returns { rate (string), reason (null or a sentence) }.
+// section: the section row; supplier: { id, supplier_type, pan }; billDate 'YYYY-MM-DD'; taxable: this bill's taxable value;
+// excludeBillId: the bill being rebuilt (not counted twice). Returns { rate (string), reason (null or a sentence) }. All amounts are
+// worked in exact decimals (core/decimal.js), never floating point.
 export async function effectiveWithholdingRate(client, organizationId, { section, supplier, billDate, taxable, excludeBillId = null }) {
   if (!section) return { rate: "0", reason: null };
-  const single = section.threshold_single === null || section.threshold_single === undefined ? null : Number(section.threshold_single);
-  const annual = section.threshold_annual === null || section.threshold_annual === undefined ? null : Number(section.threshold_annual);
+  const single = section.threshold_single === null || section.threshold_single === undefined ? null : D(section.threshold_single);
+  const annual = section.threshold_annual === null || section.threshold_annual === undefined ? null : D(section.threshold_annual);
   const basis = basisOf(section);
   const yearStart = (await client.query(
     `SELECT to_char(make_date(CASE WHEN extract(month FROM $1::date) >= COALESCE((SELECT fiscal_year_start_month FROM public.organizations WHERE id = $2), 4)
@@ -137,8 +141,8 @@ export async function effectiveWithholdingRate(client, organizationId, { section
         AND bill_date >= $4::date AND bill_date <= $5::date AND ($6::uuid IS NULL OR id <> $6)
       ORDER BY bill_date, created_at`,
     [organizationId, supplier.id, section.id, yearStart, billDate, excludeBillId])).rows;
-  const thisBill = Number(taxable);
-  const earlier = earlierBills.reduce((total, bill) => total + Number(bill.taxable), 0);
+  const thisBill = D(taxable);
+  const earlier = earlierBills.reduce((total, bill) => total + D(bill.taxable), 0n);
   const yearToDate = earlier + thisBill;
   const limits = `${single !== null ? `${rupees(single)} a bill` : ""}${single !== null && annual !== null ? ", " : ""}${annual !== null ? `${rupees(annual)} a year` : ""}`;
   const below = { rate: "0", reason: `TDS ${section.code}: below the limits (${limits}), so nothing is withheld.` };
@@ -153,42 +157,45 @@ export async function effectiveWithholdingRate(client, organizationId, { section
     `SELECT certificate_number, rate, amount_limit FROM tenant.supplier_tds_certificates
       WHERE organization_id = $1 AND supplier_id = $2 AND section_id = $3 AND valid_from <= $4::date AND valid_to >= $4::date ORDER BY valid_from DESC LIMIT 1`,
     [organizationId, supplier.id, section.id, billDate])).rows[0];
-  const base = supplier.supplier_type === "individual" && section.rate_individual !== null && section.rate_individual !== undefined ? Number(section.rate_individual) : Number(section.rate);
-  if (certificate && (certificate.amount_limit === null || yearToDate <= Number(certificate.amount_limit))) {
-    rate = Number(certificate.rate);
-    why = `at ${rate}% under lower-deduction certificate ${certificate.certificate_number}`;
+  const sectionRate = D(section.rate);
+  const base = supplier.supplier_type === "individual" && section.rate_individual !== null && section.rate_individual !== undefined ? D(section.rate_individual) : sectionRate;
+  if (certificate && (certificate.amount_limit === null || yearToDate <= D(certificate.amount_limit))) {
+    rate = D(certificate.rate);
+    why = `at ${pct(rate)}% under lower-deduction certificate ${certificate.certificate_number}`;
   } else if (!String(supplier.pan ?? "").trim()) {
     // s.206AA: the rate set on the section; by default 5% for 194Q, else the higher of 20% and twice the rate.
-    rate = section.rate_no_pan !== null && section.rate_no_pan !== undefined ? Number(section.rate_no_pan) : basis === "excess_over_annual" ? 5 : Math.max(20, base * 2);
-    why = `at ${rate}%: the supplier has no PAN (section 206AA)`;
+    rate = section.rate_no_pan !== null && section.rate_no_pan !== undefined ? D(section.rate_no_pan) : basis === "excess_over_annual" ? D(5) : max(D(20), base * 2n);
+    why = `at ${pct(rate)}%: the supplier has no PAN (section 206AA)`;
   } else {
     rate = base;
-    why = base !== Number(section.rate) ? `at the individual/HUF rate of ${base}%` : `at ${base}%`;
+    why = base !== sectionRate ? `at the individual/HUF rate of ${pct(base)}%` : `at ${pct(base)}%`;
   }
 
   // What the law taxes on this bill.
   let taxedAmount = thisBill;
   const notes = [];
   if (basis === "excess_over_annual" && annual !== null) {
-    taxedAmount = Math.min(thisBill, yearToDate - annual);
+    taxedAmount = min(thisBill, yearToDate - annual);
     if (taxedAmount < thisBill) notes.push(`only ${rupees(taxedAmount)} of this bill is above the ${rupees(annual)} a year limit`);
   } else if (annual !== null && earlier <= annual && yearToDate > annual) {
     // This bill takes the year past the yearly limit: catch up the earlier bills that went untaxed.
-    const untaxed = earlierBills.filter((bill) => Number(bill.withheld) === 0 && Number(bill.taxable) > 0);
-    const catchUp = untaxed.reduce((total, bill) => total + Number(bill.taxable), 0);
-    if (catchUp > 0) {
+    const untaxed = earlierBills.filter((bill) => D(bill.withheld) === 0n && D(bill.taxable) > 0n);
+    const catchUp = untaxed.reduce((total, bill) => total + D(bill.taxable), 0n);
+    if (catchUp > 0n) {
       taxedAmount = thisBill + catchUp;
       notes.push(`includes ${rupees(catchUp)} from earlier bills of the year that were under the limit (${untaxed.map((bill) => bill.bill_number).filter(Boolean).join(", ")})`);
     }
   }
-  if (thisBill <= 0 || taxedAmount <= 0) return { rate: "0", reason: null };
+  if (thisBill <= 0n || taxedAmount <= 0n) return { rate: "0", reason: null };
   // TDS never exceeds the bill it is withheld from: a catch-up bigger than this bill leaves the rest for the next bill or payment.
-  const maxTaxed = (thisBill * 100) / rate;
-  if (rate > 0 && taxedAmount > maxTaxed) {
-    notes.push(`${rupees(((taxedAmount - maxTaxed) * rate) / 100)} of the catch-up is more than this bill can carry: withhold it from the next bill or payment`);
-    taxedAmount = maxTaxed;
+  if (rate > 0n) {
+    const maxTaxed = div(mul(thisBill, 100), rate);
+    if (taxedAmount > maxTaxed) {
+      notes.push(`${rupees(percent(taxedAmount - maxTaxed, rate))} of the catch-up is more than this bill can carry: withhold it from the next bill or payment`);
+      taxedAmount = maxTaxed;
+    }
   }
-  const effective = formatDecimal(div(mul(String(rate), taxedAmount.toFixed(6)), thisBill.toFixed(6)));
-  const reason = notes.length || rate !== Number(section.rate) ? `TDS ${section.code} ${why}${notes.length ? `; ${notes.join("; ")}` : ""}.` : null;
+  const effective = formatDecimal(div(mul(rate, taxedAmount), thisBill));
+  const reason = notes.length || rate !== sectionRate ? `TDS ${section.code} ${why}${notes.length ? `; ${notes.join("; ")}` : ""}.` : null;
   return { rate: effective, reason };
 }

@@ -21,6 +21,8 @@ import {
   approveQuotation, rejectQuotationApproval,
 } from "../../modules/sales/index.js";
 import { approvePurchaseOrderLevel, rejectPurchaseOrderApproval } from "../../modules/procurement/purchase-orders/approval.js";
+import { approveRateContractLevel, rejectRateContractApproval } from "../../modules/procurement/rate-contracts/approval.js";
+import { approveIndentLevel, rejectIndentApproval } from "../../modules/procurement/indents/approval.js";
 
 // key -> { approve, reject, href }. Only verified handlers are listed.
 const HANDLERS = Object.freeze({
@@ -53,6 +55,16 @@ const HANDLERS = Object.freeze({
     approve: (client, context, p) => approvePurchaseOrderLevel(client, context, p),
     reject: (client, context, p) => rejectPurchaseOrderApproval(client, context, p),
     href: (p) => `/procurement/purchase-orders/${p.documentId}`,
+  },
+  "procurement.indent.approve": {
+    approve: (client, context, p) => approveIndentLevel(client, context, p),
+    reject: (client, context, p) => rejectIndentApproval(client, context, p),
+    href: (p) => `/procurement/indents/${p.documentId}`,
+  },
+  "procurement.rate_contract.approve": {
+    approve: (client, context, p) => approveRateContractLevel(client, context, p),
+    reject: (client, context, p) => rejectRateContractApproval(client, context, p),
+    href: (p) => `/procurement/rate-contracts/${p.documentId}`,
   },
   "pos.payment.override.approve": {
     approve: (client, context, p) => approvePosPaymentOverride(client, context, p),

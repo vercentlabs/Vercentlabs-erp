@@ -83,11 +83,11 @@ export async function requestPaymentReschedule(client, context, billId, input = 
   if (!poCan(context, "accounting.payables.manage") && !poCan(context, "accounting.payables.approve"))
     throw new PurchaseOrderError(403, "You do not have permission to request payment reschedules.", "PERMISSION_DENIED");
   const bill = await loadBill(client, context, billId, { lock: true });
-  if (!POSTED.includes(bill.status)) throw new PurchaseOrderError(409, "Only a posted bill's schedule is rescheduled; a draft's terms are simply changed.", "PAYMENT_RESCHEDULE_NOT_POSTED");
+  if (!POSTED.includes(bill.status)) throw new PurchaseOrderError(409, "Only a final bill's schedule is rescheduled; a draft's terms are simply changed.", "PAYMENT_RESCHEDULE_NOT_POSTED");
   const schedule = (await client.query(`SELECT * FROM tenant.accounting_vendor_bill_schedules WHERE organization_id = $1 AND vendor_bill_id = $2 AND id = $3 FOR UPDATE`,
-    [context.organizationId, bill.id, requireUuid(input.scheduleId, "Instalment")])).rows[0];
-  if (!schedule) throw new PurchaseOrderError(404, "That instalment is not on this bill.", "PAYMENT_RESCHEDULE_INVALID");
-  if (decimal(schedule.outstanding_amount) <= 0n) fail("That instalment is settled.", "scheduleId", "PAYMENT_RESCHEDULE_SETTLED", 409);
+    [context.organizationId, bill.id, requireUuid(input.scheduleId, "Payment due")])).rows[0];
+  if (!schedule) throw new PurchaseOrderError(404, "That payment due is not on this bill.", "PAYMENT_RESCHEDULE_INVALID");
+  if (decimal(schedule.outstanding_amount) <= 0n) fail("That payment due is settled.", "scheduleId", "PAYMENT_RESCHEDULE_SETTLED", 409);
   const newDueDate = readDate(input.newDueDate, "New due date");
   if (!newDueDate) fail("Enter the new due date.", "newDueDate", "PAYMENT_RESCHEDULE_DATE_REQUIRED");
   if (newDueDate === dayOf(schedule.due_date)) fail("That is the due date already.", "newDueDate", "PAYMENT_RESCHEDULE_DATE_REQUIRED");
@@ -96,7 +96,7 @@ export async function requestPaymentReschedule(client, context, billId, input = 
   if (!reason || reason.length < 10) fail("Give the reason for the reschedule (at least 10 characters): the supplier's agreement, its reference.", "reason", "PAYMENT_RESCHEDULE_REASON_REQUIRED");
   const pending = (await client.query(`SELECT 1 FROM tenant.accounting_vendor_bill_schedule_changes WHERE organization_id = $1 AND schedule_id = $2 AND status = 'requested'`,
     [context.organizationId, schedule.id])).rows[0];
-  if (pending) fail("A reschedule of this instalment is already awaiting approval.", "scheduleId", "PAYMENT_RESCHEDULE_PENDING", 409);
+  if (pending) fail("A reschedule of this payment due is already awaiting approval.", "scheduleId", "PAYMENT_RESCHEDULE_PENDING", 409);
   const row = (await client.query(
     `INSERT INTO tenant.accounting_vendor_bill_schedule_changes (organization_id, vendor_bill_id, schedule_id, previous_due_date, requested_due_date, reason, requested_by)
      VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`, [context.organizationId, bill.id, schedule.id, dayOf(schedule.due_date), newDueDate, reason, context.userId ?? null])).rows[0];
@@ -124,7 +124,7 @@ async function decide(client, context, changeId, decision, input) {
   await loadBill(client, context, change.vendor_bill_id, { lock: true });
   if (decision === "approved") {
     const schedule = (await client.query(`SELECT * FROM tenant.accounting_vendor_bill_schedules WHERE organization_id = $1 AND id = $2 FOR UPDATE`, [context.organizationId, change.schedule_id])).rows[0];
-    if (dayOf(schedule.due_date) !== dayOf(change.previous_due_date)) fail("The instalment's due date changed since the request; ask again.", "id", "PAYMENT_RESCHEDULE_STALE", 409);
+    if (dayOf(schedule.due_date) !== dayOf(change.previous_due_date)) fail("The payment due's due date changed since the request; ask again.", "id", "PAYMENT_RESCHEDULE_STALE", 409);
     await client.query(`UPDATE tenant.accounting_vendor_bill_schedules SET original_due_date = COALESCE(original_due_date, due_date), due_date = $3, version = version + 1
        WHERE organization_id = $1 AND id = $2`, [context.organizationId, schedule.id, dayOf(change.requested_due_date)]);
     // The bill's summary due date is the last instalment's.
@@ -223,7 +223,7 @@ export async function getSupplierInstallmentAging(client, context, filters = {})
 // recalculatePaymentScheduleSettlement: checks that a posted bill's instalments still add up to what Accounts Payable says it owes; when
 // they do not (a settlement recorded outside the schedule), the difference is spread oldest instalment first. Returns { reconciled, adjusted }.
 export async function recalculatePaymentScheduleSettlement(client, context, billId) {
-  if (!poCan(context, "accounting.payables.manage")) throw new PurchaseOrderError(403, "You do not have permission to reconcile payment schedules.", "PERMISSION_DENIED");
+  if (!poCan(context, "accounting.payables.manage")) throw new PurchaseOrderError(403, "You do not have permission to check payment schedules.", "PERMISSION_DENIED");
   const bill = await loadBill(client, context, billId, { lock: true });
   const rows = (await client.query(`SELECT * FROM tenant.accounting_vendor_bill_schedules WHERE organization_id = $1 AND vendor_bill_id = $2 ORDER BY due_date, sequence FOR UPDATE`,
     [context.organizationId, bill.id])).rows;

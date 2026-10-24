@@ -23,6 +23,8 @@ const VIEW_SQL = {
   all: "",
   // "To create" lists goods receipts, not bills (the screen reads the receipts' "to_bill" view); asked of the bill list it is empty.
   to_create: " AND false",
+  // "By email" lists the files suppliers emailed (inbox.js), not bills.
+  by_email: " AND false",
   // Posted bills with input GST that GSTR-2B does not show (Procurement plan Phase 3): their ITC is not yet available (s.16(2)(aa)).
   not_in_2b: ` AND ${POSTED_SQL} AND bill.tax_total > 0 AND NOT bill.reverse_charge AND NOT EXISTS (SELECT 1 FROM tenant.gst_2b_lines two WHERE two.organization_id = bill.organization_id
     AND two.matched_source_type = 'vendor_bill' AND two.matched_source_id = bill.id)`,
@@ -201,10 +203,10 @@ export async function getSupplierBillHistory(client, context, billId) {
     `SELECT event.id, event.event_type, event.from_status, event.to_status, event.metadata, event.occurred_at, users.full_name FROM tenant.accounting_events event
        LEFT JOIN public.users users ON users.id = event.actor_user_id WHERE event.organization_id = $1 AND event.entity_type IN ('vendor_bill', 'accounting_vendor_bill') AND event.entity_id = $2
       ORDER BY event.occurred_at DESC`, [context.organizationId, bill.id]);
-  const label = (type) => ({ "accounting.vendor_bill.created": "Drafted", "accounting.vendor_bill.updated": "Draft changed", "accounting.vendor_bill.posted": "Posted to Accounts Payable",
-    "accounting.vendor_bill.settled": "Payment allocated", "accounting.vendor_credit.applied": "Credit applied", "accounting.vendor_bill.cancelled": "Cancelled",
-    "accounting.vendor_bill.reversed": "Reversed", "accounting.vendor_bill.payment_reversed": "Payment reversed", "accounting.vendor_credit.allocated": "Credit allocated",
-    "accounting.vendor_bill.due_date_overridden": "Due date overridden" }[type] ?? type.replace(/^accounting\./, "").replace(/[._]/g, " "));
+  const label = (type) => ({ "accounting.vendor_bill.created": "Drafted", "accounting.vendor_bill.updated": "Draft changed", "accounting.vendor_bill.posted": "Recorded in Accounts Payable",
+    "accounting.vendor_bill.settled": "Payment matched", "accounting.vendor_credit.applied": "Credit applied", "accounting.vendor_bill.cancelled": "Cancelled",
+    "accounting.vendor_bill.reversed": "Cancelled", "accounting.vendor_bill.payment_reversed": "Payment cancelled", "accounting.vendor_credit.allocated": "Credit matched",
+    "accounting.vendor_bill.due_date_overridden": "Due date changed" }[type] ?? type.replace(/^accounting\./, "").replace(/[._]/g, " "));
   return rows.map((row) => ({ id: row.id, type: row.event_type, summary: `${label(row.event_type)}${row.metadata?.dueDate ? ` (${row.metadata.computedDueDate} → ${row.metadata.dueDate})` : ""}${row.metadata?.reason ? `: ${row.metadata.reason}` : ""}`, from: row.from_status, to: row.to_status,
     at: row.occurred_at, actor: row.full_name }));
 }
@@ -289,7 +291,8 @@ export async function getSupplierBill(client, context, billId) {
       paymentTermChangeReason: row.payment_term_change_reason,
       subtotal: dec(row.subtotal), discountTotal: dec(row.discount_total), taxableTotal: dec(row.taxable_total), taxTotal: dec(row.tax_total), reverseChargeTaxTotal: dec(row.reverse_charge_tax_total),
       invoiceTotal: dec(row.invoice_total), withholdingTotal: dec(row.withholding_total), roundingAdjustment: dec(row.rounding_adjustment), netPayable: dec(row.grand_total),
-      baseCurrencyTotal: dec(row.base_currency_total), supplierStatedTotal: dec(row.supplier_stated_total), tcsAmount: dec(row.tcs_amount ?? 0), rcmSelfInvoiceNumber: row.rcm_self_invoice_number ?? null, paid: balance.paid, credited: balance.credited, balanceDue: dec(row.outstanding_amount),
+      baseCurrencyTotal: dec(row.base_currency_total), supplierStatedTotal: dec(row.supplier_stated_total), tcsAmount: dec(row.tcs_amount ?? 0), rcmSelfInvoiceNumber: row.rcm_self_invoice_number ?? null, irn: row.irn ?? null, irnDate: dayOf(row.irn_date),
+      advanceWithholdingCredit: dec(row.advance_withholding_credit ?? 0), paid: balance.paid, credited: balance.credited, balanceDue: dec(row.outstanding_amount),
       withholdingSection: row.withholding_section_id ? { id: row.withholding_section_id, code: row.section_code, name: row.section_name } : null,
       matchingStatus: row.matching_status, matchOverrideReason: row.match_override_reason, duplicateOverrideReason: row.duplicate_override_reason,
       duplicateOverrideByName: row.duplicate_override_by_name, sourceBillId: row.source_bill_id, sourceBillNumber: row.source_bill_number, debitNoteReason: row.debit_note_reason,

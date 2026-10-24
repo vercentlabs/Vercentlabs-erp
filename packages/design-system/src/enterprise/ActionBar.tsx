@@ -134,7 +134,8 @@ export function ActionBar({ className, start, end, leading, activeFilterCount, o
         {/* On a phone: the search has the first line to itself; the view dropdown leads the second, filling what Filters and the buttons leave. */}
         {leading && <div className="flex min-w-0 max-sm:flex-1 sm:contents">{leading}</div>}
         {search && (
-          <div className="min-w-0 flex-1 max-sm:order-first max-sm:basis-full sm:min-w-64">
+          // At least 12rem from a tablet up: a toolbar with a switch, a filter and My views still fits on one line there.
+          <div className="min-w-0 flex-1 max-sm:order-first max-sm:basis-full sm:min-w-48">
             {cloneElement(search, { className: "w-full" })}
           </div>
         )}

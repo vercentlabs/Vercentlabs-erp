@@ -25,7 +25,7 @@ export const REJECTION_VIEWS = Object.freeze([
   { key: "cancelled", label: "Cancelled" },
   { key: "before_custody", label: "Before-Custody Refusals" },
   { key: "shortages_wrong", label: "Shortages / Wrong Deliveries" },
-  { key: "after_custody", label: "Post-Custody Rejections" },
+  { key: "after_custody", label: "Rejections after receipt" },
   { key: "all", label: "All Rejections" },
 ]);
 // A line billed for more than it may now be billed: Finance corrects it with a debit note.
@@ -173,7 +173,7 @@ export async function getRejection(client, context, rejectionId) {
       billingBasis: status?.billing_basis ?? null, billed: dec(status?.billed_quantity ?? 0), postedBilled: dec(status?.posted_billed_quantity ?? 0), billable: dec(status?.billable_quantity ?? 0),
       mismatch: excess > 0n ? dec(excess) : null,
       bills: bills.map((bill) => ({ id: bill.id, number: bill.bill_number, supplierInvoiceNumber: bill.supplier_invoice_number, status: bill.status, type: bill.bill_type, quantity: dec(bill.quantity) })),
-      note: excess > 0n ? `The supplier has been billed for ${dec(excess)} more than may now be billed on this line. Finance corrects it with a vendor credit; the bill itself is never changed.` : null,
+      note: excess > 0n ? `The supplier has been billed for ${dec(excess)} more than may now be billed on this line. Finance corrects it with a supplier credit note; the bill itself is never changed.` : null,
     };
   }
   const options = await resolutionOptionsFor(client, context, rejection);

@@ -89,7 +89,7 @@ function ReturnForm({ options, existing, presetOrderId, receiptId }: { options: 
     <DocumentFormPage
       header={{
         title: saved ? `Edit ${saved.returnNumber}` : "Create Purchase Return",
-        description: "Goods received on posted receipts going back to the supplier. Saving keeps a draft — no stock moves until the dispatch is posted.",
+        description: "Goods going back to the supplier. A draft moves no stock until the dispatch is finalised.",
       }}
       banner={<div className="flex flex-col gap-3">
         {Boolean(save.error) && <Notice>{errorMessage(save.error)}{issues.length > 1 && <ul className="mt-1 list-disc pl-5">{issues.map((issue) => <li key={issue}>{issue}</li>)}</ul>}</Notice>}
@@ -111,8 +111,8 @@ function ReturnForm({ options, existing, presetOrderId, receiptId }: { options: 
       {eligible.isLoading && <LoadingState label="Loading what can be returned" />}
       {eligible.error && <Notice>{errorMessage(eligible.error)}</Notice>}
       {eligible.data && (
-        <FormSection columns={1} title={`Return items — ${eligible.data.order.purchaseOrderNumber}`} description="Never more than a receipt line still has — received less what was already returned — and what is physically there.">
-          {!lines.length && <p className="text-sm text-text-muted">No posted receipt of this order has goods left to return.</p>}
+        <FormSection columns={1} title={`Return items — ${eligible.data.order.purchaseOrderNumber}`} description="Never more than the receipt line still has, and what is physically there.">
+          {!lines.length && <p className="text-sm text-text-muted">No final receipt of this order has goods left to return.</p>}
           <div className="flex flex-col gap-3">
             {lines.map((line) => {
               const row = rowOf(line);
@@ -136,11 +136,11 @@ function ReturnForm({ options, existing, presetOrderId, receiptId }: { options: 
                       <TextField label={row.reason === "other" ? "Explain the reason" : "Reason notes"} value={row.reasonNotes} onChange={(value) => change(line, { reasonNotes: value })} />
                       {line.trackingType === "serial" && <TextField label="Serial numbers (one per unit)" value={row.serialNumbers} onChange={(value) => change(line, { serialNumbers: value })} />}
                       <Select label="Billing" selectedKey={row.billingAllocation} onSelectionChange={(value) => change(line, { billingAllocation: String(value) })}
-                        options={[{ value: "auto", label: "Unbilled goods first" }, { value: "unbilled", label: "Goods not billed yet" }, { value: "billed", label: "Goods already billed (vendor credit)" }]} />
+                        options={[{ value: "auto", label: "Unbilled goods first" }, { value: "unbilled", label: "Goods not billed yet" }, { value: "billed", label: "Goods already billed (supplier credit note)" }]} />
                     </div>
                   )}
                   {row.include && ["excess_goods", "surplus_goods"].includes(row.reason) && row.source === "stock" && !options.capabilities.commercial &&
-                    <p className="text-xs text-warning">A commercial return of good stock is posted by someone allowed to approve commercial returns.</p>}
+                    <p className="text-xs text-warning">A commercial return of good stock is finalised by someone allowed to approve commercial returns.</p>}
                 </div>
               );
             })}

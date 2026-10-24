@@ -6,6 +6,7 @@
 // confirmed it changes only through an amendment (reconfirmed as the next
 // version), expected-date updates, warehouse changes and cancelling what is
 // still outstanding.
+import { INCOTERMS } from "./document.js";
 import { beginIdempotentOperation, completeIdempotentOperation } from "../../../core/idempotency.js";
 import { decimal, formatDecimal } from "../../../core/decimal.js";
 import { loadPurchaseOrder, poCan, poCapabilities, poScopeSql, requirePoAccess, requirePoPermission } from "./access.js";
@@ -89,7 +90,7 @@ async function editableDraft(client, context, orderId, expectedRevision) {
   requirePoPermission(context, PO_PERMISSIONS.create, "You do not have permission to edit purchase orders.");
   const order = await loadPurchaseOrder(client, context, orderId, { lock: true });
   if (order.status !== STATUS.draft)
-    throw new PurchaseOrderError(409, `A ${order.status} order cannot be edited.${order.status === STATUS.confirmed ? " Amend it to change it." : ""}`, "PURCHASE_ORDER_LOCKED");
+    throw new PurchaseOrderError(409, `A ${order.status} order cannot be edited.${order.status === STATUS.confirmed ? " Use Change the order." : ""}`, "PURCHASE_ORDER_LOCKED");
   if (expectedRevision !== undefined && expectedRevision !== null && Number(expectedRevision) !== Number(order.revision))
     throw new PurchaseOrderError(409, "Someone else changed this order. Reload it and make your change again.", "PURCHASE_ORDER_STALE");
   return order;
@@ -197,7 +198,8 @@ function headerView(row) {
     supplierBillingAddressId: row.supplier_billing_address_id, supplierShipFromId: row.supplier_ship_from_id, supplierTaxRegistrationId: row.supplier_tax_registration_id,
     buyingRegistrationId: row.buying_registration_id, orderDate: dayOf(row.order_date), expectedDeliveryDate: dayOf(row.expected_delivery_date),
     sourceQuotationId: row.source_quotation_id, sourceQuotationNumber: row.source_quotation_number, supplierQuotationReference: row.supplier_quotation_reference,
-    supplierReference: row.supplier_reference, currencyCode: row.currency_code?.trim(), paymentTermId: row.payment_term_id, buyerUserId: row.buyer_user_id,
+    dropship: row.dropship_sales_order_id ? { salesOrderId: row.dropship_sales_order_id, salesOrderNumber: row.dropship_sales_order_number, customerName: row.dropship_customer_name } : null,
+    supplierReference: row.supplier_reference, incoterm: row.incoterm ?? null, incotermPlace: row.incoterm_place ?? null, currencyCode: row.currency_code?.trim(), paymentTermId: row.payment_term_id, buyerUserId: row.buyer_user_id,
     buyerName: row.buyer_name, defaultWarehouseId: row.default_warehouse_id, defaultWarehouseName: row.default_warehouse_name, priceMode: row.price_mode,
     documentDiscountType: row.document_discount_type, documentDiscountValue: dec(row.document_discount_value), documentDiscountAmount: dec(row.document_discount_amount),
     grossTotal: dec(row.gross_total), lineDiscountTotal: dec(row.line_discount_total), taxableTotal: dec(row.taxable_total), taxTotal: dec(row.tax_total),
@@ -231,7 +233,7 @@ async function orderLines(client, organizationId, orderId) {
     lineDiscount: dec(row.line_discount), allocatedDocumentDiscount: dec(row.allocated_document_discount), taxableAmount: dec(row.taxable_amount),
     taxCategoryId: row.tax_category_id, taxCategoryName: row.tax_category_name, taxTreatment: row.tax_treatment, taxRate: dec(row.tax_rate), taxTotal: dec(row.tax_total),
     lineTotal: dec(row.line_total), warehouseId: row.receiving_warehouse_id, warehouseName: row.warehouse_name, expectedDeliveryDate: dayOf(row.expected_delivery_date),
-    sourceQuotationLineId: row.source_quotation_line_id, sourceIndentLineId: row.source_indent_line_id ?? null, expenseAccountId: row.expense_account_id,
+    sourceQuotationLineId: row.source_quotation_line_id, sourceIndentLineId: row.source_indent_line_id ?? null, expenseAccountId: row.expense_account_id, costCenterId: row.cost_center_id ?? null,
     expenseAccount: row.expense_account_id ? `${row.expense_account_code} ${row.expense_account_name}` : null,
     taxes: taxes.filter((tax) => tax.purchase_order_line_id === row.id).map((tax) => ({ type: tax.tax_type, label: tax.label, rate: dec(tax.rate), taxableAmount: dec(tax.taxable_amount), taxAmount: dec(tax.tax_amount) })),
   }));
@@ -351,7 +353,9 @@ export async function getPurchaseOrder(client, context, orderId) {
     close: tracking.readyToClose && poCan(context, PO_PERMISSIONS.close),
     send: confirmed && poCan(context, PO_PERMISSIONS.send),
     acknowledge: confirmed && row.communication_status === "sent" && poCan(context, PO_PERMISSIONS.send),
-    receive: tracking.readyToReceive && poCan(context, PO_PERMISSIONS.receive),
+    receive: tracking.readyToReceive && !row.dropship_sales_order_id && poCan(context, PO_PERMISSIONS.receive),
+    // Shipped by the supplier to our customer: receiving is "Delivered to the customer" (dropship.js).
+    deliverToCustomer: tracking.readyToReceive && Boolean(row.dropship_sales_order_id) && poCan(context, PO_PERMISSIONS.receive) && poCan(context, PO_PERMISSIONS.post),
     bill: tracking.readyToBill && poCan(context, PO_PERMISSIONS.bill),
     returnGoods: related.receipts.some((receipt) => receipt.status === "posted") && poCan(context, PO_PERMISSIONS.returns),
     updateDates: confirmed && poCan(context, PO_PERMISSIONS.updateDates),
@@ -486,6 +490,8 @@ export async function getPurchaseOrderOptions(client, context, include = {}) {
                           WHERE term.organization_id = $1 AND term.status = 'active' AND term.is_purchase_enabled ORDER BY term.name`),
     registrations: await q(`SELECT id, code, name, registration_number AS gstin, state_code, is_default FROM tenant.tax_registrations WHERE organization_id = $1 AND status = 'active' ORDER BY is_default DESC, name`),
     taxCategories: await q(`SELECT id, code, name FROM tenant.tax_categories WHERE organization_id = $1 AND status = 'active' ORDER BY name`),
+    costCenters: await q(`SELECT id, code, name FROM public.cost_centers WHERE organization_id = $1 AND status = 'active' ORDER BY name`),
+    incoterms: INCOTERMS,
     expenseAccounts: poCan(context, PO_PERMISSIONS.descriptiveLines) ? await q(`SELECT account.id, account.code, account.name FROM tenant.accounting_accounts account
                         WHERE account.organization_id = $1 AND account.status = 'active' AND NOT account.is_group AND account.account_class IN ('expense', 'asset') ORDER BY account.code LIMIT 1000`) : [],
     buyers: await q(`SELECT users.id, users.full_name AS name FROM public.organization_memberships membership JOIN public.users users ON users.id = membership.user_id

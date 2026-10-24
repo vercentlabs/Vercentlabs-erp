@@ -122,7 +122,7 @@ async function buildLines(client, context, requested, { orderId = null, excludeR
     const line = lines.get(entry.goodsReceiptLineId);
     if (!line) throw new PurchaseReturnError(404, "That goods receipt line was not found.", "PURCHASE_RETURN_LINE_INVALID");
     const label = `Line ${index + 1} (${line.receipt_number} line ${line.line_number})`;
-    if (line.receipt_status !== "posted" || line.reversed_at) throw new PurchaseReturnError(409, `${label}: only goods on a posted receipt can be returned.`, "PURCHASE_RETURN_RECEIPT_NOT_POSTED");
+    if (line.receipt_status !== "posted" || line.reversed_at) throw new PurchaseReturnError(409, `${label}: only goods on a final receipt can be returned.`, "PURCHASE_RETURN_RECEIPT_NOT_POSTED");
     if (line.product_type === "service") throw new PurchaseReturnError(409, `${label}: a service is not returned; correct its bill instead.`, "PURCHASE_RETURN_SERVICE");
     if (orderId && line.purchase_order_id !== orderId) fail(`${label}: a return covers the receipts of one purchase order.`, "lines", "PURCHASE_RETURN_ORDER_MISMATCH", 409);
     orderId = orderId ?? line.purchase_order_id;
@@ -175,7 +175,7 @@ async function buildLines(client, context, requested, { orderId = null, excludeR
     claimed.set(key, add(already, quantity));
     // A commercial return of good stock (excess, surplus) is the supplier's agreement, approved when it posts — never a made-up quality failure.
     if (posting && COMMERCIAL_REASONS.includes(reason) && !rejection && !disposition && !can(context, RETURN_PERMISSIONS.commercial))
-      throw new PurchaseReturnError(403, `${label}: returning good stock for a commercial reason (${REASON_LABELS[reason].toLowerCase()}) is posted by someone allowed to approve commercial returns.`, "PERMISSION_DENIED");
+      throw new PurchaseReturnError(403, `${label}: returning good stock for a commercial reason (${REASON_LABELS[reason].toLowerCase()}) is finalised by someone allowed to approve commercial returns.`, "PERMISSION_DENIED");
     const serials = (Array.isArray(entry.serialNumbers) ? entry.serialNumbers : String(entry.serialNumbers ?? "").split(/[\s,;]+/)).map((value) => text(value, 120)).filter(Boolean);
     // One serial number per base unit returned (a BOX of 5 serial-numbered pieces is 5 serial numbers).
     if (line.tracking_type === "serial" && line.product_type === "stock" && BigInt(serials.length) * decimal(1) !== roundMoney(mul(quantity, line.conversion_factor ?? "1"), 6))
@@ -194,7 +194,7 @@ async function buildLines(client, context, requested, { orderId = null, excludeR
     const locationId = (chosenLocation && warehouseId ? await ledgerLocation(client, context.organizationId, warehouseId, chosenLocation) : chosenLocation) ?? (moved ? null : rejection?.location_id ?? disposition?.location_id ?? line.warehouse_location_id ?? null);
     const billingAllocation = ["unbilled", "billed"].includes(entry.billingAllocation) ? entry.billingAllocation : "auto";
     const other = drafts.get(line.id);
-    if (other && !posting) warnings.push(`${label}: ${dec(other.quantity)} is also on draft return${other.numbers.length === 1 ? "" : "s"} ${other.numbers.join(", ")} — whichever posts first is returned.`);
+    if (other && !posting) warnings.push(`${label}: ${dec(other.quantity)} is also on draft return${other.numbers.length === 1 ? "" : "s"} ${other.numbers.join(", ")} — whichever is finalised first is returned.`);
     entries.push({
       line, entered, quantity, reason, notes, rejection, disposition, serials, warehouseId, locationId, billingAllocation,
       baseQuantity: roundMoney(mul(quantity, line.conversion_factor ?? "1"), 6),
@@ -222,7 +222,7 @@ async function stockIssues(client, context, entries, warehouseId) {
           AND warehouse_location_id IS NOT DISTINCT FROM $4 AND batch_id IS NOT DISTINCT FROM $5`,
       [context.organizationId, entry.line.product_id, warehouseId, entry.locationId, entry.line.batch_id])).rows[0];
     if (decimal(row.free) < quantity)
-      issues.push(`${entry.line.description ?? entry.line.item_code}: only ${dec(decimal(row.free))} is physically available to return at that location (${dec(quantity)} needed) — the rest was used, sold, reserved or moved.`);
+      issues.push(`${entry.line.description ?? entry.line.item_code}: only ${dec(decimal(row.free))} is physically available to return at that location (${dec(quantity)} needed) — the rest was used, sold, kept aside or moved.`);
   }
   for (const entry of entries.filter((item) => item.serials.length && item.line.product_type === "stock")) {
     for (const serialNumber of entry.serials) {
@@ -397,7 +397,7 @@ export async function cancelDraftPurchaseReturn(client, context, returnId, input
   requirePermission(context, RETURN_PERMISSIONS.manage, "You do not have permission to cancel purchase returns.");
   const current = await loadReturn(client, context, returnId, { lock: true });
   if (current.document_status === "cancelled") return { id: current.id, status: "cancelled", replayed: true };
-  if (current.document_status !== "draft") throw new PurchaseReturnError(409, "Only a draft return is cancelled; a posted return is reversed when the goods come back.", "PURCHASE_RETURN_LOCKED");
+  if (current.document_status !== "draft") throw new PurchaseReturnError(409, "Only a draft return is cancelled; a final return is cancelled when the goods come back.", "PURCHASE_RETURN_LOCKED");
   const reason = text(input.reason, 1000);
   await client.query(`UPDATE tenant.purchase_returns SET document_status = 'cancelled', cancelled_by = $3, cancelled_at = now(), cancel_reason = $4, updated_at = now(), version = version + 1
      WHERE organization_id = $1 AND id = $2`, [context.organizationId, current.id, context.userId ?? null, reason]);
@@ -429,12 +429,12 @@ export async function validatePurchaseReturnForPosting(client, context, returnId
 // retry returns the posted return), the rejection case / held goods updated, the returned quantities allocated to billed or unbilled goods,
 // GRNI cleared when receipts accrue. Nothing is posted if any of it fails.
 export async function postPurchaseReturn(client, context, returnId, input = {}) {
-  requirePermission(context, RETURN_PERMISSIONS.post, "You do not have permission to post purchase returns.");
+  requirePermission(context, RETURN_PERMISSIONS.post, "You do not have permission to finalise purchase returns.");
   const current = await loadReturn(client, context, returnId, { lock: true });
   if (current.document_status === "posted") return { id: current.id, status: "posted", replayed: true };
   if (current.document_status !== "draft") throw new PurchaseReturnError(409, `The return is ${current.document_status}.`, "PURCHASE_RETURN_LOCKED");
   if (input.dispatchConfirmed !== true)
-    throw new PurchaseReturnError(409, "Confirm that the goods have physically left (handed to the supplier or the carrier) before posting the return.", "PURCHASE_RETURN_DISPATCH_NOT_CONFIRMED");
+    throw new PurchaseReturnError(409, "Confirm that the goods have physically left (handed to the supplier or the carrier) before finalising the return.", "PURCHASE_RETURN_DISPATCH_NOT_CONFIRMED");
   const organizationId = context.organizationId;
   const order = await loadPurchaseOrder(client, orderReader(context), current.purchase_order_id, { lock: true });
   const { entries } = await buildLines(client, context, await storedEntries(client, organizationId, current.id), { orderId: order.id, excludeReturnId: current.id, lock: true, posting: true,
@@ -502,7 +502,7 @@ export async function postPurchaseReturn(client, context, returnId, input = {}) 
   for (const receiptId of new Set(entries.map((entry) => entry.line.goods_receipt_id)))
     await recordReceiptEvent(client, context, receiptId, "goods_receipt.returned", summary, { returnId: current.id });
   await recordPoEvent(client, context, order.id, "purchase_order.goods_returned", summary, { details: { returnId: current.id, returnNumber: current.return_number } });
-  await recordReturnEvent(client, context, current.id, "purchase_return.posted", `Posted — goods dispatched ${dispatchedAt.toISOString().slice(0, 16).replace("T", " ")}${accrual ? ` · GRNI cleared ${accrual.amount}` : ""}`,
+  await recordReturnEvent(client, context, current.id, "purchase_return.posted", `Final — goods dispatched ${dispatchedAt.toISOString().slice(0, 16).replace("T", " ")}${accrual ? ` · goods received, bill not yet received cleared ${accrual.amount}` : ""}`,
     { movements: movementsByLine.flatMap((entry) => entry.movements), accrual });
   return { id: current.id, status: "posted", movementIds: movementsByLine.flatMap((entry) => entry.movements), replayed: false };
 }
@@ -539,7 +539,7 @@ async function allocateToBilling(client, context, purchaseReturn, posted) {
     let toUnbilled; let toBilled;
     if (entry.billingAllocation === "unbilled") {
       if (entry.quantity > unbilledLeft)
-        throw new PurchaseReturnError(409, `${label}: only ${dec(unbilledLeft)} of these goods is not billed yet; the rest was billed — allocate it to the billed goods so Finance corrects the bill.`,
+        throw new PurchaseReturnError(409, `${label}: only ${dec(unbilledLeft)} of these goods is not billed yet; the rest was billed — match it to the billed goods so Finance corrects the bill.`,
           "PURCHASE_RETURN_ALLOCATION_INVALID");
       toUnbilled = entry.quantity; toBilled = 0n;
     } else if (entry.billingAllocation === "billed") {
@@ -575,14 +575,14 @@ async function allocateToBilling(client, context, purchaseReturn, posted) {
 // receivedBackAt? }. An inbound correction puts them back where they left from, the GRNI clearing is reversed and the return no longer counts.
 // Not when Finance or the supplier already acted on it (a vendor credit, refund or replacement) or it settled a quality case.
 export async function reversePostedPurchaseReturn(client, context, returnId, input = {}) {
-  requirePermission(context, RETURN_PERMISSIONS.reverse, "You do not have permission to reverse purchase returns.");
+  requirePermission(context, RETURN_PERMISSIONS.reverse, "You do not have permission to cancel purchase returns.");
   const current = await loadReturn(client, context, returnId, { lock: true });
   if (current.document_status === "reversed") return { id: current.id, status: "reversed", replayed: true };
-  if (current.document_status !== "posted") throw new PurchaseReturnError(409, "Only a posted return is reversed.", "PURCHASE_RETURN_LOCKED");
+  if (current.document_status !== "posted") throw new PurchaseReturnError(409, "Only a final return is cancelled.", "PURCHASE_RETURN_LOCKED");
   const reason = text(input.reason, 1000);
   if (!reason || reason.length < 5) fail("Give the reason for the reversal.", "reason");
   if (input.goodsReceivedBack !== true)
-    throw new PurchaseReturnError(409, "A posted return is reversed only when the goods physically came back: confirm they were received back. Otherwise record the supplier's resolution.",
+    throw new PurchaseReturnError(409, "A final return is cancelled only when the goods physically came back: confirm they were received back. Otherwise record the supplier's resolution.",
       "PURCHASE_RETURN_GOODS_NOT_BACK");
   const organizationId = context.organizationId;
   const blockers = (await client.query(
@@ -593,8 +593,8 @@ export async function reversePostedPurchaseReturn(client, context, returnId, inp
             (SELECT count(*) FROM tenant.purchase_return_lines WHERE organization_id = $1 AND purchase_return_id = $2 AND receiving_rejection_id IS NOT NULL)::int AS rejections,
             (SELECT count(*) FROM tenant.accounting_vendor_bills WHERE organization_id = $1 AND source_purchase_return_id = $2 AND status NOT IN ('cancelled', 'reversed'))::int AS notes`,
     [organizationId, current.id])).rows[0];
-  if (blockers.credits || blockers.notes) throw new PurchaseReturnError(409, "A vendor credit corrects this return: Finance reverses (or cancels) it first.", "PURCHASE_RETURN_IN_USE");
-  if (blockers.resolutions) throw new PurchaseReturnError(409, "The supplier's resolution is recorded on this return: it cannot be reversed.", "PURCHASE_RETURN_IN_USE");
+  if (blockers.credits || blockers.notes) throw new PurchaseReturnError(409, "A supplier credit note corrects this return: Finance cancels it first.", "PURCHASE_RETURN_IN_USE");
+  if (blockers.resolutions) throw new PurchaseReturnError(409, "The supplier's resolution is recorded on this return: it cannot be cancelled.", "PURCHASE_RETURN_IN_USE");
   if (blockers.rejections) throw new PurchaseReturnError(409, "This return resolved a quality rejection case: the goods coming back are received as a new receipt.", "PURCHASE_RETURN_IN_USE");
   const lines = (await client.query(
     `SELECT return_line.*, receipt_line.product_type, receipt_line.warehouse_id, item.tracking_type FROM tenant.purchase_return_lines return_line
@@ -608,7 +608,7 @@ export async function reversePostedPurchaseReturn(client, context, returnId, inp
     // The goods come back exactly where, and as what, they left: each return movement reversed by a compensating one.
     try {
       const reversed = await reverseStockMovements(client, stock, line.stock_movement_ids, { referenceType: "purchase_return_reversal", referenceId: current.id,
-        reason: `${current.return_number} reversed — goods back from the supplier: ${reason}`, keyPrefix: `prn-rev:${current.id}` });
+        reason: `${current.return_number} cancelled — goods back from the supplier: ${reason}`, keyPrefix: `prn-rev:${current.id}` });
       movements.push(...reversed.movements.map((movement) => movement.id));
     } catch (error) {
       if (error instanceof StockError) throw carryNegativeStock(error, new PurchaseReturnError(error.status, `Line ${line.line_number}: ${error.message}`, error.code));
@@ -621,7 +621,7 @@ export async function reversePostedPurchaseReturn(client, context, returnId, inp
   const accrualReversal = await reverseReturnAccrual(client, context, current, reason);
   await client.query(`UPDATE tenant.purchase_returns SET document_status = 'reversed', reversed_by = $3, reversed_at = now(), reversal_reason = $4, version = version + 1, updated_at = now()
      WHERE organization_id = $1 AND id = $2`, [organizationId, current.id, context.userId ?? null, reason]);
-  await recordReturnEvent(client, context, current.id, "purchase_return.reversed", `Reversed — goods received back: ${reason}`, { movements, accrualReversal });
-  await recordPoEvent(client, context, current.purchase_order_id, "purchase_order.return_reversed", `Purchase return ${current.return_number} reversed: ${reason}`, { details: { returnId: current.id } });
+  await recordReturnEvent(client, context, current.id, "purchase_return.reversed", `Cancelled — goods received back: ${reason}`, { movements, accrualReversal });
+  await recordPoEvent(client, context, current.purchase_order_id, "purchase_order.return_reversed", `Purchase return ${current.return_number} cancelled: ${reason}`, { details: { returnId: current.id } });
   return { id: current.id, status: "reversed", movementIds: movements, replayed: false };
 }

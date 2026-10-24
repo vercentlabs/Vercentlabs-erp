@@ -697,7 +697,7 @@ async function calculateLine(client, context, master, line, sequence, input, opt
     rateContractLineId,
     sourceQuotationLineId: line.sourceQuotationLineId ?? null,
     // Make-to-order (Sales report Phase 3): from stock, bought for the order or made for it.
-    supplyRoute: line.supplyRoute === "buy" || line.supplyRoute === "make" ? line.supplyRoute : "stock",
+    supplyRoute: ["buy", "make", "dropship"].includes(line.supplyRoute) ? line.supplyRoute : "stock",
     discountType,
     discountValue: asDatabaseDecimal(discountValue),
     discountAmount: asDatabaseDecimal(discountAmount),

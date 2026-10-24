@@ -45,13 +45,13 @@ export function DocumentTaxPanel({ tax, value, onChange, preview }: {
   const derivedSupply = tax.supplyTypes.find((entry) => entry.code === result?.derivedSupplyType)?.label;
   const place = result?.placeOfSupply;
   return (
-    <Panel title="Tax" description="Worked out from the company registration, the customer and the addresses.">
+    <Panel title="Tax" description="Worked out from our GSTIN, the customer and the addresses.">
       {tax.registrations.length === 0 && <Notice tone="warning">Add the company&apos;s GST registration in Settings → Taxes so GST can be calculated.</Notice>}
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         {tax.registrations.length > 1 && (
           <Select
             label="Issued by"
-            description="The company registration that issues this document."
+            description="Our GSTIN that issues this document."
             options={[{ value: "", label: "Default registration" }, ...tax.registrations.map((entry) => ({ value: entry.id, label: `${entry.name}${entry.registrationNumber ? ` · ${entry.registrationNumber}` : ""}` }))]}
             selectedKey={value.sellerRegistrationId}
             onSelectionChange={(key) => onChange({ ...value, sellerRegistrationId: String(key ?? "") })}

@@ -1,9 +1,10 @@
 import { createHash } from "node:crypto";
 
 import { add, allocate, decimal, format, mul } from "./money.js";
+import { ensureSupplierCategories } from "./suppliers/categories.js";
 
-// Procurement's small configuration records: purchasing categories, policies
-// and source rules (and the outbox for reading). Purchase orders, goods
+// Procurement's small configuration records: supplier categories (and the
+// outbox for reading). Purchase orders, goods
 // receipts, purchase returns and supplier bills live in ./purchase-orders;
 // suppliers in ./suppliers.
 export class ProcurementError extends Error {
@@ -20,8 +21,6 @@ const INTERNAL_INPUT_FIELDS = new Set(["status", "createdAt", "createdBy", "upda
 
 const RESOURCE_CONFIG = Object.freeze({
   categories: { table: "procurement_categories", kind: "document", view: "procurement.view", manage: "procurement.settings.manage" },
-  policies: { table: "procurement_policies", kind: "child", view: "procurement.view", manage: "procurement.settings.manage" },
-  "source-rules": { table: "procurement_source_rules", kind: "child", view: "procurement.view", manage: "procurement.settings.manage" },
   outbox: { table: "procurement_outbox", kind: "outbox", view: "procurement.audit.view", manage: null },
 });
 
@@ -59,6 +58,13 @@ function payloadOf(resource, input) {
   return value;
 }
 
+async function assertUniqueCode(client, context, resource, payload, exceptId = null) {
+  if (resource !== "categories") return;
+  const clash = await client.query(`SELECT 1 FROM tenant.procurement_categories WHERE organization_id=$1 AND upper(data->>'code')=$2 AND id IS DISTINCT FROM $3::uuid`,
+    [context.organizationId, payload.code, exceptId]);
+  if (clash.rowCount) throw new ProcurementError(409, "A category with this code already exists.", "PROCUREMENT_DUPLICATE");
+}
+
 export function contentHash(value) {
   return createHash("sha256").update(stable(value)).digest("hex");
 }
@@ -75,6 +81,7 @@ async function event(client, context, recordId, resource, eventType, payload = {
 export async function listProcurementRecords(client, context, resource, filters = {}) {
   const config = configFor(resource);
   permission(context, config.view);
+  if (resource === "categories") await ensureSupplierCategories(client, context.organizationId, context.userId);
   const limit = Math.min(Math.max(Number(filters.limit || 50), 1), 200);
   const offset = Math.max(Number(filters.offset || 0), 0);
   const values = [context.organizationId];
@@ -102,6 +109,7 @@ export async function createProcurementRecord(client, context, resource, input) 
   if (!config.manage) throw new ProcurementError(405, "This Procurement resource is read-only.");
   permission(context, config.manage);
   const payload = payloadOf(resource, input);
+  await assertUniqueCode(client, context, resource, payload);
   const idempotencyKey = text(input?.idempotencyKey, "Idempotency key", { max: 200 });
   const row = config.kind === "document"
     ? (await client.query(
@@ -130,6 +138,7 @@ export async function updateProcurementRecord(client, context, resource, recordI
   if (!Number.isInteger(expected) || expected !== Number(current.version || 1))
     throw new ProcurementError(409, "This record changed after it was loaded. Refresh and try again.", "PROCUREMENT_VERSION_CONFLICT");
   const payload = payloadOf(resource, { ...(current.data || {}), ...input });
+  await assertUniqueCode(client, context, resource, payload, current.id);
   const status = ["active", "inactive"].includes(input?.status) ? input.status : current.status;
   const row = (await client.query(
     `UPDATE tenant.${config.table} SET status=$3, data=$4::jsonb, content_hash=$5, version=version+1, updated_by=$6, updated_at=now()

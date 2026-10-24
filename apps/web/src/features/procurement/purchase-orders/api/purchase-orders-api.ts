@@ -55,7 +55,7 @@ export type LineProgress = {
   cancelled: string; damaged: string; released: string; openInspection: string; openDamaged: string; netRetained: string; refusedAtDock: string; qualityRejected: string; rejectedFromStock: string; openRejections: number; billed: string; postedBilled: string; remainingToReceive: string; billable: string; remainingToBill: string; overbilled: boolean; draftReceipt: string;
 };
 export type OrderLine = {
-  id: string; lineNumber: number; productType: "stock" | "non_stock" | "service"; productTypeLabel: string; productId: string | null;
+  id: string; lineNumber: number; costCenterId?: string | null; productType: "stock" | "non_stock" | "service"; productTypeLabel: string; productId: string | null;
   product: { code: string | null; name: string; descriptive?: boolean; trackingType?: string }; description: string; hsnSacCode: string | null; orderedQuantity: string; uomId: string;
   uom: { code: string; name: string }; unitPrice: string; priceSource: string; zeroPriceReason: string | null; discountType: string | null; discountValue: string; grossAmount: string;
   lineDiscount: string; allocatedDocumentDiscount: string; taxableAmount: string; taxCategoryId: string | null; taxTreatment: string; taxRate: string; taxTotal: string; lineTotal: string;
@@ -66,7 +66,7 @@ export type OrderLine = {
   cancellations: Array<{ quantity: string; reasonCode: string; reason: string | null; at: string; by: string | null }>;
 };
 export type OrderHeader = {
-  id: string; purchaseOrderNumber: string; status: "draft" | "confirmed" | "closed" | "cancelled"; statusLabel: string; communicationStatus: string; communicationLabel: string;
+  id: string; purchaseOrderNumber: string; dropship?: { salesOrderId: string; salesOrderNumber: string | null; customerName: string | null } | null; incoterm?: string | null; incotermPlace?: string | null; status: "draft" | "confirmed" | "closed" | "cancelled"; statusLabel: string; communicationStatus: string; communicationLabel: string;
   supplierId: string; supplierNumber: string; supplierName: string; supplier: { supplierName: string; supplierNumber: string; legalName?: string | null; gstin?: string | null };
   contact: Contact; orderingAddress: Address | null; billingAddress: Address | null; shipFrom: Address | null; supplierTaxRegistration: Registration; buyerRegistration: Registration;
   billTo: Address | null; shipTo: Address | null; paymentTerm: { name: string } | null; supplierContactId: string | null; supplierAddressId: string | null; supplierBillingAddressId: string | null;
@@ -85,6 +85,7 @@ export type DocumentLink = { id: string; number: string; status?: string; date?:
 export type PaymentTermsView = {
   orderId: string; paymentTerm: { id: string; code: string; name: string; termTypeLabel: string; summary: string; version: number } | null; paymentAgreement: string | null;
   advance: { percentage: string; amount: string | null; requested?: string; paid?: string; allocated?: string; unapplied?: string; remaining?: string;
+    tds?: { sectionCode: string; rate: string; amount: string } | null; tdsNote?: string | null;
     payments?: Array<{ id: string; number: string; date: string; amount: string; unapplied: string; status: string }> } | null;
   notes: string | null; changeReason: string | null; statutory: { statutoryDays: number; exceeds: boolean; message: string | null; classification: string; basis: string } | null;
   actions: { recordAdvance: boolean };
@@ -104,7 +105,7 @@ export type PurchaseOrderDetail = {
   rejections: { cases: RejectionRow[]; summary: RejectionSummary } | null;
   paymentTerms?: PaymentTermsView;
   history: Array<{ id: string; type: string; summary: string; at: string; actor: string | null }>;
-  actions: Record<"edit" | "confirm" | "amend" | "cancel" | "cancelRemaining" | "close" | "send" | "acknowledge" | "receive" | "bill" | "returnGoods" | "updateDates" | "changeWarehouse" | "print" | "attach" | "recordRejection" | "changeMatchingPolicy", boolean>;
+  actions: Record<"edit" | "confirm" | "amend" | "cancel" | "cancelRemaining" | "close" | "send" | "acknowledge" | "receive" | "bill" | "returnGoods" | "updateDates" | "changeWarehouse" | "print" | "attach" | "recordRejection" | "changeMatchingPolicy" | "deliverToCustomer", boolean>;
   capabilities: Record<string, boolean>;
   canSeeAmounts: boolean;
 };
@@ -119,13 +120,16 @@ export type PurchaseOrderOptions = {
   views: Array<{ key: string; label: string }>; cancelReasons: Coded[]; sentChannels: Coded[]; statusLabels: Record<string, string>; receiptLabels: Record<string, string>;
   billingLabels: Record<string, string>; paymentLabels: Record<string, string>; communicationLabels: Record<string, string>; productTypeLabels: Record<string, string>;
   settings: { billingBasis: "receipt" | "order"; requireExpectedDate: boolean; defaultWarehouseId: string | null; billHeldGoods: boolean; postReceiptAccrual: boolean;
-    useIndents: boolean; useRfqs: boolean; reorderCreates: "purchase_order" | "indent"; allowReceiptWithoutOrder?: boolean };
-  suppliers: Array<ProcurementPickRow & { supplier_number: string; name: string; status: string; currency_code: string }>;
+    useIndents: boolean; useRfqs: boolean; reorderCreates: "purchase_order" | "indent"; allowReceiptWithoutOrder?: boolean; tds194qApplies?: boolean;
+    bankFileLayout?: "csv_header" | "csv_plain"; bankFileDebitAccount?: string | null; paymentAdviceAuto?: boolean };
+  suppliers: Array<ProcurementPickRow & { supplier_number: string; name: string; status: string; currency_code: string; purchase_warning?: string | null }>;
   products: Array<ProcurementPickRow & { code: string; name: string; item_type: string; track_inventory: boolean; purchase_uom_id: string | null; uom_id: string | null; last_purchase_price: string | null; tax_category_id: string | null;
-    contract_rate?: string | null; contract_number?: string | null }>;
+    contract_rate?: string | null; contract_number?: string | null; supplier_rate?: string | null; supplier_item_code?: string | null; lead_time_days?: number | null;
+    purchase_warning?: string | null; purchase_warning_level?: string | null }>;
   uoms: Array<{ id: string; code: string; name: string; decimal_places: number }>; warehouses: Array<{ id: string; code: string; name: string }>;
   currencies: Array<{ code: string; name: string }>; paymentTerms: Array<{ id: string; code: string; name: string; term_type?: string; advance_percentage?: string | null; is_default?: boolean }>;
   registrations: Array<{ id: string; code: string; name: string; gstin: string | null; state_code: string | null; is_default: boolean }>;
+  costCenters: Array<{ id: string; code: string; name: string }>; incoterms: Array<{ code: string; label: string }>;
   taxCategories: Array<{ id: string; code: string; name: string }>; expenseAccounts: Array<{ id: string; code: string; name: string }>; buyers: Array<{ id: string; name: string }>;
   capabilities: Record<string, boolean>;
 };
@@ -231,7 +235,7 @@ export const getReceivable = (orderId: string, exceptReceiptId?: string) =>
 // Goods that came without an order (Create-Where-You-Are PR3): raises and confirms a matching order, then drafts the receipt against it.
 export const receiveWithoutOrder = (input: {
   supplierId: string; reason: string; warehouseId?: string; receiptDate?: string; supplierChallanNumber?: string;
-  lines: Array<{ productId: string; quantity: string; unitPrice: string }>;
+  lines: Array<{ productId: string; quantity: string; unitPrice?: string }>;
 }) => post<{ result: { orderId: string; purchaseOrderNumber: string; approvalRequired: boolean; receipt: { id: string; receiptNumber: string; status: string } | null } }>(
   "/goods-receipts", input).then((result) => result.result);
 export const createGoodsReceipt = (orderId: string, input: Record<string, unknown>) =>
@@ -266,7 +270,7 @@ export type QuotationDetail = {
     quotationDate: string; validUntil: string | null; currencyCode: string; paymentTermId: string | null; paymentTermName: string | null; priceMode: string; documentDiscountType: string | null;
     documentDiscountValue: string; deliveryLeadDays: number | null; notes: string | null; status: string; convertedPurchaseOrderId: string | null; convertedPurchaseOrderNumber: string | null; expired: boolean;
     freightAmount?: string; rfqId?: string | null };
-  lines: Array<{ id: string; lineNumber: number; productId: string; productCode: string; productName: string; description: string | null; quantity: string; uomId: string | null; uomCode: string | null;
+  lines: Array<{ oneOff?: boolean; oneOffType?: string | null; expenseAccountId?: string | null; noTax?: boolean; id: string; lineNumber: number; productId: string; productCode: string; productName: string; description: string | null; quantity: string; uomId: string | null; uomCode: string | null;
     unitPrice: string; discountType: string | null; discountValue: string; taxCategoryId: string | null }>;
   actions: { edit: boolean; convert: boolean; cancel: boolean };
 };

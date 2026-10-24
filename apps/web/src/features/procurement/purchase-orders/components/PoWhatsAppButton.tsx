@@ -1,6 +1,6 @@
 "use client";
 
-// Send a confirmed purchase order on WhatsApp (Procurement plan Phase 3): a message with the supplier's link to the order's PDF, to the
+// Send a confirmed purchase order on WhatsApp (Procurement plan Phase 3; report H5): a message with the link to the supplier's page, to the
 // supplier contact's mobile unless another number is entered. WhatsApp opens with it ready; the link opens without signing in.
 import { useState } from "react";
 import { useMutation } from "@tanstack/react-query";
@@ -22,7 +22,7 @@ export function PoWhatsAppButton({ orderId }: { orderId: string }) {
       <Button variant="ghost" onPress={() => setOpen(true)}>WhatsApp</Button>
       {open && (
         <Dialog isOpen onOpenChange={(isOpen) => !isOpen && setOpen(false)} title="Send the order on WhatsApp" size="md"
-          description="The supplier gets a message with a link to the order's PDF. It goes to their contact's mobile unless you enter another number.">
+          description="Sends the supplier a link to confirm the order, get the PDF and send the invoice.">
           <div className="flex flex-col gap-3">
             {share.error && <Notice>{share.error instanceof Error ? share.error.message : "The link could not be made."}</Notice>}
             {!result ? (

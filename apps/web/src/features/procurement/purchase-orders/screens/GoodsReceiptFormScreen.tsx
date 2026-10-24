@@ -62,7 +62,7 @@ export function GoodsReceiptFormScreen({ orderId, receiptId }: { orderId?: strin
   if (existing.isLoading || receivable.isLoading || options.isLoading) return <LoadingState label="Loading goods receipt" />;
   if (!receivable.data || !options.data || (receiptId && !existing.data))
     return <ErrorState title="Could not load the goods receipt" description={errorMessage(receivable.error ?? existing.error)} action={{ label: "Retry", onPress: () => receivable.refetch() }} />;
-  if (existing.data && existing.data.receipt.status !== "draft") return <ErrorState title="This goods receipt cannot be edited" description="Only a draft is edited. A posted receipt is reversed or corrected by a return." />;
+  if (existing.data && existing.data.receipt.status !== "draft") return <ErrorState title="This goods receipt cannot be edited" description="Only a draft is edited. A final receipt is cancelled or corrected by a return." />;
   return <ReceiptForm key={receivable.data.order.id} receivable={receivable.data} options={options.data} existing={existing.data ?? null} />;
 }
 
@@ -178,7 +178,7 @@ function ReceiptForm({ receivable, options, existing }: { receivable: Receivable
     <DocumentFormPage
       header={{
         title: existing ? `Edit ${existing.receipt.receiptNumber}` : "Create Goods Receipt",
-        description: "Enter what physically arrived. Saving keeps a draft with no stock effect; posting checks the quantities again and moves the stock.",
+        description: "Enter what arrived. A draft moves no stock; finalising checks the quantities and moves the stock.",
       }}
       banner={<div className="flex flex-col gap-3">
         {Boolean(save.error) && <Notice>{errorMessage(save.error)}{issues.length > 1 && <ul className="mt-1 list-disc pl-5">{issues.map((issue) => <li key={issue}>{issue}</li>)}</ul>}</Notice>}
@@ -187,7 +187,7 @@ function ReceiptForm({ receivable, options, existing }: { receivable: Receivable
         <>
           <Button variant="secondary" onPress={() => router.replace("/procurement/goods-receipts")}>Cancel</Button>
           <Button variant="secondary" isLoading={(save.isPending || save.isSuccess) && save.variables === false} isDisabled={save.isPending || save.isSuccess || !selected.length} onPress={() => save.mutate(false)}>Save draft</Button>
-          <Button variant="primary" isLoading={(save.isPending || save.isSuccess) && save.variables === true} isDisabled={save.isPending || save.isSuccess || !selected.length} onPress={() => save.mutate(true)}>Post receipt</Button>
+          <Button variant="primary" isLoading={(save.isPending || save.isSuccess) && save.variables === true} isDisabled={save.isPending || save.isSuccess || !selected.length} onPress={() => save.mutate(true)}>Finalise receipt</Button>
         </>
       }
     >
@@ -202,10 +202,10 @@ function ReceiptForm({ receivable, options, existing }: { receivable: Receivable
           {stockOn && <Select label="Receiving warehouse" selectedKey={header.warehouseId || null} onSelectionChange={(value) => setField("warehouseId")(String(value))}
             description="One warehouse per receipt." options={options.warehouses.map((warehouse) => ({ value: warehouse.id, label: warehouse.name }))} />}
           <TextField label="Receipt date" type="date" value={header.receiptDate} onChange={setField("receiptDate")} description="The receipt's accounting date (today if empty)." />
-          <TextField label="Goods arrived at" type="datetime-local" value={header.arrivedAt} onChange={setField("arrivedAt")} description="When the goods physically arrived. The posting time is recorded separately." />
+          <TextField label="Goods arrived at" type="datetime-local" value={header.arrivedAt} onChange={setField("arrivedAt")} description="When the goods physically arrived. The finalising time is recorded separately." />
           <Select label="Received by" selectedKey={header.receivedBy || "me"} onSelectionChange={(value) => setField("receivedBy")(value === "me" ? "" : String(value))}
-            description="Who took the goods in. Defaults to whoever posts."
-            options={[{ value: "me", label: "Whoever posts the receipt" }, ...options.buyers.map((user) => ({ value: user.id, label: user.name }))]} />
+            description="Who took the goods in. Defaults to whoever finalises it."
+            options={[{ value: "me", label: "Whoever finalises the receipt" }, ...options.buyers.map((user) => ({ value: user.id, label: user.name }))]} />
           <TextField label="Supplier challan no." value={header.challanNumber} onChange={setField("challanNumber")} />
           <TextField label="Challan date" type="date" value={header.challanDate} onChange={setField("challanDate")} />
           <TextField label="Vehicle number" value={header.vehicle} onChange={setField("vehicle")} />
@@ -215,7 +215,7 @@ function ReceiptForm({ receivable, options, existing }: { receivable: Receivable
           <TextField label="Tracking / LR / AWB no." value={header.tracking} onChange={setField("tracking")} />
         </div>
       </FormSection>
-      <FormSection columns={1} title="Items" description="Select the lines that arrived. Each line receives only the product ordered. Quantities are checked again when posted; other open drafts reserve nothing.">
+      <FormSection columns={1} title="Items" description="Tick the lines that arrived. Quantities are checked again when you finalise.">
         <div className="flex flex-col gap-3">
           {goods.map((line) => {
             const row = rows[line.purchaseOrderLineId];
@@ -233,7 +233,7 @@ function ReceiptForm({ receivable, options, existing }: { receivable: Receivable
                   <span className="text-sm tabular-nums text-text-secondary">Ordered {quantity(line.ordered)} · Received {quantity(line.received)}
                     {Number(line.cancelled) > 0 ? ` · Cancelled ${quantity(line.cancelled)}` : ""} · <span className="font-medium text-text">Remaining {quantity(line.remaining)} {line.uom.code}</span></span>
                 </div>
-                {Number(line.onOtherDrafts) > 0 && <p className="text-xs text-warning">{quantity(line.onOtherDrafts)} is also on draft {line.otherDrafts.map((entry) => entry.number).join(", ")} — whichever is posted first counts.</p>}
+                {Number(line.onOtherDrafts) > 0 && <p className="text-xs text-warning">{quantity(line.onOtherDrafts)} is also on draft {line.otherDrafts.map((entry) => entry.number).join(", ")} — whichever is finalised first counts.</p>}
                 {row.include && (
                   <div className="grid grid-cols-1 gap-2 sm:grid-cols-4">
                     {line.units.length > 1 && (
@@ -250,7 +250,7 @@ function ReceiptForm({ receivable, options, existing }: { receivable: Receivable
                       </>
                     )}
                     <TextField label="Refused at the dock" inputMode="decimal" value={row.refused} onChange={(value) => set(line.purchaseOrderLineId, { refused: value })}
-                      description="Not taken in; stays owed. A rejection case is opened when posted." />
+                      description="Not taken in; stays owed. A rejection case is opened when finalised." />
                     {Number(row.refused) > 0 && (
                       <>
                         <Select label="Refusal reason" selectedKey={row.refusalCode} onSelectionChange={(value) => set(line.purchaseOrderLineId, { refusalCode: String(value) })}
@@ -258,7 +258,7 @@ function ReceiptForm({ receivable, options, existing }: { receivable: Receivable
                         <TextField label="Explanation" isRequired={row.refusalCode === "other"} value={row.refusalReason} onChange={(value) => set(line.purchaseOrderLineId, { refusalReason: value })} />
                       </>
                     )}
-                    <TextField label="Presented at the dock" inputMode="decimal" value={row.presented} onChange={(value) => set(line.purchaseOrderLineId, { presented: value })}
+                    <TextField label="Brought to the gate" inputMode="decimal" value={row.presented} onChange={(value) => set(line.purchaseOrderLineId, { presented: value })}
                       description="If counted: must equal taken in + refused." />
                     {line.trackingType === "batch" && row.lots.length <= 1 && (
                       <>
@@ -273,7 +273,7 @@ function ReceiptForm({ receivable, options, existing }: { receivable: Receivable
                     )}
                     {line.trackingType === "batch" && row.lots.length > 1 && (
                       <div className="flex flex-col gap-2 sm:col-span-4">
-                        <p className="text-sm font-medium">Lots <span className="font-normal text-text-muted">· allocated {quantity(sumOf(row.lots.map((lot) => lot.quantity)))} of {quantity(Number(row.received || 0))} {enteredCode}
+                        <p className="text-sm font-medium">Lots <span className="font-normal text-text-muted">· matched {quantity(sumOf(row.lots.map((lot) => lot.quantity)))} of {quantity(Number(row.received || 0))} {enteredCode}
                           {sumOf(row.lots.map((lot) => lot.quantity)) !== Number(row.received || 0) && <span className="text-danger"> · every unit received must be in a lot</span>}</span></p>
                         {row.lots.map((lot, index) => {
                           const change = (patch: Partial<Lot>) => set(line.purchaseOrderLineId, { lots: row.lots.map((entry, position) => (position === index ? { ...entry, ...patch } : entry)) });
@@ -306,7 +306,7 @@ function ReceiptForm({ receivable, options, existing }: { receivable: Receivable
           })}
         </div>
       </FormSection>
-      <FormSection columns={1} title="Receiving notes" description="Attach the challan, packing slips and photos from the receipt once it is saved; they can be cited as evidence on discrepancies.">
+      <FormSection columns={1} title="Receiving notes" description="After saving, attach the challan, packing slips and photos; they back up any receiving problem.">
         <TextArea label="Notes" value={header.notes} onChange={setField("notes")} />
       </FormSection>
     </DocumentFormPage>

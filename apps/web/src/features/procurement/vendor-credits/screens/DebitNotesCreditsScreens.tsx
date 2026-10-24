@@ -42,7 +42,7 @@ export function DebitNotesCreditsScreen() {
   const canCreate = Boolean(options.data?.permissions.claimsManage || options.data?.permissions.creditsManage);
   const columns = useMemo<ColumnDef<ListRow, unknown>[]>(() => [
     { id: "number", header: "Number", cell: ({ row }) => <span className="font-medium tabular-nums">{row.original.number}</span> },
-    { id: "type", header: "Type", cell: ({ row }) => (row.original.kind === "claim" ? "Debit note to supplier" : "Supplier credit") },
+    { id: "type", header: "Type", cell: ({ row }) => (row.original.kind === "claim" ? "Debit note to supplier" : "Supplier credit note") },
     { id: "supplier", header: "Supplier", cell: ({ row }) => row.original.supplierName ?? "—" },
     { id: "origin", header: "Origin / supplier ref", cell: ({ row }) => <span>{row.original.kind === "credit" ? row.original.originLabel : "Claim"}
       {row.original.supplierCreditNoteNumber && <span className="block text-xs text-text-muted">{row.original.supplierCreditNoteNumber}</span>}</span> },
@@ -56,26 +56,26 @@ export function DebitNotesCreditsScreen() {
   ], []);
   const filtered = search || view !== "all" || supplierId !== "any";
   return (
-    <EnterpriseListPage header={{ title: "Debit Notes & Supplier Credits",
-      description: "Claims raised with suppliers and the credits suppliers give. A debit claim is a claim — it changes nothing in Accounts Payable; a vendor credit is posted through Finance and then applied to bills or refunded.",
+    <EnterpriseListPage header={{ title: "Debit & Credit Notes",
+      description: "Debit notes ask the supplier for money back; supplier credit notes record what they give back.",
       primaryAction: canCreate ? <LinkButton variant="primary" href="/procurement/debit-notes-credits/new"><Plus className="size-4" aria-hidden="true" />New</LinkButton> : undefined }}
       savedViews={{ views: (query.data?.views ?? options.data?.views ?? [{ key: "all", label: "All" }]).map((entry) => ({ id: entry.key,
         label: entry.key === "claims" || entry.key === "credits" || entry.key === "all" ? entry.label : `${(entry as { group?: string }).group === "claims" ? "Claims" : "Credits"} · ${entry.label}` })), activeViewId: view, onSelect: setView }}
       actionBar={{ end: <ListStateViews listKey="debit-notes-credits" list={list} />,  start: (
         <>
-          <SearchField aria-label="Search debit claims and credits" placeholder="Number, supplier, supplier credit note" className="w-full sm:w-80" value={search} onChange={setSearch} />
+          <SearchField aria-label="Search debit notes and credits" placeholder="Number, supplier, supplier credit note" className="w-full sm:w-80" value={search} onChange={setSearch} />
           <SupplierFilter known={options.data?.suppliers ?? []} value={supplierId} onChange={(id) => setSupplierId(id || "any")} />
         </>
       ) }}>
-      <EnterpriseDataGrid<ListRow> aria-label="Debit claims and vendor credits" columns={columns} data={rows} getRowId={(row) => `${row.kind}-${row.id}`}
+      <EnterpriseDataGrid<ListRow> aria-label="Debit notes and supplier credit notes" columns={columns} data={rows} getRowId={(row) => `${row.kind}-${row.id}`}
         state={query.isLoading ? "loading" : query.isError ? "error" : rows.length === 0 ? (filtered ? "no-results" : "empty") : "ready"}
-        loadingContent={<LoadingState label="Loading debit claims and credits" rows={6} />}
-        errorContent={<ErrorState title="Could not load debit claims and credits" description={errorMessage(query.error)} action={{ label: "Try again", onPress: () => void query.refetch() }} />}
-        emptyContent={<EmptyState title="No debit claims or vendor credits yet" description="Raise a debit claim to a supplier, or record the credit a supplier gave." />}
+        loadingContent={<LoadingState label="Loading debit notes and credits" rows={6} />}
+        errorContent={<ErrorState title="Could not load debit notes and credits" description={errorMessage(query.error)} action={{ label: "Try again", onPress: () => void query.refetch() }} />}
+        emptyContent={<EmptyState title="No debit notes or supplier credit notes yet" description="Raise a debit note to a supplier, or record the credit a supplier gave." />}
         noResultsContent={<NoResultsState title="Nothing in this view" description="Try another view, supplier or search." />}
         onRowClick={(row) => router.push(row.href)}
         renderMobileCard={(row) => <div className="flex flex-col gap-1"><span className="font-medium tabular-nums">{row.number} · {row.supplierName}</span>
-          <span className="text-xs text-text-muted">{row.kind === "claim" ? "Debit note" : "Supplier credit"} · {row.statusLabel} · {money(row.currencyCode, row.total)}</span></div>} />
+          <span className="text-xs text-text-muted">{row.kind === "claim" ? "Debit note" : "Supplier credit note"} · {row.statusLabel} · {money(row.currencyCode, row.total)}</span></div>} />
     </EnterpriseListPage>
   );
 }
@@ -91,20 +91,20 @@ export function NewDebitNoteOrCreditScreen({ billId, returnId, supplierId }: { b
   const card = "flex flex-col gap-2 rounded-lg border border-border bg-surface p-5 text-left transition hover:border-brand";
   return (
     <div className="flex flex-col gap-4">
-      <PageHeader title="What are you recording?" description="A claim you raise with the supplier is not a credit: the payable changes only when the supplier's credit is recorded and posted." />
+      <PageHeader title="What are you recording?" description="A debit note is a claim, not a credit: what you owe changes only when their credit is final." />
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         {options.data.permissions.claimsManage && (
           <Link className={card} href={`/procurement/debit-notes-credits/claims/new${suffix}`}>
             <FileMinus className="size-6 text-brand" aria-hidden="true" />
-            <span className="text-base font-semibold">Issue Debit Claim to Supplier</span>
+            <span className="text-base font-semibold">Issue Debit Note to Supplier</span>
             <span className="text-sm text-text-muted">Claim from the supplier for returned goods, overbilling, a price difference or a deficient service. The supplier accepts, partly accepts or rejects it; no accounting until their credit is recorded.</span>
           </Link>
         )}
         {options.data.permissions.creditsManage && (
           <Link className={card} href={`/procurement/debit-notes-credits/vendor-credits/new${suffix}`}>
             <ReceiptText className="size-6 text-brand" aria-hidden="true" />
-            <span className="text-base font-semibold">Record Vendor Credit</span>
-            <span className="text-sm text-text-muted">The supplier issued a credit note, or accepted your debit claim. Posted through Finance, it reduces what you owe — applied to bills or refunded by the supplier.</span>
+            <span className="text-base font-semibold">Record Supplier Credit Note</span>
+            <span className="text-sm text-text-muted">The supplier issued a credit note, or accepted your debit note. Recorded through Finance, it reduces what you owe — applied to bills or refunded by the supplier.</span>
           </Link>
         )}
       </div>

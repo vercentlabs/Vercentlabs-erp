@@ -184,7 +184,7 @@ export function RejectionDetailScreen({ rejectionId }: { rejectionId: string }) 
                   { label: "Where it came from", value: rejection.sourceLabel },
                   { label: "Product", value: `${rejection.product?.code ? `${rejection.product.code} · ` : ""}${rejection.description}` },
                   { label: "Ordered on the line", value: `${quantity(rejection.orderedQuantity)} ${rejection.uom?.code ?? ""}` },
-                  { label: "Presented at the dock", value: rejection.presentedQuantity ? quantity(rejection.presentedQuantity) : "—" },
+                  { label: "Brought to the gate", value: rejection.presentedQuantity ? quantity(rejection.presentedQuantity) : "—" },
                   { label: "Received on the GRN line", value: rejection.receiptReceivedQuantity ? quantity(rejection.receiptReceivedQuantity) : "Nothing (not received)" },
                   { label: "Rejected", value: `${quantity(rejection.quantity)} ${rejection.uom?.code ?? ""}${rejection.conversionFactor !== "1.000000" ? ` = ${quantity(rejection.baseQuantity)} in stock units` : ""}` },
                   { label: "Reason", value: [rejection.reasonLabel, ...rejection.reasonTags.map((tag) => tag.label)].join(", ") },
@@ -200,8 +200,8 @@ export function RejectionDetailScreen({ rejectionId }: { rejectionId: string }) 
           <TabPanel id="resolution">
             <div className="flex flex-col gap-4 pt-4">
               <Panel title="Resolution" description={rejection.stage === "before_custody"
-                ? "Refused goods were never received: the order still owes them until a replacement arrives on a normal receipt, or the outstanding quantity is cancelled."
-                : "Received goods stay received on the GRN. Blocked goods are returned to the supplier, disposed of with evidence, or exceptionally accepted back."}>
+                ? "Refused goods were never received: the order still owes them until a replacement arrives or the rest is cancelled."
+                : "Received goods stay on the GRN. Blocked goods are returned, disposed of with evidence, or accepted back."}>
                 <Facts columns={4} items={[
                   { label: "Open", value: quantity(rejection.open) }, { label: "Returned", value: quantity(rejection.returned) },
                   { label: "Disposed of", value: quantity(rejection.disposed) }, { label: "Accepted back", value: quantity(rejection.released) },
@@ -234,7 +234,7 @@ export function RejectionDetailScreen({ rejectionId }: { rejectionId: string }) 
                       : `${rejection.inspection.number} (${statusLabel(rejection.inspection.status)}, ${quantity(rejection.inspection.rejected)} rejected)`) : "—" },
                 ]} />
               </Panel>
-              <Panel title="Inventory movements" description="Posted by Inventory: quarantine, return, disposal or acceptance. A refusal at the dock moves nothing.">
+              <Panel title="Inventory movements" description="Recorded by Inventory: on hold for a quality check, return, disposal or acceptance. A refusal at the dock moves nothing.">
                 {!detail.movements.length ? <p className="text-sm text-text-muted">No stock moved for this case.</p> : (
                   <ul className="flex flex-col divide-y divide-border text-sm">
                     {detail.movements.map((movement) => (
@@ -250,9 +250,9 @@ export function RejectionDetailScreen({ rejectionId }: { rejectionId: string }) 
           {detail.financial && (
             <TabPanel id="finance">
               <div className="pt-4">
-                <Panel title="Supplier bills on this line" description="Bills are never changed by a rejection. A posted bill for goods that are not acceptable is corrected by a vendor credit.">
+                <Panel title="Supplier bills on this line" description="A rejection never changes a bill. A final bill for rejected goods is corrected by a supplier credit note.">
                   <Facts columns={4} items={[
-                    { label: "Billing basis", value: statusLabel(detail.financial.billingBasis) }, { label: "Billed (posted)", value: quantity(detail.financial.postedBilled) },
+                    { label: "Billing basis", value: statusLabel(detail.financial.billingBasis) }, { label: "Billed (final)", value: quantity(detail.financial.postedBilled) },
                     { label: "May be billed", value: quantity(detail.financial.billable) }, { label: "Mismatch", value: detail.financial.mismatch ? quantity(detail.financial.mismatch) : "None" },
                   ]} />
                   <ul className="flex flex-col divide-y divide-border text-sm">
@@ -295,7 +295,7 @@ function Evidence({ detail }: { detail: RejectionDetail }) {
   const upload = useMutation({ mutationFn: (file: File) => uploadRejectionFile(detail.rejection.id, file),
     onSuccess: () => void queryClient.invalidateQueries({ queryKey: scopedQueryKey(workspace, "procurement", "rejection", detail.rejection.id) }) });
   return (
-    <Panel title="Evidence" description="Photos, inspection records and supplier correspondence. Files cited from the goods receipt are listed too; evidence is kept once the case is resolved."
+    <Panel title="Evidence" description="Photos, inspection records and letters to the supplier, including files from the goods receipt."
       actions={detail.actions.attach ? (
         <>
           <input ref={input} type="file" className="hidden" onChange={(event) => { const file = event.target.files?.[0]; if (file) upload.mutate(file); event.target.value = ""; }} />
@@ -392,10 +392,10 @@ function ReturnDialog({ detail, onClose, onDone }: { detail: RejectionDetail; on
   const [serials, setSerials] = useState(detail.rejection.serialNumbers.join(", "));
   const [key] = useState(() => crypto.randomUUID());
   const run = useMutation({ mutationFn: () => returnRejection(detail.rejection.id, { quantity: qty, reason, serialNumbers: serials || undefined, idempotencyKey: key }),
-    onSuccess: (result) => onDone(`Purchase return ${result.returnNumber} posted: the goods left stock once. A vendor credit corrects anything already billed.`) });
+    onSuccess: (result) => onDone(`Purchase return ${result.returnNumber} final: the goods left stock once. A supplier credit note corrects anything already billed.`) });
   return (
     <Shell title="Create Purchase Return" description={`From ${detail.rejection.receiptNumber}, for goods rejected on ${detail.rejection.rejectionNumber}.`} error={run.error} onClose={onClose}
-      label="Post return" isLoading={run.isPending || run.isSuccess} isDisabled={!Number(qty) || reason.trim().length < 3} onPress={() => run.mutate()}>
+      label="Finalise return" isLoading={run.isPending || run.isSuccess} isDisabled={!Number(qty) || reason.trim().length < 3} onPress={() => run.mutate()}>
       <TextField label="Quantity" inputMode="decimal" value={qty} onChange={setQty} description={`At most ${quantity(max)}.`} />
       {detail.rejection.serialNumbers.length > 0 && <TextField label="Serial numbers" value={serials} onChange={setSerials} />}
       <TextArea label="Reason" isRequired value={reason} onChange={setReason} />
@@ -439,7 +439,7 @@ export function DockRejectionDialog({ orderId, lines, onClose, onDone }: { order
             <span className="text-sm font-medium">{line.lineNumber}. {line.description} <span className="text-text-muted">· remaining {quantity(line.progress?.remainingToReceive)} {line.uom.code}</span></span>
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
               <TextField label="Refused" inputMode="decimal" value={row.refused} onChange={(value) => set(line.id, { refused: value })} />
-              <TextField label="Presented" inputMode="decimal" value={row.presented} onChange={(value) => set(line.id, { presented: value })} description="If known." />
+              <TextField label="Brought" inputMode="decimal" value={row.presented} onChange={(value) => set(line.id, { presented: value })} description="If known." />
               <Select label="Reason" selectedKey={row.reason} onSelectionChange={(value) => set(line.id, { reason: String(value) })} options={REJECTION_REASON_OPTIONS} />
             </div>
             {Number(row.refused) > 0 && (
@@ -484,7 +484,7 @@ export function ReceiptRejectionDialog({ detail, onClose, onDone }: { detail: Go
   const fromInspection = useMutation({ mutationFn: () => rejectFromInspection(inspectionHold!.qualityInspectionId!),
     onSuccess: (result) => onDone(`${result.rejectionNumber} recorded from the inspection's decision.`) });
   return (
-    <Shell title="Record rejection after receipt" description="The posted receipt keeps what was received. Rejected goods are blocked until returned, disposed of or accepted back." error={run.error ?? fromInspection.error}
+    <Shell title="Record rejection after receipt" description="The final receipt keeps what was received. Rejected goods are blocked until returned, disposed of or accepted back." error={run.error ?? fromInspection.error}
       onClose={onClose} label="Record rejection" isLoading={run.isPending || run.isSuccess} isDisabled={!Number(qty) || (reason === "other" && description.trim().length < 3)} onPress={() => run.mutate()}>
       <Select label="Receipt line" selectedKey={lineId} onSelectionChange={(value) => { setLineId(String(value)); setSource("usable"); }}
         options={lines.map((entry) => ({ value: entry.id, label: `PO line ${entry.orderLineNumber}: ${entry.description}` }))} />
@@ -519,7 +519,7 @@ export function InspectionRejectionsPanel({ inspectionId }: { inspectionId: stri
   if (!visible || !query.data?.linked) return null;
   const { rows, decided, canRecord } = query.data;
   return (
-    <Panel title="Receiving rejections" description="Goods this inspection rejected stay blocked in the quality location; the case is resolved by a purchase return, a disposal or an exceptional acceptance."
+    <Panel title="Receiving rejections" description="Rejected goods stay blocked in the quality location until returned, disposed of or accepted."
       actions={canRecord ? <Button size="compact" variant="primary" isLoading={record.isPending} onPress={() => record.mutate()}>Record Quality Rejection</Button> : undefined}>
       {record.error && <Notice>{errorMessage(record.error)}</Notice>}
       <RejectionTable rows={rows} empty={decided ? "No rejection recorded for this inspection yet." : "When the inspection fails goods, record the rejection here."} />

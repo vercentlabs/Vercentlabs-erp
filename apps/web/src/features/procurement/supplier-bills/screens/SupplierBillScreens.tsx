@@ -31,6 +31,7 @@ import {
   type BillDetail, type BillRow,
 } from "../api/supplier-bills-api";
 import { PaymentSchedulePanel } from "./PaymentSchedule";
+import { BillInbox } from "./BillInbox";
 import { LandedCostPanel } from "./LandedCostPanel";
 
 import { MatchBadge, TwoWayMatching } from "./TwoWayMatching";
@@ -41,7 +42,7 @@ type Tone = "neutral" | "info" | "success" | "warning" | "danger";
 const DOC_TONE: Record<string, Tone> = { draft: "neutral", awaiting_approval: "warning", posted: "success", cancelled: "neutral", reversed: "danger" };
 const PAY_TONE: Record<string, Tone> = { unpaid: "warning", partially_paid: "info", paid: "success", not_applicable: "neutral" };
 const MATCH_TONE: Record<string, Tone> = { matched: "success", mismatch: "danger", accepted_variance: "warning", pending_receipt: "warning", not_applicable: "neutral" };
-const LABELS: Record<string, string> = { awaiting_approval: "Awaiting approval", not_applicable: "Not applicable", accepted_variance: "Variance accepted", pending_receipt: "Pending receipt", due_today: "Due today", not_due: "Not due" };
+const LABELS: Record<string, string> = { awaiting_approval: "Awaiting approval", not_applicable: "Not applicable", accepted_variance: "Difference accepted", pending_receipt: "Pending receipt", due_today: "Due today", not_due: "Not due" };
 const label = (value: string) => LABELS[value] ?? statusLabel(value);
 export const DocStatus = ({ status }: { status: string }) => <StatusBadge tone={DOC_TONE[status] ?? "neutral"}>{label(status)}</StatusBadge>;
 const PayStatus = ({ status }: { status: string }) => (status === "not_applicable" ? null : <StatusBadge tone={PAY_TONE[status] ?? "neutral"}>{label(status)}</StatusBadge>);
@@ -71,16 +72,17 @@ export function SupplierBillsScreen() {
     ...Object.fromEntries(Object.entries(extra).filter(([, value]) => value !== "any")) }), [view, search, supplierId, extra]);
   const [pageIndex, setPageIndex] = usePageIndex(filters);
   const toCreate = view === "to_create";
+  const byEmail = view === "by_email";
   const gstOn = Boolean(options.data?.gstOn);
   const query = useQuery({ queryKey: scopedQueryKey(workspace, "procurement", "bills", filters, pageIndex),
-    queryFn: () => listBillsPage({ ...filters, ...pageFilters(pageIndex) }), placeholderData: (previous) => previous, enabled: !toCreate });
+    queryFn: () => listBillsPage({ ...filters, ...pageFilters(pageIndex) }), placeholderData: (previous) => previous, enabled: !toCreate && !byEmail });
   const rows = query.data?.rows ?? [];
   const columns = useMemo<ColumnDef<BillRow, unknown>[]>(() => [
     { id: "number", header: "Bill", cell: ({ row }) => <span className="font-medium tabular-nums">{row.original.billNumber}</span> },
     { id: "invoice", header: "Supplier invoice", cell: ({ row }) => row.original.supplierInvoiceNumber ?? "—" },
     { id: "supplier", header: "Supplier", cell: ({ row }) => row.original.supplierName },
     { id: "date", header: "Invoice date", cell: ({ row }) => calendarDate(row.original.supplierInvoiceDate) },
-    { id: "posting", header: "Posting date", cell: ({ row }) => calendarDate(row.original.postingDate) },
+    { id: "posting", header: "Accounting date", cell: ({ row }) => calendarDate(row.original.postingDate) },
     ...([{ id: "due", header: "Due", cell: ({ row }: { row: { original: BillRow } }) => <span className={row.original.dueStatus === "overdue" ? "text-danger" : ""}>{row.original.dueDate ? calendarDate(row.original.dueDate) : "—"}</span> }]),
     { id: "order", header: "PO", cell: ({ row }) => row.original.purchaseOrderNumber ?? (row.original.sourceType === "direct" ? "Direct" : "—") },
     { id: "total", header: "Total", cell: ({ row }) => <span className="tabular-nums">{money(row.original.currencyCode, row.original.invoiceTotal)}</span> },
@@ -99,7 +101,7 @@ export function SupplierBillsScreen() {
   ], [gstOn]);
   return (
     <EnterpriseListPage header={{ title: "Purchase Bills",
-      description: "What suppliers have charged: posted bills are Accounts Payable; payments and credits settle them.",
+      description: "What suppliers have charged: final bills are Accounts Payable; payments and credits settle them.",
       primaryAction: options.data?.capabilities.create ? <NewDocumentMenu label="New Purchase Bill" sources={[
         { id: "grn", label: "From a goods receipt (GRN)", href: "/procurement/supplier-bills?view=to-create" },
         { id: "po", label: "From a purchase order", href: "/procurement/supplier-bills/new?source=po" },
@@ -112,7 +114,7 @@ export function SupplierBillsScreen() {
           <Select aria-label="Source" size="compact" selectedKey={extra.source} onSelectionChange={setFilter("source")}
             options={[{ value: "any", label: "Any source" }, { value: "purchase_order", label: "Purchase order" }, { value: "direct", label: "Direct (no PO)" }]} />
           <Select aria-label="Document status" size="compact" selectedKey={extra.documentStatus} onSelectionChange={setFilter("documentStatus")}
-            options={[{ value: "any", label: "Any status" }, { value: "draft", label: "Draft" }, { value: "posted", label: "Posted" }, { value: "cancelled", label: "Cancelled" }, { value: "reversed", label: "Reversed" }]} />
+            options={[{ value: "any", label: "Any status" }, { value: "draft", label: "Draft" }, { value: "posted", label: "Final" }, { value: "cancelled", label: "Cancelled" }, { value: "reversed", label: "Cancelled" }]} />
           <Select aria-label="Payment status" size="compact" selectedKey={extra.paymentStatus} onSelectionChange={setFilter("paymentStatus")}
             options={[{ value: "any", label: "Any payment" }, { value: "unpaid", label: "Unpaid" }, { value: "partially_paid", label: "Partially paid" }, { value: "paid", label: "Paid" }]} />
           <Select aria-label="Matching result" size="compact" selectedKey={extra.matchingResult} onSelectionChange={setFilter("matchingResult")}
@@ -121,12 +123,12 @@ export function SupplierBillsScreen() {
           <Select aria-label="Matching issue" size="compact" selectedKey={extra.issue} onSelectionChange={setFilter("issue")}
             options={[{ value: "any", label: "Any issue" }, { value: "missing_grn", label: "Missing GRN" }, { value: "insufficient_received", label: "Insufficient received quantity" },
               { value: "pending_quality", label: "Pending quality acceptance" }, { value: "price_mismatch", label: "Price mismatch" }, { value: "quantity_exceeded", label: "Quantity exceeded" },
-              { value: "product_mismatch", label: "Product mismatch" }, { value: "duplicate_invoice", label: "Duplicate invoice" }, { value: "unresolved_variance", label: "Unresolved commercial variance" }]} />
+              { value: "product_mismatch", label: "Product mismatch" }, { value: "duplicate_invoice", label: "Duplicate invoice" }, { value: "unresolved_variance", label: "Unresolved commercial difference" }]} />
           <Select aria-label="Due status" size="compact" selectedKey={extra.due} onSelectionChange={setFilter("due")}
             options={[{ value: "any", label: "Any due date" }, { value: "not_due", label: "Not due" }, { value: "overdue", label: "Overdue" }]} />
         </>
       ) }}>
-      {toCreate ? <BillsToCreate supplierId={supplierId === "any" ? undefined : supplierId} search={search.trim() || undefined} canCreate={Boolean(options.data?.capabilities.create)} /> : (
+      {byEmail ? <BillInbox canCreate={Boolean(options.data?.capabilities.create)} /> : toCreate ? <BillsToCreate supplierId={supplierId === "any" ? undefined : supplierId} search={search.trim() || undefined} canCreate={Boolean(options.data?.capabilities.create)} /> : (
       <EnterpriseDataGrid<BillRow> aria-label="Purchase bills" columns={columns} data={rows} getRowId={(row) => row.id} {...gridPaging(query.data?.total ?? 0, pageIndex, setPageIndex)}
         state={query.isLoading ? "loading" : query.isError ? "error" : rows.length === 0 ? (search || supplierId !== "any" || view !== "all" || Object.values(extra).some((value) => value !== "any") ? "no-results" : "empty") : "ready"}
         loadingContent={<LoadingState label="Loading bills" rows={6} />}
@@ -164,7 +166,7 @@ function BillsToCreate({ supplierId, search, canCreate }: { supplierId?: string;
       state={query.isLoading ? "loading" : query.isError ? "error" : rows.length === 0 ? (search || supplierId ? "no-results" : "empty") : "ready"}
       loadingContent={<LoadingState label="Loading goods receipts to bill" rows={6} />}
       errorContent={<ErrorState title="Could not load goods receipts" description={errorMessage(query.error)} action={{ label: "Try again", onPress: () => void query.refetch() }} />}
-      emptyContent={<EmptyState title="No GRNs waiting for a bill" description="Every posted goods receipt is billed. Record a direct expense?"
+      emptyContent={<EmptyState title="No GRNs waiting for a bill" description="Every final goods receipt is billed. Record a direct expense?"
         action={canCreate ? { label: "Direct expense", onPress: () => router.push("/procurement/supplier-bills/new?source=direct") } : undefined} />}
       noResultsContent={<NoResultsState title="Nothing to bill for this search" description="Try another supplier or search." />}
       onRowClick={(row) => router.push(canCreate ? billHref(row) : `/procurement/goods-receipts/${row.id}`)}
@@ -201,7 +203,7 @@ export function SupplierBillDetailScreen({ billId }: { billId: string }) {
   const query = useQuery({ queryKey: scopedQueryKey(workspace, "procurement", "bill", billId), queryFn: () => getBill(billId) });
   const [dialog, setDialog] = useState<DialogName | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
-  const approve = useMutation({ mutationFn: () => billAction(billId, "approve"), onSuccess: () => changed("Approved and posted to Accounts Payable.") });
+  const approve = useMutation({ mutationFn: () => billAction(billId, "approve"), onSuccess: () => changed("Approved and recorded in Accounts Payable.") });
   function changed(message: string) { setDialog(null); setNotice(message); void queryClient.invalidateQueries({ queryKey: scopedQueryKey(workspace, "procurement") }); }
   if (query.isLoading) return <LoadingState label="Loading supplier bill" />;
   if (!query.data) return <ErrorState title="Could not load this bill" description={errorMessage(query.error)} action={{ label: "Retry", onPress: () => query.refetch() }} />;
@@ -212,10 +214,10 @@ export function SupplierBillDetailScreen({ billId }: { billId: string }) {
     <div className="flex flex-col gap-4">
       {notice && <Notice tone="success">{notice}</Notice>}
       {approve.error && <Notice>{errorMessage(approve.error)}</Notice>}
-      {bill.documentStatus === "reversed" && <Notice tone="warning">Reversed {dateTime(bill.reversedAt)}{bill.reversedByName ? ` by ${bill.reversedByName}` : ""}: {bill.reversalReason}. Its journals were reversed; it no longer counts as billed.</Notice>}
-      {bill.documentStatus === "awaiting_approval" && <Notice tone="warning">Awaiting Finance&apos;s approval. Nothing is posted until it is approved.</Notice>}
+      {bill.documentStatus === "reversed" && <Notice tone="warning">Cancelled {dateTime(bill.reversedAt)}{bill.reversedByName ? ` by ${bill.reversedByName}` : ""}: {bill.reversalReason}. Its journals were cancelled; it no longer counts as billed.</Notice>}
+      {bill.documentStatus === "awaiting_approval" && <Notice tone="warning">Awaiting Finance&apos;s approval. Nothing is final until it is approved.</Notice>}
       {detail.duplicates.length > 0 && <Notice tone="warning">Possible duplicate supplier invoice: {detail.duplicates.map((entry) => `${entry.billNumber} (${label(entry.status)})`).join(", ")}.</Notice>}
-      {bill.matchingResult === "mismatch" && <Notice tone="warning">A price differs from the purchase order. Posting is blocked until the bill is corrected, the order amended, or the variance accepted with a reason.</Notice>}
+      {bill.matchingResult === "mismatch" && <Notice tone="warning">A price differs from the purchase order. Finalising is blocked until the bill is corrected, the order changed, or the difference accepted with a reason.</Notice>}
       <DocumentChain type="supplier_bill" id={bill.id} />
       <RecordDetailsPage header={{
         title: bill.billNumber,
@@ -226,19 +228,19 @@ export function SupplierBillDetailScreen({ billId }: { billId: string }) {
           { label: "Bill total", value: c(bill.invoiceTotal) },
           { label: "Balance due", value: <span className="font-semibold">{c(bill.balanceDue)}</span> }, { label: "Due date", value: bill.dueDate ? calendarDate(bill.dueDate) : "—" },
         ],
-        primaryAction: actions.post ? <Button variant="primary" onPress={() => setDialog("post")}>Validate &amp; Post</Button>
-          : actions.approve ? <Button variant="primary" isLoading={approve.isPending} onPress={() => approve.mutate()}>Approve &amp; Post</Button>
+        primaryAction: actions.post ? <Button variant="primary" onPress={() => setDialog("post")}>Validate &amp; Finalise</Button>
+          : actions.approve ? <Button variant="primary" isLoading={approve.isPending} onPress={() => approve.mutate()}>Approve &amp; Finalise</Button>
             : actions.recordPayment ? <Button variant="primary" onPress={() => setDialog("pay")}>Record Payment</Button> : undefined,
         secondaryActions: (
           <div className="flex flex-wrap gap-2">
             {actions.edit && <LinkButton variant="secondary" href={`/procurement/supplier-bills/${bill.id}/edit`}><Pencil className="size-4" aria-hidden="true" />Edit</LinkButton>}
-            {actions.createCredit && <LinkButton variant="secondary" href={`/procurement/debit-notes-credits/vendor-credits/new?supplierBillId=${bill.id}${bill.supplierId ? `&supplierId=${bill.supplierId}` : ""}`}>Record Vendor Credit</LinkButton>}
+            {actions.createCredit && <LinkButton variant="secondary" href={`/procurement/debit-notes-credits/vendor-credits/new?supplierBillId=${bill.id}${bill.supplierId ? `&supplierId=${bill.supplierId}` : ""}`}>Record Supplier Credit Note</LinkButton>}
             {bill.documentStatus === "posted" && <LinkButton variant="ghost" href={`/assets/capitalization/invoices/${bill.id}`}>Create Assets</LinkButton>}
-            {actions.raiseClaim && <LinkButton variant="ghost" href={`/procurement/debit-notes-credits/claims/new?supplierBillId=${bill.id}${bill.supplierId ? `&supplierId=${bill.supplierId}` : ""}`}>Create Debit Claim</LinkButton>}
+            {actions.raiseClaim && <LinkButton variant="ghost" href={`/procurement/debit-notes-credits/claims/new?supplierBillId=${bill.id}${bill.supplierId ? `&supplierId=${bill.supplierId}` : ""}`}>Create Debit Note</LinkButton>}
             {actions.applyAdvance && <Button variant="ghost" onPress={() => setDialog("advance")}>Apply advance</Button>}
             {actions.applyCredit && <Button variant="ghost" onPress={() => setDialog("credit")}>Apply credit</Button>}
             {actions.cancel && <Button variant="ghost" onPress={() => setDialog("cancel")}>Cancel draft</Button>}
-            {actions.reverse && <Button variant="ghost" onPress={() => setDialog("reverse")}>Reverse</Button>}
+            {actions.reverse && <Button variant="ghost" onPress={() => setDialog("reverse")}>Cancel</Button>}
             <a className={buttonVariants({ variant: "ghost" })} href={voucherUrl(bill.id, true)} target="_blank" rel="noreferrer"><Eye className="size-4" aria-hidden="true" />Voucher</a>
             <a className={buttonVariants({ variant: "ghost" })} href={voucherUrl(bill.id)} download><Download className="size-4" aria-hidden="true" />PDF</a>
           </div>
@@ -248,7 +250,7 @@ export function SupplierBillDetailScreen({ billId }: { billId: string }) {
           <TabList aria-label="Supplier bill sections">
             <Tab id="overview">Overview</Tab>
             <Tab id="items">Items &amp; Expenses</Tab>
-            <Tab id="taxes">Taxes &amp; Withholding</Tab>
+            <Tab id="taxes">Taxes &amp; TDS</Tab>
             <Tab id="matching">Matching</Tab>
             {detail.paymentSchedule && <Tab id="payment-schedule">Payment Schedule</Tab>}
             <Tab id="payments">Payments &amp; Credits</Tab>
@@ -266,14 +268,14 @@ export function SupplierBillDetailScreen({ billId }: { billId: string }) {
                   { label: "Supplier GSTIN", value: bill.supplierTaxRegistration?.gstin ?? bill.supplier?.gstin ?? "Unregistered" },
                   { label: "Buying company", value: bill.buyingRegistration ? `${bill.buyingRegistration.legalName ?? bill.buyingRegistration.name ?? ""}${bill.buyingRegistration.gstin ? ` · ${bill.buyingRegistration.gstin}` : ""}` : "—" },
                   { label: "Invoice number", value: bill.supplierInvoiceNumber ?? "—" },
-                  { label: "Invoice date", value: calendarDate(bill.supplierInvoiceDate) }, { label: "Posting date", value: calendarDate(bill.postingDate) },
+                  { label: "Invoice date", value: calendarDate(bill.supplierInvoiceDate) }, { label: "Accounting date", value: calendarDate(bill.postingDate) },
                   { label: "Source", value: bill.sourceLabel ?? "—" }, { label: "Purchase order", value: bill.purchaseOrderId ? <Link className="text-brand hover:underline" href={`/procurement/purchase-orders/${bill.purchaseOrderId}`}>{bill.purchaseOrderNumber}</Link> : "—" },
                   { label: "Payment terms", value: bill.paymentTerm?.name ?? "—" },
                   ...(bill.dueDateOverrideReason ? [{ label: "Due date changed", value: `${bill.computedDueDate ? `${calendarDate(bill.computedDueDate)} → ` : ""}${bill.dueDate ? calendarDate(bill.dueDate) : "—"}: ${bill.dueDateOverrideReason}` }] : []), { label: "Place of supply", value: `${bill.placeOfSupply ?? "—"}${bill.supplyNature ? ` (${statusLabel(bill.supplyNature)})` : ""}` },
                   { label: "Currency", value: bill.currencyCode === bill.baseCurrencyCode ? bill.currencyCode : `${bill.currencyCode} @ ${bill.exchangeRate} = ${money(bill.baseCurrencyCode, bill.baseCurrencyTotal)}` },
                   { label: "Created", value: `${dateTime(bill.createdAt)}${bill.createdByName ? ` by ${bill.createdByName}` : ""}` },
-                  { label: "Posted", value: bill.postedAt ? `${dateTime(bill.postedAt)}${bill.postedByName ? ` by ${bill.postedByName}` : ""}` : "Not posted" },
-                  ...(bill.matchOverrideReason ? [{ label: "Price variance accepted", value: bill.matchOverrideReason }] : []),
+                  { label: "Final", value: bill.postedAt ? `${dateTime(bill.postedAt)}${bill.postedByName ? ` by ${bill.postedByName}` : ""}` : "Not final" },
+                  ...(bill.matchOverrideReason ? [{ label: "Price difference accepted", value: bill.matchOverrideReason }] : []),
                   ...(bill.duplicateOverrideReason ? [{ label: "Duplicate accepted", value: `${bill.duplicateOverrideReason}${bill.duplicateOverrideByName ? ` (${bill.duplicateOverrideByName})` : ""}` }] : []),
                 ]} />
               </Panel>
@@ -310,7 +312,7 @@ export function SupplierBillDetailScreen({ billId }: { billId: string }) {
           </TabPanel>
           <TabPanel id="taxes">
             <div className="flex flex-col gap-4 pt-4">
-              <Panel title="Tax components" description="Calculated by the shared tax engine from the supplier's state and the place of supply. Reverse-charge tax is self-assessed by Finance, never owed to the supplier.">
+              <Panel title="Tax components" description="Worked out from the supplier's state and the place of supply. Reverse-charge tax is paid by us.">
                 <ul className="flex flex-col divide-y divide-border text-sm">
                   {detail.lines.flatMap((line) => line.taxes.map((tax, index) => (
                     <li key={`${line.id}-${index}`} className="flex flex-wrap justify-between gap-2 py-2"><span>Line {line.lineNumber}: {tax.label} {Number(tax.rate)}%{tax.classification === "reverse_charge" ? " — reverse charge" : ""}</span>
@@ -319,11 +321,13 @@ export function SupplierBillDetailScreen({ billId }: { billId: string }) {
                   {!detail.lines.some((line) => line.taxes.length) && <li className="py-2 text-text-muted">No tax on this bill.</li>}
                 </ul>
               </Panel>
-              <Panel title="Withholding (TDS)">
+              <Panel title="TDS">
                 <Facts columns={3} items={[
                   { label: "Section", value: bill.withholdingSection ? `${bill.withholdingSection.code} · ${bill.withholdingSection.name}` : "None" },
-                  { label: "Withheld", value: c(bill.withholdingTotal) }, { label: "Net payable to supplier", value: c(bill.netPayable) },
+                  { label: "Deducted", value: c(bill.withholdingTotal) }, { label: "Net payable to supplier", value: c(bill.netPayable) },
                   ...(bill.rcmSelfInvoiceNumber ? [{ label: "RCM self-invoice", value: bill.rcmSelfInvoiceNumber }] : []),
+                  ...(bill.irn ? [{ label: "E-invoice IRN", value: <span className="break-all">{bill.irn}</span> }] : []),
+                  ...(bill.advanceWithholdingCredit && Number(bill.advanceWithholdingCredit) > 0 ? [{ label: "TDS already deducted on the advance", value: c(bill.advanceWithholdingCredit) }] : []),
                 ]} />
               </Panel>
             </div>
@@ -331,8 +335,8 @@ export function SupplierBillDetailScreen({ billId }: { billId: string }) {
           <TabPanel id="matching">
             <div className="flex flex-col gap-4 pt-4">
               <TwoWayMatching billId={bill.id} currencyCode={bill.currencyCode} editHref={actions.edit ? `/procurement/supplier-bills/${bill.id}/edit` : undefined} />
-              {bill.sourceType !== "direct" && <Panel title="Goods receipt allocations" description={bill.sourceType === "direct" ? "A direct expense bill has no order to match." : `Matched against ${bill.matchingBasis === "goods_receipt" ? "goods-receipt allocations" : "the purchase order's commitment"}: each line against its order line (agreed price) and the receipt lines it bills.`}>
-                {bill.matchingResult === "pending_receipt" && <Notice tone="warning">Part of this bill is not received (or accepted) yet. It stays a draft until the goods receipt is posted; posting re-checks it.</Notice>}
+              {bill.sourceType !== "direct" && <Panel title="GRNs this bill covers" description={bill.sourceType === "direct" ? "A direct expense bill has no order to match." : `Matched against ${bill.matchingBasis === "goods_receipt" ? "goods-receipt matches" : "the purchase order's commitment"}: each line against its order line (agreed price) and the receipt lines it bills.`}>
+                {bill.matchingResult === "pending_receipt" && <Notice tone="warning">Part of this bill is not received (or accepted) yet. It stays a draft until the goods receipt is final; finalising re-checks it.</Notice>}
                 <ul className="flex flex-col divide-y divide-border text-sm">
                   {detail.lines.filter((line) => line.purchaseOrderLineId).map((line) => (
                     <li key={line.id} className="flex flex-col gap-1 py-2">
@@ -352,8 +356,8 @@ export function SupplierBillDetailScreen({ billId }: { billId: string }) {
           <TabPanel id="accounting">
             <div className="flex flex-col gap-4 pt-4">
               {detail.reconciliation && <Notice tone={detail.reconciliation.matched ? "success" : "warning"}>{detail.reconciliation.matched
-                ? `Reconciles with Accounts Payable: payable ${c(detail.reconciliation.journalPayable)}, settled ${c(String(Number(detail.reconciliation.paid) + Number(detail.reconciliation.credited)))}, outstanding ${c(detail.reconciliation.outstanding)}.`
-                : "The bill does not reconcile with Accounts Payable. Ask Finance to review it."}</Notice>}
+                ? `Agrees with Accounts Payable: payable ${c(detail.reconciliation.journalPayable)}, settled ${c(String(Number(detail.reconciliation.paid) + Number(detail.reconciliation.credited)))}, outstanding ${c(detail.reconciliation.outstanding)}.`
+                : "The bill does not agree with Accounts Payable. Ask Finance to review it."}</Notice>}
               {[["Bill journal", detail.accounting.journal], ["Reverse charge", detail.accounting.reverseCharge], ["Reversal", detail.accounting.reversal]].map(([title, journal]) => journal && typeof journal === "object" ? (
                 <Panel key={String(title)} title={`${title}: ${journal.number}`} description={`${statusLabel(journal.status)} · ${calendarDate(journal.date)}`}>
                   <table className="w-full text-sm"><tbody className="divide-y divide-border">
@@ -364,7 +368,7 @@ export function SupplierBillDetailScreen({ billId }: { billId: string }) {
                   </tbody></table>
                 </Panel>
               ) : null)}
-              {!detail.accounting.journal && <p className="text-sm text-text-muted">Nothing is posted until the bill is posted.</p>}
+              {!detail.accounting.journal && <p className="text-sm text-text-muted">Nothing is final until the bill is finalised.</p>}
             </div>
           </TabPanel>
           <TabPanel id="related">
@@ -374,7 +378,7 @@ export function SupplierBillDetailScreen({ billId }: { billId: string }) {
                   {detail.related.purchaseOrder && <li>Purchase order <Link className="text-brand hover:underline" href={`/procurement/purchase-orders/${detail.related.purchaseOrder.id}`}>{detail.related.purchaseOrder.number}</Link> ({statusLabel(detail.related.purchaseOrder.status)})</li>}
                   {detail.related.receipts.map((entry) => <li key={entry.id}>Goods receipt <Link className="text-brand hover:underline" href={`/procurement/goods-receipts/${entry.id}`}>{entry.number}</Link></li>)}
                   {detail.related.returns.map((entry) => <li key={entry.id}>Purchase return <Link className="text-brand hover:underline" href={`/procurement/purchase-returns/${entry.id}`}>{entry.number}</Link> · {calendarDate(entry.date)} · {entry.reason}</li>)}
-                  {detail.vendorCredits.map((entry) => <li key={entry.id}>Vendor credit <Link className="text-brand hover:underline" href={entry.href}>{entry.number}</Link> · {c(entry.total)} ({label(entry.status)})</li>)}
+                  {detail.vendorCredits.map((entry) => <li key={entry.id}>Supplier credit note <Link className="text-brand hover:underline" href={entry.href}>{entry.number}</Link> · {c(entry.total)} ({label(entry.status)})</li>)}
                   {detail.payments.map((entry) => <li key={entry.id}>Payment {entry.paymentNumber} · {c(entry.amount)}{entry.reversed ? " (reversed)" : ""}</li>)}
                 </ul>
               </Panel>
@@ -398,10 +402,10 @@ export function SupplierBillDetailScreen({ billId }: { billId: string }) {
       </RecordDetailsPage>
       {bill.type === "bill" && <LandedCostPanel billId={bill.id} currencyCode={bill.currencyCode} />}
       {dialog === "post" && <PostDialog detail={detail} onClose={() => setDialog(null)} onDone={changed} />}
-      {dialog === "cancel" && <ReasonDialog title={`Cancel ${bill.billNumber}`} description="A draft that will not be posted. It never had an accounting effect." label="Cancel draft"
+      {dialog === "cancel" && <ReasonDialog title={`Cancel ${bill.billNumber}`} description="A draft that will not be finalised. It never had an accounting effect." label="Cancel draft"
         run={(reason) => billAction(bill.id, "cancel", { reason })} onClose={() => setDialog(null)} onDone={() => changed("Cancelled.")} />}
-      {dialog === "reverse" && <ReasonDialog title={`Reverse ${bill.billNumber}`} description="Only while nothing settled it. Finance reverses its journals and tax entries; the bill is kept." label="Reverse bill"
-        run={(reason) => billAction(bill.id, "reverse", { reason })} onClose={() => setDialog(null)} onDone={() => changed("Reversed.")} />}
+      {dialog === "reverse" && <ReasonDialog title={`Cancel ${bill.billNumber}`} description="Only while nothing settled it. Finance cancels its journals and tax entries; the bill is kept." label="Cancel bill"
+        run={(reason) => billAction(bill.id, "reverse", { reason })} onClose={() => setDialog(null)} onDone={() => changed("Cancelled.")} />}
       {dialog === "pay" && <PaymentDialog detail={detail} onClose={() => setDialog(null)} onDone={changed} />}
       {dialog === "advance" && <ApplyDialog detail={detail} kind="advance" onClose={() => setDialog(null)} onDone={changed} />}
       {dialog === "credit" && <ApplyDialog detail={detail} kind="credit" onClose={() => setDialog(null)} onDone={changed} />}
@@ -417,7 +421,7 @@ function Totals({ detail }: { detail: BillDetail }) {
     ...(Number(bill.reverseChargeTaxTotal) > 0 ? [["Reverse-charge tax (self-assessed)", bill.reverseChargeTaxTotal] as [string, string]] : []),
     ["Invoice total", bill.invoiceTotal, true],
     ...(Number(bill.tcsAmount ?? 0) > 0 ? [["TCS collected by the supplier", bill.tcsAmount ?? "0"] as [string, string]] : []),
-    ...(Number(bill.withholdingTotal) > 0 ? [["TDS withheld", `-${bill.withholdingTotal}`] as [string, string]] : []),
+    ...(Number(bill.withholdingTotal) > 0 ? [["TDS deducted", `-${bill.withholdingTotal}`] as [string, string]] : []),
     ...(Number(bill.roundingAdjustment) !== 0 ? [["Rounding", bill.roundingAdjustment] as [string, string]] : []),
     ["Net payable", bill.netPayable, true],
     ...(bill.supplierStatedTotal ? [["Total on the supplier's invoice", bill.supplierStatedTotal] as [string, string]] : []),
@@ -439,30 +443,30 @@ function Payments({ detail, onChanged }: { detail: BillDetail; onChanged: (messa
   const [reversing, setReversing] = useState<string | null>(null);
   return (
     <>
-      <Panel title="Payments" description="Recorded and posted by Finance. Paid status comes from these, never from a manual choice.">
+      <Panel title="Payments" description="Recorded by Finance. Paid status comes from these, never from a manual choice.">
         {!detail.payments.length ? <p className="text-sm text-text-muted">No payments.</p> : (
           <ul className="flex flex-col divide-y divide-border text-sm">
             {detail.payments.map((entry) => (
               <li key={entry.id} className="flex flex-wrap items-center justify-between gap-2 py-2">
-                <span><span className="font-medium">{entry.paymentNumber}</span> · {calendarDate(entry.date)} · {statusLabel(entry.method)}{entry.reference ? ` · ${entry.reference}` : ""}{entry.reversed ? " · reversed" : ""}</span>
+                <span><span className="font-medium">{entry.paymentNumber}</span> · {calendarDate(entry.date)} · {statusLabel(entry.method)}{entry.reference ? ` · ${entry.reference}` : ""}{entry.reversed ? " · cancelled" : ""}</span>
                 <span className="flex items-center gap-2 tabular-nums">{c(entry.amount)}
-                  {!entry.reversed && detail.actions.reversePayment && <Button size="compact" variant="ghost" onPress={() => setReversing(entry.paymentId)}>Reverse</Button>}</span>
+                  {!entry.reversed && detail.actions.reversePayment && <Button size="compact" variant="ghost" onPress={() => setReversing(entry.paymentId)}>Cancel</Button>}</span>
               </li>
             ))}
           </ul>
         )}
       </Panel>
-      <Panel title="Vendor credits" description="Credits applied to this bill, and the vendor credits that corrected it (applied here or elsewhere).">
+      <Panel title="Supplier credit notes" description="Credits applied to this bill, and the supplier credit notes that corrected it (applied here or elsewhere).">
         {!detail.credits.length && !detail.vendorCredits.length ? <p className="text-sm text-text-muted">None.</p> : (
           <ul className="flex flex-col divide-y divide-border text-sm">
             {detail.credits.map((entry, index) => <li key={index} className="flex justify-between py-2"><span>Applied from <Link className="text-brand hover:underline" href={entry.href}>{entry.number}</Link></span><span className="tabular-nums">{c(entry.amount)}</span></li>)}
-            {detail.vendorCredits.map((entry) => <li key={entry.id} className="flex justify-between py-2"><span>Vendor credit <Link className="text-brand hover:underline" href={entry.href}>{entry.number}</Link> ({label(entry.status)})</span>
+            {detail.vendorCredits.map((entry) => <li key={entry.id} className="flex justify-between py-2"><span>Supplier credit note <Link className="text-brand hover:underline" href={entry.href}>{entry.number}</Link> ({label(entry.status)})</span>
               <span className="tabular-nums">{c(entry.total)}{Number(entry.unapplied) > 0 ? ` · ${c(entry.unapplied)} unapplied credit` : ""}</span></li>)}
           </ul>
         )}
       </Panel>
-      {reversing && <ReasonDialog title="Reverse payment" description="A payment that did not happen (bounced, entered in error). Finance reverses it; the bill is owed again." label="Reverse payment"
-        run={(reason) => reversePayment(reversing, reason)} onClose={() => setReversing(null)} onDone={() => { setReversing(null); onChanged("Payment reversed."); }} />}
+      {reversing && <ReasonDialog title="Cancel payment" description="A payment that did not happen (bounced, entered in error). Finance cancels it; the bill is owed again." label="Cancel payment"
+        run={(reason) => reversePayment(reversing, reason)} onClose={() => setReversing(null)} onDone={() => { setReversing(null); onChanged("Payment cancelled."); }} />}
     </>
   );
 }
@@ -479,7 +483,7 @@ function Files({ detail }: { detail: BillDetail }) {
   return (
     <>
       <Panel title="Notes"><p className="whitespace-pre-line text-sm">{detail.bill.notes ?? <span className="text-text-muted">None</span>}</p></Panel>
-      <Panel title="Original invoice and attachments" description="The supplier's own tax invoice (PDF or image) is the source document; compare it with the bill before posting."
+      <Panel title="Original invoice and attachments" description="The supplier's own tax invoice (PDF or image) is the source document; compare it with the bill before finalising."
         actions={detail.actions.attach ? (
           <>
             <input ref={input} type="file" className="hidden" onChange={(event) => { const file = event.target.files?.[0]; if (file) upload.mutate(file); event.target.value = ""; }} />
@@ -522,10 +526,10 @@ function PostDialog({ detail, onClose, onDone }: { detail: BillDetail; onClose: 
   const duplicate = validation.data?.issues.find((issue) => issue.startsWith("Supplier invoice "));
   const blocking = (validation.data?.issues ?? []).filter((issue) => issue !== duplicate);
   const run = useMutation({ mutationFn: () => billAction(detail.bill.id, "post", { duplicateOverrideReason: override || undefined, idempotencyKey: key }),
-    onSuccess: (result) => onDone(result.status === "awaiting_approval" ? "Submitted: awaiting Finance's approval before it is posted." : "Posted to Accounts Payable.") });
+    onSuccess: (result) => onDone(result.status === "awaiting_approval" ? "Submitted: awaiting Finance's approval before it is finalised." : "Recorded in Accounts Payable.") });
   return (
-    <Shell title={`Post ${detail.bill.billNumber}`} description={`${detail.bill.supplierName} · invoice ${detail.bill.supplierInvoiceNumber ?? "—"} · ${money(detail.bill.currencyCode, detail.bill.invoiceTotal)}`}
-      error={run.error} onClose={onClose} label="Post bill" isLoading={run.isPending}
+    <Shell title={`Finalise ${detail.bill.billNumber}`} description={`${detail.bill.supplierName} · invoice ${detail.bill.supplierInvoiceNumber ?? "—"} · ${money(detail.bill.currencyCode, detail.bill.invoiceTotal)}`}
+      error={run.error} onClose={onClose} label="Finalise bill" isLoading={run.isPending}
       isDisabled={!validation.data || blocking.length > 0 || (Boolean(duplicate) && (!detail.actions.overrideDuplicate || override.trim().length < 10))} onPress={() => run.mutate()}>
       {validation.isLoading && <p className="text-sm text-text-muted">Checking the bill…</p>}
       {blocking.length > 0 && <Notice><ul className="list-disc pl-5">{blocking.map((issue) => <li key={issue}>{issue}</li>)}</ul></Notice>}
@@ -534,7 +538,7 @@ function PostDialog({ detail, onClose, onDone }: { detail: BillDetail; onClose: 
         <Notice tone="warning">{duplicate}{detail.actions.overrideDuplicate ? " If it is genuinely a different invoice, explain why." : " Only Finance can accept a duplicate."}</Notice>
       )}
       {duplicate && detail.actions.overrideDuplicate && <TextArea label="Why this is not a duplicate" value={override} onChange={setOverride} />}
-      {validation.data?.ready && <p className="text-sm text-text-secondary">Ready. Posting records the payable{Number(detail.bill.taxTotal) > 0 ? ", input tax" : ""}{Number(detail.bill.withholdingTotal) > 0 ? ", TDS" : ""} through Finance; it never pays the supplier.</p>}
+      {validation.data?.ready && <p className="text-sm text-text-secondary">Ready. Finalising records the payable{Number(detail.bill.taxTotal) > 0 ? ", input tax" : ""}{Number(detail.bill.withholdingTotal) > 0 ? ", TDS" : ""} through Finance; it never pays the supplier.</p>}
     </Shell>
   );
 }
@@ -574,7 +578,7 @@ function ApplyDialog({ detail, kind, onClose, onDone }: { detail: BillDetail; ki
   const run = useMutation({ mutationFn: () => billAction(detail.bill.id, kind, kind === "advance" ? { paymentId: choice, amount: amount || undefined } : { creditId: choice, amount: amount || undefined }),
     onSuccess: () => onDone(kind === "advance" ? "Advance applied." : "Credit applied.") });
   return (
-    <Shell title={kind === "advance" ? "Apply supplier advance" : "Apply supplier credit"} error={run.error} onClose={onClose} label="Apply" isLoading={run.isPending} isDisabled={!choice} onPress={() => run.mutate()}>
+    <Shell title={kind === "advance" ? "Apply supplier advance" : "Apply supplier credit note"} error={run.error} onClose={onClose} label="Apply" isLoading={run.isPending} isDisabled={!choice} onPress={() => run.mutate()}>
       <Select label={kind === "advance" ? "Advance" : "Credit"} selectedKey={choice} onSelectionChange={(value) => setChoice(String(value))} options={choices} />
       <TextField label="Amount" inputMode="decimal" value={amount} onChange={setAmount} description="All that is available, up to the balance due, if empty." />
     </Shell>

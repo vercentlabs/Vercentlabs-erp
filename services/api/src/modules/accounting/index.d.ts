@@ -313,3 +313,15 @@ export function closeFinancialYear(client: QueryClient, context: AccountingConte
 export declare const GST_RATES: readonly number[];
 export function createAccountingInvoice(client: QueryClient, context: AccountingContext, input: AccountingRecord): Promise<{ id: string; status: "draft" | "pending_approval" | "posted" }>;
 export function createAccountingBill(client: QueryClient, context: AccountingContext, input: AccountingRecord): Promise<{ id: string; status: "draft" | "pending_approval" | "posted" }>;
+
+// TDS deposits, Form 26Q and Form 16A (tds-deposits.js).
+export function tdsDepositDue(period: string): string;
+export function quarterOf(period: string): { fy: number; quarter: number };
+export function form26QDue(fy: number, quarter: number): string;
+export function listTdsToDeposit(client: QueryClient, context: AccountingContext, filters?: { period?: string }): Promise<AccountingRecord>;
+export function recordTdsDeposit(client: QueryClient, context: AccountingContext, input: AccountingRecord): Promise<{ id: string; reference: string; tax: string; total: string; rows: number; journalEntryId: string }>;
+export function cancelTdsDeposit(client: QueryClient, context: AccountingContext, challanId: string, input: { reason?: string }): Promise<{ id: string; status: string }>;
+export function listTdsDeposits(client: QueryClient, context: AccountingContext, filters?: { fy?: number | string }): Promise<{ fy: number; rows: AccountingRecord[] }>;
+export function form26QData(client: QueryClient, context: AccountingContext, input: { fy: number | string; quarter: number | string; partyId?: string | null }): Promise<AccountingRecord>;
+export function form26QCsv(client: QueryClient, context: AccountingContext, input: { fy: number | string; quarter: number | string }): Promise<{ fileName: string; content: string; problems: string[] }>;
+export function form16AData(client: QueryClient, context: AccountingContext, input: { partyId: string; fy: number | string; quarter: number | string }): Promise<AccountingRecord>;

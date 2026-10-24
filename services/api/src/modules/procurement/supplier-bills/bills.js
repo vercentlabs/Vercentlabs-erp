@@ -8,6 +8,7 @@
 // tax engine, matches quantities and prices against the order and its receipts, and checks the supplier's invoice number for duplicates.
 // Finance owns everything financial: the draft is Finance's document, posting submits it to Finance's approval policy and Finance posts the
 // payable, the input tax, reverse-charge and withholding, exactly once. A bill never moves stock and never changes the order.
+import { claimBillInboxEntry } from "./inbox.js";
 import { effectiveWithholdingRate } from "../../../core/tax/withholding.js";
 import { publishDomainEvent } from "../../../core/platform/events/index.js";
 import { beginIdempotentOperation, completeIdempotentOperation } from "../../../core/idempotency.js";
@@ -33,6 +34,9 @@ import { APPROVABLE_CODES, RECEIPT_CODES, evaluateTwoWayMatch, linesFromCalculat
 import { stockOn } from "../../../core/products/tracking.js";
 import { databaseToday } from "../org-day.js";
 import { nextDocumentNumber } from "../../../core/platform/numbering/index.js";
+import { reverseBillLandedCosts } from "./landed-cost.js";
+import { readIrn } from "./einvoice.js";
+import { billRateAfterAdvances, is194Q, releaseAdvanceTds, tds194qApplies, useAdvanceTds } from "../payments/advance-tds.js";
 
 const dec = (value) => (value === null || value === undefined ? null : formatDecimal(value));
 const QTY = /^\d+(?:\.\d{1,6})?$/;
@@ -106,7 +110,7 @@ async function addressSnapshot(client, organizationId, supplierId, addressId) {
 async function withholdingSection(client, organizationId, sectionId) {
   if (!sectionId) return null;
   const row = (await client.query(`SELECT * FROM tenant.withholding_tax_sections WHERE organization_id = $1 AND id = $2`, [organizationId, sectionId])).rows[0];
-  if (!row || row.status !== "active") fail("Choose an active TDS / withholding section.", "withholdingSectionId", "SUPPLIER_BILL_WITHHOLDING_INVALID", 409);
+  if (!row || row.status !== "active") fail("Choose an active TDS section.", "withholdingSectionId", "SUPPLIER_BILL_WITHHOLDING_INVALID", 409);
   return row;
 }
 
@@ -124,8 +128,8 @@ async function resolveHeader(client, context, input, { order = null, current = n
   // An existing obligation is recorded whatever the supplier's purchasing status — by Accounts Payable, never just because a draft may be created.
   if (supplier.status !== "active") {
     if (!poCan(context, BILL_PERMISSIONS.manage))
-      throw new SupplierBillError(403, `The supplier is ${supplier.status}. Only Accounts Payable records a bill for an existing obligation to it.`, "SUPPLIER_BILL_SUPPLIER_INACTIVE");
-    warnings.push(`The supplier is ${supplier.status}${supplier.blocked_reason ? ` (${supplier.blocked_reason})` : ""}; the bill is recorded as an existing obligation. Purchasing restrictions stay.`);
+      throw new SupplierBillError(403, `The supplier is ${supplier.status}. Only Accounts Payable records a bill for an existing payment due to it.`, "SUPPLIER_BILL_SUPPLIER_INACTIVE");
+    warnings.push(`The supplier is ${supplier.status}${supplier.blocked_reason ? ` (${supplier.blocked_reason})` : ""}; the bill is recorded as an existing payment due. Purchasing restrictions stay.`);
   }
   const organization = (await client.query(`SELECT base_currency, country_code FROM public.organizations WHERE id = $1`, [organizationId])).rows[0];
   const currencyCode = String(order ? order.currency_code : keep("currencyCode", "currency_code") ?? supplier.default_currency ?? organization.base_currency).trim().toUpperCase();
@@ -135,19 +139,24 @@ async function resolveHeader(client, context, input, { order = null, current = n
   const { registration, choices } = await supplierRegistrationFor(client, organizationId, supplierId, chosenRegistration);
   const address = (sameSupplier ? order?.billing_address_snapshot : null) ?? await addressSnapshot(client, organizationId, supplierId, optionalUuid(input.supplierAddressId, "Address"));
   let tax;
-  try { tax = await loadTaxContext(client, { organizationId, sellerRegistrationId: optionalUuid(keep("buyingRegistrationId", "buying_registration_id") ?? order?.buying_registration_id, "Company registration"), purchase: true }); }
+  try { tax = await loadTaxContext(client, { organizationId, sellerRegistrationId: optionalUuid(keep("buyingRegistrationId", "buying_registration_id") ?? order?.buying_registration_id, "Our GSTIN"), purchase: true }); }
   catch (error) { throw new SupplierBillError(error.status ?? 409, error.message, error.code); }
   const buyer = tax.registration;
   const placeOfSupply = text(keep("placeOfSupply", "place_of_supply"), 10) ?? order?.ship_to_snapshot?.stateCode ?? buyer?.stateCode ?? null;
   const supplierStateCode = registration?.state_code ?? order?.supplier_tax_snapshot?.stateCode ?? address?.stateCode ?? null;
-  const sectionId = has(input, "withholdingSectionId") ? optionalUuid(input.withholdingSectionId, "Withholding section") : current ? current.withholding_section_id : supplier.withholding_section_id;
-  const section = await withholdingSection(client, organizationId, sectionId);
+  const sectionId = has(input, "withholdingSectionId") ? optionalUuid(input.withholdingSectionId, "TDS section") : current ? current.withholding_section_id : supplier.withholding_section_id;
+  let section = await withholdingSection(client, organizationId, sectionId);
+  // 194Q is for buyers above ₹10 crore turnover: switched off in Procurement Setup, a bill under it deducts nothing.
+  if (section && is194Q(section) && !(await tds194qApplies(client, organizationId))) {
+    warnings.push("TDS 194Q is not deducted: it is switched off in Procurement Setup (turnover up to ₹10 crore).");
+    section = null;
+  }
   const day = await today(client, organizationId);
   const billDate = readDate(input.supplierInvoiceDate ?? input.billDate, "Supplier invoice date") ?? dayOf(current?.bill_date) ?? day;
   if (billDate > day) fail("The supplier invoice date cannot be in the future.", "supplierInvoiceDate", "SUPPLIER_BILL_DATE_INVALID");
   const receivedOn = readDate(has(input, "invoiceReceivedDate") ? input.invoiceReceivedDate : current?.invoice_received_date, "Invoice received date");
   if (receivedOn && (receivedOn < billDate || receivedOn > day)) fail("The invoice received date is on or after the invoice date, and not in the future.", "invoiceReceivedDate", "SUPPLIER_BILL_DATE_INVALID");
-  const postingDate = readDate(input.postingDate ?? input.accountingDate, "Posting date") ?? dayOf(current?.accounting_date) ?? day;
+  const postingDate = readDate(input.postingDate ?? input.accountingDate, "Accounting date") ?? dayOf(current?.accounting_date) ?? day;
   const reference = has(input, "supplierInvoiceNumber") ? text(input.supplierInvoiceNumber, 100) : current?.supplier_invoice_reference ?? null;
   // The agreed terms: the confirmed order's, else the supplier's own, else the company default. Other terms on this bill are an exception.
   const agreed = order ? { paymentTermId: order.payment_term_id, source: "purchase_order" } : await getSupplierDefaultPaymentTerm(client, organizationId, supplier.id);
@@ -157,12 +166,12 @@ async function resolveHeader(client, context, input, { order = null, current = n
   if (paymentTermId && order && paymentTermId === order.payment_term_id) paymentTermSnapshot = order.payment_term_snapshot;
   else if (paymentTermId && current && paymentTermId === current.payment_term_id && readTermSnapshot(current.payment_term_snapshot)) paymentTermSnapshot = current.payment_term_snapshot;
   else if (paymentTermId) {
-    try { paymentTermSnapshot = await purchaseTermSnapshot(client, organizationId, paymentTermId, null, { buyingRegistrationId: optionalUuid(keep("buyingRegistrationId", "buying_registration_id") ?? order?.buying_registration_id, "Company registration") }); }
+    try { paymentTermSnapshot = await purchaseTermSnapshot(client, organizationId, paymentTermId, null, { buyingRegistrationId: optionalUuid(keep("buyingRegistrationId", "buying_registration_id") ?? order?.buying_registration_id, "Our GSTIN") }); }
     catch (error) { if (error instanceof PaymentTermError) throw new SupplierBillError(error.status, error.message, error.code, error.details); throw error; }
   }
   // An order agreed the terms: changing them on its bill is an exception. A direct bill starts from the supplier's (or company) default and Accounts Payable chooses.
   if (order && paymentTermId && agreed.paymentTermId && paymentTermId !== agreed.paymentTermId && !(current && paymentTermId === current.payment_term_id && current.payment_term_change_reason)) {
-    requirePoPermission(context, BILL_PERMISSIONS.overridePaymentTerms, "The agreed payment terms are the order's (or the supplier's). Changing them on the bill needs the permission to override them.");
+    requirePoPermission(context, BILL_PERMISSIONS.overridePaymentTerms, "The agreed payment terms are the order's (or the supplier's). Changing them on the bill needs the permission to change payment terms.");
     if (!paymentTermChangeReason || paymentTermChangeReason.length < 5) fail("Give the reason for changing the agreed payment terms.", "paymentTermChangeReason", "SUPPLIER_BILL_TERMS_REASON_REQUIRED");
   }
   const invoiceReceivedDate = readDate(keep("invoiceReceivedDate", "invoice_received_date"), "Invoice received date");
@@ -172,6 +181,17 @@ async function resolveHeader(client, context, input, { order = null, current = n
   if (supplierStatedTermId && paymentTermId && supplierStatedTermId !== paymentTermId) {
     const stated = (await client.query(`SELECT name FROM tenant.payment_terms WHERE organization_id = $1 AND id = $2`, [organizationId, supplierStatedTermId])).rows[0];
     warnings.push(`The supplier's invoice states ${stated?.name ?? "other payment terms"}; the agreed terms are ${readTermSnapshot(paymentTermSnapshot)?.name ?? "different"}. The agreed terms apply unless changed with a reason.`);
+  }
+  // The e-invoice's IRN (from its QR): one bill per e-invoice. A supplier who sent e-invoices before is expected to send one now.
+  const irn = has(input, "irn") ? readIrn(input.irn) : current?.irn ?? null;
+  const irnDate = has(input, "irnDate") ? readDate(input.irnDate, "IRN date") : current?.irn_date ? dayOf(current.irn_date) : null;
+  if (irn) {
+    const taken = (await client.query(`SELECT bill_number FROM tenant.accounting_vendor_bills WHERE organization_id = $1 AND irn = $2 AND status NOT IN ('cancelled', 'reversed')
+        AND id IS DISTINCT FROM $3::uuid LIMIT 1`, [organizationId, irn, current?.id ?? null])).rows[0];
+    if (taken) fail(`This e-invoice is already recorded as bill ${taken.bill_number}.`, "irn", "SUPPLIER_BILL_IRN_DUPLICATE", 409);
+  } else if ((await client.query(`SELECT 1 FROM tenant.accounting_vendor_bills WHERE organization_id = $1 AND party_id = $2 AND irn IS NOT NULL AND status NOT IN ('cancelled', 'reversed')
+        AND id IS DISTINCT FROM $3::uuid LIMIT 1`, [organizationId, supplier.party_id, current?.id ?? null])).rowCount) {
+    warnings.push("This supplier's earlier invoices were e-invoices, but this one has no IRN: scan its QR, or check that it is valid.");
   }
   const stated = has(input, "supplierInvoiceTotal") ? input.supplierInvoiceTotal : current?.supplier_stated_total;
   if (stated !== undefined && stated !== null && stated !== "" && !QTY.test(String(stated).trim())) fail("Enter the total shown on the supplier's invoice.", "supplierInvoiceTotal");
@@ -187,6 +207,7 @@ async function resolveHeader(client, context, input, { order = null, current = n
     statedTotal: stated === undefined || stated === null || stated === "" ? null : decimal(String(stated).trim()),
     // TCS the supplier collected on the invoice (Procurement plan Phase 2): outside the taxable value, added to what is owed.
     tcsAmount: readTcs(has(input, "tcsAmount") ? input.tcsAmount : current?.tcs_amount),
+    irn, irnDate,
     notes: has(input, "notes") ? text(input.notes, 2000) : current?.notes ?? null, warnings, organization,
     supplierSnapshot: { supplierId: supplier.id, supplierNumber: supplier.supplier_number, supplierName: supplier.display_name, legalName: text(input.supplierLegalName, 300) ?? supplier.legal_name ?? supplier.display_name,
       gstin: registration?.gstin ?? supplier.party_gstin ?? null, pan: supplier.pan ?? null, registrationType: registration?.registration_type ?? (registration ? null : "unregistered") },
@@ -290,7 +311,7 @@ async function orderBillLines(client, context, order, requested, { excludeBillId
       const message = eligible === 0n ? `${label}: nothing may be billed yet — the goods are not received (or accepted).`
         : `${label}: only ${dec(eligible)} may be billed now (received and accepted, not yet billed).`;
       if (strict) shortfalls.push(message);
-      else warnings.push(`${message} The draft is kept pending its goods receipt and cannot be posted until then.`);
+      else warnings.push(`${message} The draft is kept pending its goods receipt and cannot be finalised until then.`);
       pending = true;
     }
     // Receipt-based goods: the billed quantity is allocated to the receipt lines it bills — the chosen ones first, then the oldest.
@@ -302,7 +323,7 @@ async function orderBillLines(client, context, order, requested, { excludeBillId
       pending = true;
     }
     const others = billed.get(line.id)?.drafts;
-    if (others && others.quantity > 0n) warnings.push(`${label}: ${dec(others.quantity)} is also on unposted bill${others.numbers.length === 1 ? "" : "s"} ${others.numbers.join(", ")} — whichever posts first is billed.`);
+    if (others && others.quantity > 0n) warnings.push(`${label}: ${dec(others.quantity)} is also on unposted bill${others.numbers.length === 1 ? "" : "s"} ${others.numbers.join(", ")} — whichever is finalised first is billed.`);
     // A discount shown on the invoice is the invoice's; none entered: the order's agreed discounts apply.
     const invoiceDiscount = entry.discountType !== undefined && entry.discountType !== null && entry.discountType !== "" && !amountBasis
       ? { type: entry.discountType === "none" ? null : entry.discountType, value: entry.discountValue ?? "0" } : null;
@@ -311,7 +332,7 @@ async function orderBillLines(client, context, order, requested, { excludeBillId
       orderLine: { ...line, previouslyBilled: own?.before ?? { quantity: 0n, taxable: 0n, lineDiscount: 0n, allocated: 0n } }, allocations, quantity,
       unitPrice: raw === null ? formatDecimal(line.unit_price) : raw, taxCategoryId: line.tax_category_id, description: text(entry.description, 1000) ?? line.description,
       productId, productType: line.product_type, productSnapshot: line.product_snapshot, uomId, uomSnapshot: uomOk ? line.uom_snapshot : null,
-      hsnSacCode: line.hsn_sac_code, expenseAccountId: line.expense_account_id, noWithholding: Boolean(entry.noWithholding),
+      hsnSacCode: line.hsn_sac_code, expenseAccountId: line.expense_account_id, noWithholding: Boolean(entry.noWithholding), costCenterId: line.cost_center_id ?? null,
       billingBasis: amountBasis ? "amount" : "quantity", billedAmount: amountBasis ? billedAmount : null, commitmentAmount: billedAmount,
       conversionFactor: line.conversion_factor ?? "1", receiptBased: receiptBased(line), invoiceDiscount,
       invoicedUomId: invoiced?.uomId ?? null, invoicedQuantity: invoiced?.quantity ?? null, invoicedUnitPrice: invoiced?.unitPrice ?? null,
@@ -384,7 +405,7 @@ export async function validateDirectBillAccount(client, context, accountId, labe
   if (!account || account.status !== "active" || account.is_group || !["expense", "asset"].includes(account.account_class))
     fail(`${label}: choose an active expense or asset account (not a group).`, "expenseAccountId", "SUPPLIER_BILL_ACCOUNT_INVALID", 409);
   if (account.account_class === "asset" && BLOCKED_ASSET_TYPES.has(account.account_type))
-    fail(`${label}: ${account.code} · ${account.name} is not posted from a supplier bill${account.account_type === "inventory" ? " — stock is received through a purchase order and goods receipt" : ""}.`,
+    fail(`${label}: ${account.code} · ${account.name} is not recorded from a supplier bill${account.account_type === "inventory" ? " — stock is received through a purchase order and goods receipt" : ""}.`,
       "expenseAccountId", "SUPPLIER_BILL_ACCOUNT_INVALID", 409);
   if (["cogs", "rounding", "fx_loss"].includes(account.account_type)) fail(`${label}: ${account.code} · ${account.name} is a Finance-controlled account.`, "expenseAccountId", "SUPPLIER_BILL_ACCOUNT_INVALID", 409);
   return account;
@@ -539,7 +560,7 @@ async function resolveDueDate(client, context, header, input, calculated, { trus
     postingDate: header.postingDate });
   header.dueDateOverrideReason = null;
   if (header.dueDate && header.dueDate !== header.computedDueDate) {
-    if (!trusted) requirePoPermission(context, BILL_PERMISSIONS.overrideDueDate, `The payment terms give ${header.computedDueDate}. Changing the due date needs the permission to override it.`);
+    if (!trusted) requirePoPermission(context, BILL_PERMISSIONS.overrideDueDate, `The payment terms give ${header.computedDueDate}. Changing the due date needs the permission to change it.`);
     const reason = text(input.dueDateOverrideReason, 1000);
     if (!reason || reason.length < 5) fail(`The payment terms give ${header.computedDueDate}: give the reason for ${header.dueDate}.`, "dueDateOverrideReason", "SUPPLIER_BILL_DUE_DATE_REASON_REQUIRED");
     if (header.dueDate < header.billDate) fail("The due date cannot be before the invoice date.", "dueDate");
@@ -570,6 +591,18 @@ async function buildBill(client, context, source, input, { order, receiptIds, cu
       calculated = await calculate();
     }
     if (effective.reason) header.warnings.push(effective.reason);
+  }
+  // TDS the order's advances already deducted counts towards this bill: only the balance is deducted here.
+  header.advanceWithholdingCredit = 0n;
+  if (header.section && order && decimal(header.section.rate) > 0n) {
+    const after = await billRateAfterAdvances(client, context.organizationId, { orderId: order.id, sectionId: header.section.id, taxable: calculated.totals.taxable,
+      rate: decimal(header.section.rate) });
+    if (after.credit > 0n) {
+      header.section = { ...header.section, rate: after.rate };
+      header.advanceWithholdingCredit = after.credit;
+      calculated = await calculate();
+      header.warnings.push(`TDS of ${formatDecimal(roundMoney(after.credit, 2), 2)} was already deducted on this order's advance: only the balance is deducted from this bill.`);
+    }
   }
   // Calculation lines keep their source (allocations, accounts) as input.
   calculated.lines.forEach((line, index) => { line.input = sourceLines[index]; });
@@ -605,10 +638,10 @@ function priceDiscrepancies(twoWay) {
 async function afterWrite(client, context, billId, built) {
   const billLines = (await client.query(`SELECT id, sequence FROM tenant.accounting_vendor_bill_lines WHERE organization_id = $1 AND vendor_bill_id = $2`, [context.organizationId, billId])).rows;
   await writeAllocations(client, context, billId, built.calculated, billLines);
-  await client.query(`UPDATE tenant.accounting_vendor_bills SET match_override_reason = $3, matching_basis = $4, source_goods_receipt_ids = $5, matching_status = $6, tcs_amount = $7
-     WHERE organization_id = $1 AND id = $2`,
+  await client.query(`UPDATE tenant.accounting_vendor_bills SET match_override_reason = $3, matching_basis = $4, source_goods_receipt_ids = $5, matching_status = $6, tcs_amount = $7,
+       advance_withholding_credit = $8, irn = $9, irn_date = $10 WHERE organization_id = $1 AND id = $2`,
     [context.organizationId, billId, built.matchingStatus === "overridden" ? built.overrideReason : null, built.header.matchingBasis, built.header.receiptIds, built.matchingStatus,
-      dec(built.header.tcsAmount ?? 0n)]);
+      dec(built.header.tcsAmount ?? 0n), dec(built.header.advanceWithholdingCredit ?? 0n), built.header.irn ?? null, built.header.irnDate ?? null]);
   // Each order line records how it bills the commitment (by quantity, or by amount of a fixed-value service's agreed value) and what the
   // supplier invoiced as invoiced: another unit, an explicit discount.
   for (const [index, line] of built.calculated.lines.entries()) {
@@ -653,7 +686,7 @@ export async function createSupplierBill(client, context, input = {}) {
     const receipts = (await client.query(`SELECT id, purchase_order_id, receipt_number, status, reversed_at FROM tenant.goods_receipts WHERE organization_id = $1 AND id = ANY($2::uuid[])`,
       [context.organizationId, receiptIds])).rows;
     if (receipts.length !== receiptIds.length) throw new SupplierBillError(404, "A goods receipt was not found.", "GOODS_RECEIPT_NOT_FOUND");
-    if (receipts.some((receipt) => receipt.status !== "posted" || receipt.reversed_at)) fail("Only posted goods receipts are billed.", "goodsReceiptIds", "SUPPLIER_BILL_RECEIPT_INVALID", 409);
+    if (receipts.some((receipt) => receipt.status !== "posted" || receipt.reversed_at)) fail("Only final goods receipts are billed.", "goodsReceiptIds", "SUPPLIER_BILL_RECEIPT_INVALID", 409);
     if (new Set(receipts.map((receipt) => receipt.purchase_order_id)).size !== 1) fail("A bill covers the receipts of one purchase order.", "goodsReceiptIds", "SUPPLIER_BILL_RECEIPT_INVALID", 409);
     order = await loadPurchaseOrder(client, context, receipts[0].purchase_order_id, { lock: true });
   } else if (source === "purchase_order") {
@@ -665,6 +698,8 @@ export async function createSupplierBill(client, context, input = {}) {
   const created = await finance(() => createVendorBill(client, drafting(context), built.document));
   const billId = created.bill.id;
   await afterWrite(client, context, billId, built);
+  // A bill made from a file that came by email (report Phase 3): the file moves onto the bill.
+  if (input.inboxItemId) await claimBillInboxEntry(client, context, input.inboxItemId, billId);
   if (order)
     await recordPoEvent(client, context, order.id, "purchase_order.bill_recorded", `Supplier bill ${created.bill.bill_number} (invoice ${built.header.reference ?? "—"}) drafted for ${
       built.calculated.lines.map((line) => !line.order ? `${line.description ?? "a line not on the order"}` : line.input.billingBasis === "amount" ? `line ${line.order.line_number}: ${dec(line.input.billedAmount)} of its agreed value` : `line ${line.order.line_number} × ${dec(line.quantity)}`).join(", ")}${built.matchingStatus === "exception" ? " — price differs from the order" : built.matchingStatus === "pending" ? " — pending its goods receipt" : ""}`,
@@ -688,8 +723,8 @@ export const createSupplierBillFromPurchaseOrder = createBillFromPurchaseOrder;
 export async function updateDraftSupplierBill(client, context, billId, input = {}) {
   requireBillCreate(context, "You do not have permission to edit supplier bills.");
   const current = await loadBill(client, context, billId, { lock: true });
-  if (current.bill_type !== "bill") fail("Vendor credits are changed in Supplier Credits / Debit Notes.", "billType", "SUPPLIER_BILL_LOCKED", 409);
-  if (current.status !== "draft") throw new SupplierBillError(409, "Only a draft supplier bill can be changed. Correct a posted bill with a vendor credit or a reversal.", "SUPPLIER_BILL_LOCKED");
+  if (current.bill_type !== "bill") fail("Supplier credit notes are changed in Debit & Credit Notes.", "billType", "SUPPLIER_BILL_LOCKED", 409);
+  if (current.status !== "draft") throw new SupplierBillError(409, "Only a draft supplier bill can be changed. Correct a final bill with a supplier credit note or a reversal.", "SUPPLIER_BILL_LOCKED");
   if (input.expectedUpdatedAt && new Date(input.expectedUpdatedAt).getTime() !== new Date(current.updated_at).getTime())
     throw new SupplierBillError(409, "Someone else changed this draft. Reload it and enter your change again.", "SUPPLIER_BILL_STALE");
   const { built: _built, ...result } = await rebuildDraft(client, context, current, input);
@@ -803,7 +838,7 @@ export async function validateSupplierBillForPosting(client, context, billId, { 
     const evaluation = (await client.query(`SELECT result, discrepancies FROM tenant.supplier_bill_match_evaluations WHERE organization_id = $1 AND id = $2`,
       [organizationId, bill.two_way_evaluation_id])).rows[0];
     if (evaluation?.result === "mismatch") issues.push(...evaluation.discrepancies.filter((entry) => !entry.approved).map((entry) => entry.message));
-  } else if (bill.matching_status === "exception") issues.push("A price differs from the purchase order. Correct the bill, amend the order, or have the variance accepted.");
+  } else if (bill.matching_status === "exception") issues.push("A price differs from the purchase order. Correct the bill, change the order, or have the difference accepted.");
   // The GSTIN the invoice was issued under must still be active: a commercially matched bill is still refused when its tax identity is not valid.
   if (bill.supplier_tax_registration_id) {
     const registration = (await client.query(`SELECT gstin, status FROM tenant.procurement_supplier_tax_registrations WHERE organization_id = $1 AND id = $2`,
@@ -824,7 +859,7 @@ export async function validateSupplierBillForPosting(client, context, billId, { 
   // Payment terms: a rule counting from the date the invoice was received needs that date before the schedule is fixed.
   const terms = readTermSnapshot(bill.payment_term_snapshot);
   if (terms?.needsInvoiceReceivedDate && !bill.invoice_received_date)
-    issues.push(`The payment terms ${terms.name} count from the date the supplier's invoice was received: record it before posting.`);
+    issues.push(`The payment terms ${terms.name} count from the date the supplier's invoice was received: record it before finalising.`);
   if (bill.supplier_id && terms) {
     const statutory = await validateStatutoryPaymentDeadline(client, context, { supplierId: bill.supplier_id, termSnapshot: bill.payment_term_snapshot,
       referenceDate: dayOf(bill.acceptance_date ?? bill.invoice_received_date ?? bill.bill_date) });
@@ -840,15 +875,15 @@ export async function validateSupplierBillForPosting(client, context, billId, { 
   const ledger = await finance(() => getPrimaryLedger(client, { ...context, permissions: [...(context.permissions ?? []), BILL_PERMISSIONS.financeView] }));
   const need = [["payable", "The Accounts Payable account mapping is not configured."]];
   if (decimal(bill.tax_total) > 0n) need.push(["input_tax", "The input tax account mapping is not configured."]);
-  if (decimal(bill.withholding_total) > 0n) need.push(["withholding_tax", "The withholding (TDS) account mapping is not configured."]);
+  if (decimal(bill.withholding_total) > 0n) need.push(["withholding_tax", "The TDS account mapping is not configured."]);
   if (decimal(bill.rounding_adjustment) !== 0n) need.push(["rounding", "The rounding account mapping is not configured."]);
   for (const [key, message] of need) {
     try { await getAccountMapping(client, context, ledger.id, key, { partyId: bill.party_id, date: dayOf(bill.accounting_date) }); } catch { issues.push(message); }
   }
   const period = (await client.query(`SELECT name, status FROM tenant.fiscal_periods WHERE organization_id = $1 AND $2::date BETWEEN start_date AND end_date ORDER BY period_type = 'standard' DESC, start_date DESC LIMIT 1`,
     [organizationId, dayOf(bill.accounting_date)])).rows[0];
-  if (!period) issues.push(`No accounting period covers the posting date ${dayOf(bill.accounting_date)}.`);
-  else if (period.status !== "open") issues.push(`The accounting period ${period.name} is ${period.status}: choose a posting date in an open period.`);
+  if (!period) issues.push(`No accounting period covers the accounting date ${dayOf(bill.accounting_date)}.`);
+  else if (period.status !== "open") issues.push(`The accounting period ${period.name} is ${period.status}: choose an accounting date in an open period.`);
   return { ready: issues.length === 0, issues, warnings, duplicates };
 }
 
@@ -885,13 +920,13 @@ export async function validatePartialBillQuantities(client, context, bill, lines
     if (row.receipt_required && row.billing_basis === "receipt")
       for (const line of mine) {
         const matched = allocations.filter((allocation) => allocation.vendor_bill_line_id === line.id).reduce((total, allocation) => add(total, allocation.quantity), 0n);
-        if (matched < decimal(line.quantity)) issues.push(`${label}: only ${dec(matched)} of ${dec(line.quantity)} is matched to posted goods receipts — waiting for the goods (or their acceptance).`);
+        if (matched < decimal(line.quantity)) issues.push(`${label}: only ${dec(matched)} of ${dec(line.quantity)} is matched to final goods receipts — waiting for the goods (or their acceptance).`);
       }
   }
   for (const row of allocations) {
-    if (row.billable_quantity === null) { issues.push("A goods receipt this bill draws on was reversed."); continue; }
+    if (row.billable_quantity === null) { issues.push("A goods receipt this bill draws on was cancelled."); continue; }
     const others = posted ? sub(row.allocated_quantity, row.quantity) : decimal(row.allocated_quantity);
-    if (add(others, row.quantity) > decimal(row.billable_quantity)) issues.push(`${row.receipt_number}: its received quantity is already billed by another posted bill.`);
+    if (add(others, row.quantity) > decimal(row.billable_quantity)) issues.push(`${row.receipt_number}: its received quantity is already billed by another final bill.`);
   }
   return [...new Set(issues)];
 }
@@ -914,11 +949,11 @@ export async function validatePurchaseOrderPriceMatching(client, context, billId
 // postSupplierBill: validated again under the order's lock, then submitted to Finance's approval policy and — once approved — posted by Finance:
 // the payable, input tax, reverse-charge and withholding, exactly once. A retry returns the posted bill. input: { duplicateOverrideReason?, idempotencyKey? }
 export async function postSupplierBill(client, context, billId, input = {}) {
-  requirePoPermission(context, BILL_PERMISSIONS.manage, "You do not have permission to post supplier bills.");
+  requirePoPermission(context, BILL_PERMISSIONS.manage, "You do not have permission to finalise supplier bills.");
   const bill = await loadBill(client, context, billId, { lock: true });
   if (["posted", "partially_paid", "paid", "overdue", "disputed"].includes(bill.status)) return { id: bill.id, status: "posted", replayed: true };
   if (bill.status === "pending_approval") return { id: bill.id, status: "awaiting_approval", replayed: true };
-  if (bill.bill_type !== "bill") fail("Debit notes are posted from their own screen.", "billType", "SUPPLIER_BILL_LOCKED", 409);
+  if (bill.bill_type !== "bill") fail("Debit notes are finalised from their own screen.", "billType", "SUPPLIER_BILL_LOCKED", 409);
   if (bill.source_purchase_order_id) {
     await loadPurchaseOrder(client, context, bill.source_purchase_order_id, { lock: true });
     await client.query(`SELECT id FROM tenant.purchase_order_lines WHERE organization_id = $1 AND purchase_order_id = $2 FOR UPDATE`, [context.organizationId, bill.source_purchase_order_id]);
@@ -974,10 +1009,15 @@ async function finishPosting(client, context, bill) {
         [context.organizationId, bill.id, number, dayOf(rcm.accounting_date)]);
     }
   }
+  // The TDS the order's advances already deducted is taken from them now; if another bill used it meanwhile, this bill is rebuilt first.
+  const credit = (await client.query(`SELECT id, source_purchase_order_id, withholding_section_id, advance_withholding_credit FROM tenant.accounting_vendor_bills WHERE organization_id = $1 AND id = $2`,
+    [context.organizationId, bill.id])).rows[0];
+  const short = credit ? await useAdvanceTds(client, context, credit) : null;
+  if (short) throw new SupplierBillError(409, "The TDS deducted on this order's advance was used by another bill. Recheck the bill, then finalise it.", "SUPPLIER_BILL_ADVANCE_TDS_USED");
   const posted = await finance(() => postVendorBill(client, fin(context), bill.id));
   if (bill.bill_type === "bill") await generateComplianceDeadlines(client, context, bill.id);
   if (bill.source_purchase_order_id)
-    await recordPoEvent(client, context, bill.source_purchase_order_id, "purchase_order.bill_posted", `Supplier bill ${bill.bill_number} (invoice ${bill.supplier_invoice_reference}) posted to Accounts Payable`,
+    await recordPoEvent(client, context, bill.source_purchase_order_id, "purchase_order.bill_posted", `Supplier bill ${bill.bill_number} (invoice ${bill.supplier_invoice_reference}) recorded in Accounts Payable`,
       { details: { billId: bill.id } });
   await publishDomainEvent(client, { organizationId: context.organizationId, moduleKey: "procurement", eventType: "procurement.supplier_bill.posted", entityType: "procurement.supplier_bill", entityId: bill.id,
     payload: { billNumber: bill.bill_number, supplierInvoiceNumber: bill.supplier_invoice_reference, purchaseOrderId: bill.source_purchase_order_id, supplierId: bill.supplier_id ?? bill.party_id,
@@ -1009,15 +1049,17 @@ export async function cancelDraftSupplierBill(client, context, billId, input = {
 // reverseSupplierBill: a posted bill entered in error, while nothing settled it (no payment or vendor credit). Finance reverses its journals and
 // tax entries; its order and receipt quantities become billable again because a reversed bill no longer counts. The bill is kept.
 export async function reverseSupplierBill(client, context, billId, input = {}) {
-  requirePoPermission(context, BILL_PERMISSIONS.reverse, "You do not have permission to reverse supplier bills.");
+  requirePoPermission(context, BILL_PERMISSIONS.reverse, "You do not have permission to cancel supplier bills.");
   const bill = await loadBill(client, context, billId, { lock: true });
   if (bill.status === "reversed") return { id: bill.id, status: "reversed", replayed: true };
   const reason = text(input.reason, 1000);
   if (!reason || reason.length < 3) fail("Give the reason for the reversal.", "reason");
+  await reverseBillLandedCosts(client, context, bill);
   await finance(() => reverseVendorBill(client, fin(context), bill.id, { reason }));
+  await releaseAdvanceTds(client, context, bill.id);
   await voidComplianceDeadlines(client, context, bill.id);
   if (bill.source_purchase_order_id)
-    await recordPoEvent(client, context, bill.source_purchase_order_id, "purchase_order.bill_reversed", `Supplier bill ${bill.bill_number} reversed: ${reason}`, { details: { billId: bill.id } });
+    await recordPoEvent(client, context, bill.source_purchase_order_id, "purchase_order.bill_reversed", `Supplier bill ${bill.bill_number} cancelled: ${reason}`, { details: { billId: bill.id } });
   return { id: bill.id, status: "reversed", replayed: false };
 }
 
@@ -1119,7 +1161,7 @@ const COALESCE_RESULT = (bill) => bill.two_way_result ?? (bill.matching_status =
 export async function recheckSupplierBillMatching(client, context, billId) {
   requireBillCreate(context, "You do not have permission to check supplier bills.");
   const bill = await loadBill(client, context, billId, { lock: true });
-  if (bill.status !== "draft") throw new SupplierBillError(409, "Only a draft is rechecked; a posted bill keeps the evaluation it was posted with.", "SUPPLIER_BILL_LOCKED");
+  if (bill.status !== "draft") throw new SupplierBillError(409, "Only a draft is rechecked; a final bill keeps the evaluation it was finalised with.", "SUPPLIER_BILL_LOCKED");
   if (!bill.source_purchase_order_id) return getSupplierBillMatchingResult(client, context, bill.id);
   await rebuildDraft(client, { ...context, permissions: [...new Set([...(context.permissions ?? []), BILL_PERMISSIONS.create])] }, bill,
     { dueDateOverrideReason: bill.due_date_override_reason ?? undefined }, { trusted: true });
@@ -1131,13 +1173,13 @@ export async function recheckSupplierBillMatching(client, context, billId) {
 // charge to its expense account. Supplier, company, currency, order, product, unit and quantity problems are never accepted. The approval
 // holds while the line stays as approved.
 export async function approveSupportedMatchException(client, context, billId, input = {}) {
-  requirePoPermission(context, BILL_PERMISSIONS.overrideMatch, "You do not have permission to accept matching variances.");
+  requirePoPermission(context, BILL_PERMISSIONS.overrideMatch, "You do not have permission to accept matching differences.");
   const bill = await loadBill(client, context, billId, { lock: true });
-  if (bill.status !== "draft" || !bill.source_purchase_order_id) throw new SupplierBillError(409, "Variances are accepted on a draft bill of a purchase order.", "SUPPLIER_BILL_LOCKED");
+  if (bill.status !== "draft" || !bill.source_purchase_order_id) throw new SupplierBillError(409, "Differences are accepted on a draft bill of a purchase order.", "SUPPLIER_BILL_LOCKED");
   if (bill.created_by && bill.created_by === context.userId)
-    throw new SupplierBillError(403, "Someone other than the bill's creator accepts its variances.", "SUPPLIER_BILL_SELF_APPROVAL");
+    throw new SupplierBillError(403, "Someone other than the bill's creator accepts its differences.", "SUPPLIER_BILL_SELF_APPROVAL");
   const reason = text(input.reason, 1000);
-  if (!reason || reason.length < 10) fail("Explain why the variance is accepted (at least a sentence).", "reason", "SUPPLIER_BILL_REASON_REQUIRED");
+  if (!reason || reason.length < 10) fail("Explain why the difference is accepted (at least a sentence).", "reason", "SUPPLIER_BILL_REASON_REQUIRED");
   // Internal steps on the approver's behalf: rebuilding the draft reads the order, whoever approves.
   const trusted = { ...context, permissions: [...new Set([...(context.permissions ?? []), BILL_PERMISSIONS.create, "procurement.po.view", "procurement.po.view_all"])] };
   const fresh = (await rebuildDraft(client, trusted, bill, { dueDateOverrideReason: bill.due_date_override_reason ?? undefined }, { trusted: true })).built.twoWay;
@@ -1146,7 +1188,7 @@ export async function approveSupportedMatchException(client, context, billId, in
   if (blocked.length)
     throw new SupplierBillError(409, `These cannot be accepted as an exception: ${blocked.map((entry) => entry.message).join(" ")}`, "SUPPLIER_BILL_MATCH_NOT_APPROVABLE",
       { issues: blocked.map((entry) => ({ code: entry.code, message: entry.message })) });
-  if (!open.length) throw new SupplierBillError(409, "There is no variance to accept: the bill matches.", "SUPPLIER_BILL_NOTHING_TO_APPROVE");
+  if (!open.length) throw new SupplierBillError(409, "There is no difference to accept: the bill matches.", "SUPPLIER_BILL_NOTHING_TO_APPROVE");
   const lines = (await client.query(`SELECT * FROM tenant.accounting_vendor_bill_lines WHERE organization_id = $1 AND vendor_bill_id = $2`, [context.organizationId, bill.id])).rows;
   const settings = (await client.query(`SELECT post_receipt_accrual FROM tenant.procurement_settings WHERE organization_id = $1`, [context.organizationId])).rows[0];
   const ledger = await finance(() => getPrimaryLedger(client, fin(context)));
@@ -1159,7 +1201,7 @@ export async function approveSupportedMatchException(client, context, billId, in
     if (treatment === "line_cost" && allocated && settings?.post_receipt_accrual) {
       treatment = "purchase_price_variance";
       try { accountId = (await getAccountMapping(client, context, ledger.id, "purchase_price_variance", {})).account_id; }
-      catch { fail("Goods cleared from GRNI need the purchase price variance account mapping before a price variance can be accepted.", "accountMapping", "SUPPLIER_BILL_VARIANCE_ACCOUNT_REQUIRED", 409); }
+      catch { fail("Goods cleared from goods received, bill not yet received need the purchase price difference account mapping before a price difference can be accepted.", "accountMapping", "SUPPLIER_BILL_VARIANCE_ACCOUNT_REQUIRED", 409); }
     }
     await client.query(
       `INSERT INTO tenant.supplier_bill_match_exceptions (organization_id, vendor_bill_id, evaluation_id, line_sequence, purchase_order_line_id, discrepancy_code, expected_value,

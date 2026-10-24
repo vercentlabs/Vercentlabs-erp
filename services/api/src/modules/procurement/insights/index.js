@@ -84,7 +84,7 @@ export async function getProcurementOverview(client, context) {
     metrics.push({ key: "unresolved_returns", label: "Unresolved Returns", value: returns.length, href: "/procurement/purchase-returns?view=awaiting_resolution" });
     const financial = await listPurchaseReturns(client, context, { view: "awaiting_financial" });
     for (const entry of financial.slice(0, 3))
-      attention.push({ kind: "Supplier credit pending", title: entry.returnNumber, detail: "Financial adjustment outstanding", href: `/procurement/purchase-returns/${entry.id}?tab=financial` });
+      attention.push({ kind: "Supplier credit note pending", title: entry.returnNumber, detail: "Financial adjustment outstanding", href: `/procurement/purchase-returns/${entry.id}?tab=financial` });
     const replacements = await listPurchaseReturns(client, context, { view: "awaiting_replacement" });
     for (const entry of replacements.slice(0, 2))
       attention.push({ kind: "Replacement awaited", title: entry.returnNumber, detail: entry.replacementLabel, href: `/procurement/purchase-returns/${entry.id}?tab=resolution` });
@@ -95,7 +95,7 @@ export async function getProcurementOverview(client, context) {
   }
   if (can(context, ...SEE_CLAIMS)) {
     const accepted = (await getSupplierDebitClaims(client, context, { view: "accepted_open" })).filter((claim) => Number(claim.remainingToCredit) > 0);
-    metrics.push({ key: "pending_credits", label: "Pending Supplier Credits", value: accepted.length, href: "/procurement/reports/pending-supplier-credits" });
+    metrics.push({ key: "pending_credits", label: "Supplier Credit Notes Pending", value: accepted.length, href: "/procurement/reports/pending-supplier-credits" });
   }
   if (can(context, ...SEE_ORDERS)) {
     // Rate contracts ending within 30 days (Procurement plan Phase 3): renew them before orders fall back to open prices.
@@ -151,7 +151,7 @@ async function myWorkOf(client, context, today) {
     const held = (await client.query(
       `SELECT count(*)::int AS count FROM tenant.accounting_vendor_bills bill WHERE bill.organization_id = $1 AND bill.bill_type = 'bill'
           AND bill.status IN ('draft', 'pending_approval', 'approved')`, [organizationId])).rows[0].count;
-    cards.push({ key: "bills_to_post", label: "Bills to post", value: held, href: "/procurement/supplier-bills?view=to-post", tone: held ? "info" : "neutral" });
+    cards.push({ key: "bills_to_post", label: "Bills to finalise", value: held, href: "/procurement/supplier-bills?view=to-post", tone: held ? "info" : "neutral" });
     const msme = (await client.query(
       `SELECT count(DISTINCT deadline.vendor_bill_id)::int AS count FROM tenant.supplier_payment_compliance_deadlines deadline
          JOIN tenant.accounting_vendor_bills bill ON bill.organization_id = deadline.organization_id AND bill.id = deadline.vendor_bill_id
@@ -165,25 +165,25 @@ async function myWorkOf(client, context, today) {
 // ---------------------------------------------------------------- reports
 
 const REPORTS = [
-  { key: "purchases-by-period", title: "Purchases by Period", description: "Posted supplier bills less supplier credit notes, by month: bills, net purchases before tax, tax and total.", see: SEE_BILLS },
-  { key: "purchases-by-supplier", title: "Purchases by Supplier", description: "Net purchases per supplier from posted bills less credit notes, with what is still owed.", see: SEE_BILLS },
-  { key: "purchases-by-item", title: "Purchases by Item", description: "Quantities and net purchases per item from posted bill lines less credit-note lines.", see: SEE_BILLS },
+  { key: "purchases-by-period", title: "Purchases by Period", description: "Final supplier bills less supplier credit notes, by month: bills, net purchases before tax, tax and total.", see: SEE_BILLS },
+  { key: "purchases-by-supplier", title: "Purchases by Supplier", description: "Net purchases per supplier from final bills less credit notes, with what is still owed.", see: SEE_BILLS },
+  { key: "purchases-by-item", title: "Purchases by Item", description: "Quantities and net purchases per item from final bill lines less credit-note lines.", see: SEE_BILLS },
   { key: "purchase-order-progress", title: "Purchase Order Progress", description: "Ordered, cancelled, received, billed and remaining quantities and values per order.", see: SEE_ORDERS },
   { key: "pending-goods-receipts", title: "Pending Goods Receipts", description: "Confirmed order quantities still awaiting physical delivery.", see: SEE_ORDERS },
   { key: "receiving-discrepancies", title: "Receiving Discrepancies", description: "Refused, short, held and rejected deliveries and their resolution.", see: SEE_REJECTIONS },
-  { key: "unbilled-goods-receipts", title: "Unbilled Goods Receipts", description: "Received quantities eligible for billing not yet covered by posted bills.", see: SEE_ORDERS },
-  { key: "bill-matching-issues", title: "Supplier Bill Matching Issues", description: "2-Way and 3-Way discrepancies and unresolved variances.", see: SEE_BILLS },
-  { key: "bills-due-dates", title: "Supplier Bills & Due Dates", description: "Unpaid, partially paid, overdue and upcoming instalments, from Finance's balances.", see: SEE_BILLS },
+  { key: "unbilled-goods-receipts", title: "Unbilled Goods Receipts", description: "Received quantities that can be billed but no final bill covers yet.", see: SEE_ORDERS },
+  { key: "bill-matching-issues", title: "Supplier Bill Matching Issues", description: "Order only and Order and goods received discrepancies and unresolved differences.", see: SEE_BILLS },
+  { key: "bills-due-dates", title: "Supplier Bills & Due Dates", description: "Unpaid, partially paid, overdue and upcoming payments due, from Finance's balances.", see: SEE_BILLS },
   { key: "purchase-return-summary", title: "Purchase Return Summary", description: "Returned quantities, suppliers, reasons and resolution progress.", see: SEE_RETURNS },
-  { key: "pending-supplier-credits", title: "Pending Supplier Credits", description: "Returns and accepted claims awaiting their financial correction.", see: SEE_CREDITS },
+  { key: "pending-supplier-credits", title: "Supplier Credit Notes Pending", description: "Returns and accepted claims awaiting their financial correction.", see: SEE_CREDITS },
   // Registers (Procurement plan Phase 3), each exported to Excel.
-  { key: "purchase-register", title: "Purchase Register", description: "Every posted purchase bill in GST format: GSTIN, invoice, taxable value, CGST, SGST, IGST, cess, ITC status and reverse charge.", see: SEE_BILLS },
-  { key: "tds-register", title: "TDS Register", description: "TDS withheld from supplier bills: section, PAN, the amount it was withheld on, the rate and the TDS.", see: SEE_BILLS },
+  { key: "purchase-register", title: "Purchase Register", description: "Every final purchase bill in GST format: GSTIN, invoice, taxable value, CGST, SGST, IGST, cess, ITC status and reverse charge.", see: SEE_BILLS },
+  { key: "tds-register", title: "TDS Register", description: "TDS deducted from supplier bills: section, PAN, the amount it was deducted on, the rate and the TDS.", see: SEE_BILLS },
   { key: "itc-register", title: "ITC Register", description: "Input tax credit by bill: eligible, blocked (s.17(5)), reverse charge, and whether GSTR-2B shows it.", see: SEE_BILLS },
   { key: "rcm-liability", title: "RCM Liability", description: "Reverse-charge purchases: the self-invoice, the tax the company pays itself and the month it is due in GSTR-3B.", see: SEE_BILLS },
   // Phase 4: how each supplier performs, from the receipts, rejections and bills already recorded.
   { key: "supplier-scorecard", title: "Supplier Scorecard", description: "Per supplier: deliveries on time, goods rejected or damaged, and how far billed prices moved from the order.", see: SEE_ORDERS },
-  { key: "vendor-credit-balances", title: "Vendor Credit Balances", description: "Posted, applied, refunded and unapplied credits, from Finance.", see: SEE_CREDITS },
+  { key: "vendor-credit-balances", title: "Supplier Credit Note Balances", description: "Final, applied, refunded and unapplied credits, from Finance.", see: SEE_CREDITS },
 ];
 
 export function getProcurementReportCatalog(context) {
@@ -255,7 +255,7 @@ export async function getProcurementReport(client, context, name, rawFilters = {
     case "unbilled-goods-receipts": {
       if (!can(context, ...SEE_ORDERS)) break;
       columns = [col("receipt", "Goods receipt"), col("date", "Receipt date", "date"), col("order", "Purchase order"), col("supplier", "Supplier"), col("item", "Item"),
-        col("eligible", "Eligible to bill", "number"), col("billed", "Billed", "number"), col("unbilled", "Unbilled", "number")];
+        col("eligible", "Can be billed", "number"), col("billed", "Billed", "number"), col("unbilled", "Unbilled", "number")];
       const result = await client.query(
         `SELECT billing.goods_receipt_id, billing.receipt_number, billing.receipt_date, po.id AS order_id, po.purchase_order_number, party.display_name AS supplier, line.description,
                 billing.billable_quantity, billing.allocated_quantity, billing.billable_quantity - billing.allocated_quantity AS unbilled
@@ -282,7 +282,7 @@ export async function getProcurementReport(client, context, name, rawFilters = {
       break;
     }
     case "bills-due-dates": {
-      columns = [col("bill", "Bill"), col("invoice", "Supplier invoice"), col("supplier", "Supplier"), col("installment", "Instalment"), col("due", "Due date", "date"), col("state", "Status"),
+      columns = [col("bill", "Bill"), col("invoice", "Supplier invoice"), col("supplier", "Supplier"), col("installment", "Payment due"), col("due", "Due date", "date"), col("state", "Status"),
         col("scheduled", "Scheduled", "money"), col("outstanding", "Outstanding", "money")];
       const today = await companyToday(client, organizationId);
       const result = await client.query(
@@ -319,13 +319,13 @@ export async function getProcurementReport(client, context, name, rawFilters = {
       rows = [
         ...returns.map((row) => ({ kind: "Purchase return", number: row.returnNumber, supplier: row.supplierName, date: row.returnDate, status: row.financialLabel, pending: null,
           href: `/procurement/purchase-returns/${row.id}?tab=financial` })),
-        ...claims.filter((claim) => Number(claim.remainingToCredit) > 0).map((claim) => ({ kind: "Accepted debit claim", number: claim.claimNumber, supplier: claim.supplierName, date: claim.issueDate,
+        ...claims.filter((claim) => Number(claim.remainingToCredit) > 0).map((claim) => ({ kind: "Accepted debit note", number: claim.claimNumber, supplier: claim.supplierName, date: claim.issueDate,
           status: claim.statusLabel, pending: claim.remainingToCredit, currency: claim.currencyCode, href: `/procurement/debit-notes-credits/claims/${claim.id}` })),
       ].filter((row) => inRange(row.date, filters));
       break;
     }
     case "vendor-credit-balances": {
-      columns = [col("number", "Vendor credit"), col("supplier", "Supplier"), col("date", "Credit date", "date"), col("origin", "Origin"), col("total", "Credit", "money"),
+      columns = [col("number", "Supplier credit note"), col("supplier", "Supplier"), col("date", "Credit date", "date"), col("origin", "Origin"), col("total", "Credit", "money"),
         col("settled", "Applied / refunded", "money"), col("available", "Unapplied", "money"), col("settlement", "Settlement")];
       const list = await getVendorCredits(client, context, { supplierId: filters.supplierId ?? undefined, status: "posted", from: filters.from ?? undefined, to: filters.to ?? undefined });
       rows = list.filter((row) => !filters.status || row.settlementStatus === filters.status).map((row) => ({ number: row.number, supplier: row.supplierName, date: row.date, origin: row.originLabel, total: row.total, settled: row.settled, available: row.available,
@@ -509,7 +509,7 @@ export async function exportProcurementReport(client, context, name, filters = {
 // variances approved on it (Exceptions: bills whose match fails). Matching itself runs on the bill (recheck, approve an exception); this lists and opens.
 // filters: view (all | two_way | three_way | matched | exceptions), supplierId, search.
 export const INVOICE_MATCHING_VIEWS = Object.freeze([
-  { key: "all", label: "All bills" }, { key: "two_way", label: "2-Way match" }, { key: "three_way", label: "3-Way match" },
+  { key: "all", label: "All bills" }, { key: "two_way", label: "checked against the order" }, { key: "three_way", label: "checked against the order and the goods received" },
   { key: "matched", label: "Matched" }, { key: "exceptions", label: "Exceptions" },
 ]);
 export async function getInvoiceMatchingWorkbench(client, context, filters = {}) {

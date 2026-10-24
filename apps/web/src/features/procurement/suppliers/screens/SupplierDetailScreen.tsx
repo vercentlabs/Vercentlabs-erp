@@ -23,24 +23,28 @@ import { StatusDialog, type StatusAction } from "../components/SupplierDialogs";
 import { DocumentsPanel, FilesPanel, HistoryPanel, PaymentDetailsPanel } from "../components/SupplierPanels";
 import { AddressesContactsPanel } from "../components/AddressesContactsPanel";
 import { TdsCertificatesPanel } from "../components/TdsCertificatesPanel";
+import { Form16APanel } from "../components/Form16APanel";
+import { PurchaseWarningDialog } from "@/features/procurement/shared/PurchaseWarningDialog";
 import { useTabParam } from "@/features/procurement/shared/navigation";
 import { listDebitNotesAndCredits } from "@/features/procurement/vendor-credits/api/vendor-credits-api";
 import { Facts, Notice, Panel } from "@/shared/ui/Panel";
+import { RecordThreadPanel } from "@/features/platform/record-thread/RecordThreadPanel";
+import { SupplierRatesScreen } from "@/features/procurement/supplier-rates/SupplierRateScreens";
 
-const SUPPLIER_TABS = ["overview", "contacts", "addresses", "tax", "purchase-orders", "goods-receipts", "supplier-bills", "returns-credits", "payment-details", "notes", "history"] as const;
+const SUPPLIER_TABS = ["overview", "contacts", "addresses", "tax", "rates", "purchase-orders", "goods-receipts", "supplier-bills", "returns-credits", "payment-details", "notes", "history"] as const;
 
-// The supplier's debit notes (claims) and vendor credits, from Debit Notes & Vendor Credits.
+// The supplier's debit notes and supplier credit notes.
 function SupplierCreditsPanel({ supplierId }: { supplierId: string }) {
   const workspace = useWorkspaceContext();
   const query = useQuery({ queryKey: scopedQueryKey(workspace, "procurement", "supplier-credits", supplierId), queryFn: () => listDebitNotesAndCredits({ supplierId }) });
   const rows = query.data?.rows ?? [];
   return (
-    <Panel title="Debit claims and vendor credits" description="Claims raised with this supplier and the credits it gave."
+    <Panel title="Debit notes and supplier credit notes" description="Claims raised with this supplier and the credits it gave."
       actions={<LinkButton size="compact" variant="secondary" href={`/procurement/debit-notes-credits/new?supplierId=${supplierId}`}>New Credit / Claim</LinkButton>}>
       {query.isLoading ? <p className="text-sm text-text-muted">Loading…</p> : !rows.length ? <p className="text-sm text-text-muted">None.</p> : (
         <ul className="flex flex-col divide-y divide-border text-sm">
           {rows.map((row) => <li key={`${row.kind}-${row.id}`} className="flex flex-wrap justify-between gap-2 py-2"><span><Link className="text-brand hover:underline" href={row.href}>{row.number}</Link>
-            {" "}· {row.kind === "claim" ? "Debit claim" : "Vendor credit"} · {row.statusLabel}{row.settlementLabel ? ` · ${row.settlementLabel}` : ""}</span>
+            {" "}· {row.kind === "claim" ? "Debit note" : "Supplier credit note"} · {row.statusLabel}{row.settlementLabel ? ` · ${row.settlementLabel}` : ""}</span>
             <span className="tabular-nums">{money(row.currencyCode, row.total)}</span></li>)}
         </ul>
       )}
@@ -77,6 +81,7 @@ function Supplier360({ detail, options, notice, onChanged }: { detail: SupplierD
   const [tab, setTab] = useTabParam(SUPPLIER_TABS, "overview");
   const [statusAction, setStatusAction] = useState<StatusAction | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [warning, setWarning] = useState(false);
   const summary = useQuery({ queryKey: scopedQueryKey(workspace, "procurement", "supplier", supplier.id, "summary"), queryFn: () => getSummary(supplier.id) });
   const remove = useMutation({ mutationFn: () => deleteSupplier(supplier.id), onSuccess: () => router.replace("/procurement/suppliers") });
   const purchases = summary.data?.purchases;
@@ -92,6 +97,7 @@ function Supplier360({ detail, options, notice, onChanged }: { detail: SupplierD
           {" "}No new purchase orders, and draft orders cannot go forward. Bills already owed can still be paid by Finance.
         </Notice>
       )}
+      {supplier.purchaseWarning && <Notice tone="warning">Purchase warning: {supplier.purchaseWarning}</Notice>}
       {supplier.status === "inactive" && (
         <Notice tone="warning">Inactive{supplier.statusReason ? `: ${supplier.statusReason}` : ""}. Not offered for new business; its documents stay as they are.</Notice>
       )}
@@ -114,6 +120,7 @@ function Supplier360({ detail, options, notice, onChanged }: { detail: SupplierD
             <div className="flex flex-wrap items-center gap-2">
               {actions.createBill && <LinkButton variant="secondary" href={`/procurement/supplier-bills/new?source=direct&supplierId=${supplier.id}`}>Create Supplier Bill</LinkButton>}
               {actions.edit && <LinkButton variant="secondary" href={`/procurement/suppliers/${supplier.id}/edit`}><Pencil className="size-4" aria-hidden="true" />Edit</LinkButton>}
+              {actions.edit && <Button variant="ghost" onPress={() => setWarning(true)}>{supplier.purchaseWarning ? "Change warning" : "Add warning"}</Button>}
               {actions.activate && <Button variant="secondary" onPress={() => setStatusAction("activate")}>Activate</Button>}
               {actions.unblock && <Button variant="secondary" onPress={() => setStatusAction("unblock")}>Unblock</Button>}
               {actions.deactivate && <Button variant="ghost" onPress={() => setStatusAction("deactivate")}>Deactivate</Button>}
@@ -129,6 +136,7 @@ function Supplier360({ detail, options, notice, onChanged }: { detail: SupplierD
             {actions.viewContacts && <Tab id="contacts">Contacts</Tab>}
             {actions.viewAddresses && <Tab id="addresses">Addresses</Tab>}
             <Tab id="tax">Tax &amp; Registrations</Tab>
+            <Tab id="rates">Rates</Tab>
             <Tab id="purchase-orders">Purchase Orders</Tab>
             <Tab id="goods-receipts">Goods Receipts</Tab>
             <Tab id="supplier-bills">Purchase Bills</Tab>
@@ -170,14 +178,14 @@ function Supplier360({ detail, options, notice, onChanged }: { detail: SupplierD
                     ...(payables.amountsVisible ? [
                       { label: "Open payables", value: money(base, payables.openPayables ?? 0) },
                       { label: "Overdue payables", value: money(base, payables.overduePayables ?? 0) },
-                      { label: "Unapplied supplier credits", value: money(base, payables.unappliedCredits ?? 0) },
+                      { label: "Unapplied supplier credit notes", value: money(base, payables.unappliedCredits ?? 0) },
                       { label: "Last payment", value: payables.lastPayment ? `${payables.lastPayment.number} · ${money(payables.lastPayment.currency, payables.lastPayment.amount)} · ${calendarDate(payables.lastPayment.date)}` : "None yet" },
                     ] : []),
                   ]} />
                 ) : <p className="text-sm text-text-muted">Loading…</p>}
                 {payables && !payables.amountsVisible && <p className="text-xs text-text-muted">Amounts are shown to people who may see supplier payables.</p>}
               </Panel>
-              <Panel title="Commercial defaults" description="New RFQs and purchase orders start from these. A document keeps what it was given: changing them here never changes an existing order or bill.">
+              <Panel title="Commercial defaults" description="New price requests and orders start from these. Changing them never changes an existing order or bill.">
                 <Facts columns={3} items={[
                   { label: "Default currency", value: supplier.defaultCurrency },
                   { label: "Default payment terms", value: supplier.paymentTermName ?? "—" },
@@ -201,7 +209,7 @@ function Supplier360({ detail, options, notice, onChanged }: { detail: SupplierD
           {actions.viewAddresses && <TabPanel id="addresses"><div className="pt-4"><AddressesContactsPanel detail={detail} options={options} onChanged={onChanged} onShowHistory={() => setTab("history")} show="addresses" /></div></TabPanel>}
           <TabPanel id="tax">
             <div className="flex flex-col gap-4 pt-4">
-              <Panel title="Tax identity" description="Master data: each document keeps a snapshot, so a change here never rewrites a posted bill.">
+              <Panel title="Tax identity" description="Master data: each document keeps a snapshot, so a change here never rewrites a final bill.">
                 <Facts columns={3} items={[
                   { label: "GST registration type", value: supplier.gstRegistrationLabel ?? "—" },
                   { label: "GSTIN", value: supplier.gstin ?? "—" },
@@ -229,8 +237,10 @@ function Supplier360({ detail, options, notice, onChanged }: { detail: SupplierD
                 ) : <p className="text-sm text-text-muted">No GST registrations.</p>}
               </Panel>
               <TdsCertificatesPanel supplierId={supplier.id} />
+              <Form16APanel supplierId={supplier.id} />
             </div>
           </TabPanel>
+          <TabPanel id="rates"><div className="pt-4"><SupplierRatesScreen supplierId={supplier.id} embedded /></div></TabPanel>
           <TabPanel id="purchase-orders"><div className="pt-4"><DocumentsPanel supplierId={supplier.id} kind="orders" /></div></TabPanel>
           <TabPanel id="goods-receipts"><div className="pt-4"><DocumentsPanel supplierId={supplier.id} kind="receipts" /></div></TabPanel>
           <TabPanel id="supplier-bills">
@@ -247,16 +257,19 @@ function Supplier360({ detail, options, notice, onChanged }: { detail: SupplierD
                 <p className="whitespace-pre-line text-sm">{supplier.notes ?? <span className="text-text-muted">None</span>}</p>
               </Panel>
               <FilesPanel detail={detail} />
+              <RecordThreadPanel type="procurement.supplier" id={supplier.id} />
             </div>
           </TabPanel>
           <TabPanel id="history"><div className="pt-4"><HistoryPanel supplierId={supplier.id} /></div></TabPanel>
         </Tabs>
       </RecordDetailsPage>
 
+      {warning && <PurchaseWarningDialog kind="supplier" id={supplier.id} name={supplier.supplierName} message={supplier.purchaseWarning ?? null} onClose={() => setWarning(false)}
+        onDone={() => { setWarning(false); onChanged("Purchase warning saved."); }} />}
       {statusAction && <StatusDialog supplier={supplier} action={statusAction} onClose={() => setStatusAction(null)} onDone={(message) => { setStatusAction(null); onChanged(message); }} />}
       {deleting && (
         <Dialog isOpen onOpenChange={(open) => !open && setDeleting(false)} title={`Delete ${supplier.supplierNumber}?`}
-          description="Only a supplier created by mistake and never used can be deleted. One that has been used is deactivated or blocked instead.">
+          description="Only a supplier created by mistake and never used can be deleted; otherwise deactivate or block it.">
           <div className="flex flex-col gap-3">
             {remove.error && <Notice>{errorMessage(remove.error)}</Notice>}
             <div className="flex justify-end gap-2">

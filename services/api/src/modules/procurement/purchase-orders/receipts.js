@@ -150,7 +150,7 @@ async function readReceiptLines(client, context, order, inputLines, warehouseId,
     const label = entry.lotGroup ? `Line ${line.line_number} (lot ${entry.batchNumber})` : `Line ${line.line_number}`;
     // No substitution: a line receives the product it ordered, or the order is amended first.
     if (entry.productId && entry.productId !== line.product_id)
-      fail(`${label}: only ${line.description} can be received against this line. Amend the order to receive another product.`, "productId", "GOODS_RECEIPT_PRODUCT_MISMATCH", 409);
+      fail(`${label}: only ${line.description} can be received against this line. Change the order to receive another product.`, "productId", "GOODS_RECEIPT_PRODUCT_MISMATCH", 409);
     if (line.product_type === "service") fail(`${label} is a service; services are not received. Bill it when the service is done.`, "purchaseOrderLineId", "GOODS_RECEIPT_SERVICE_LINE", 409);
     if (entry.warehouseId && entry.warehouseId !== warehouseId)
       fail(`${label}: a goods receipt has one receiving warehouse. Receive goods for another warehouse on a separate receipt.`, "warehouseId", "GOODS_RECEIPT_ONE_WAREHOUSE");
@@ -182,7 +182,7 @@ async function readReceiptLines(client, context, order, inputLines, warehouseId,
       damaged = await toOrderUnit(damaged, "damaged");
       refused = await toOrderUnit(refused, "refused");
       if (presentedEntered !== undefined && presentedEntered !== null && presentedEntered !== "")
-        presentedEntered = formatDecimal(await toOrderUnit(readQuantity(presentedEntered, `${label} presented quantity`), "presented"));
+        presentedEntered = formatDecimal(await toOrderUnit(readQuantity(presentedEntered, `${label} brought quantity`), "presented"));
     } else {
       const places = Number(line.decimal_places ?? 6);
       for (const [value, what] of [[accepted, "accepted"], [inspection, "inspection hold"], [damaged, "damaged"], [refused, "refused"]])
@@ -201,9 +201,9 @@ async function readReceiptLines(client, context, order, inputLines, warehouseId,
       if (refusalCode === "other" && (!refusalText || refusalText.length < 3)) fail(`${label}: explain why the goods were refused.`, "refusalReason", "REJECTION_EXPLANATION_REQUIRED");
     } else refusalCode = null;
     // What was presented at the dock is either taken into custody or refused: nothing is counted twice.
-    const presented = presentedEntered === undefined || presentedEntered === null || presentedEntered === "" ? null : readQuantity(presentedEntered, `${label} presented quantity`);
+    const presented = presentedEntered === undefined || presentedEntered === null || presentedEntered === "" ? null : readQuantity(presentedEntered, `${label} brought quantity`);
     if (presented !== null && presented !== add(received, refused))
-      fail(`${label}: of the ${formatDecimal(presented)} presented, ${formatDecimal(received)} taken in and ${formatDecimal(refused)} refused do not add up. Record a shortage as a discrepancy.`,
+      fail(`${label}: of the ${formatDecimal(presented)} brought, ${formatDecimal(received)} taken in and ${formatDecimal(refused)} refused do not add up. Record a shortage as a discrepancy.`,
         "presentedQuantity", "GOODS_RECEIPT_PRESENTED_MISMATCH");
     // Goods are received into a warehouse; without the Stock app they are simply marked received.
     if (received > 0n && !warehouseId && keepsStock && line.product_type !== "service") fail("Choose the receiving warehouse.", "warehouseId", "GOODS_RECEIPT_WAREHOUSE_REQUIRED");
@@ -290,16 +290,16 @@ function splitIntoLots(requested, lines) {
     const received = given(entry.receivedQuantity) ? readQuantity(entry.receivedQuantity, `${label} received quantity`)
       : given(entry.acceptedQuantity) ? add(readQuantity(entry.acceptedQuantity, `${label} accepted quantity`), held, damaged) : total("received");
     const mismatch = (what, lotTotal, lineTotal) =>
-      fail(`${label}: the lots add up to ${plain(lotTotal)} ${what}, but the line has ${plain(lineTotal)}. Allocate every unit to a lot.`, "batches", "GOODS_RECEIPT_LOT_TOTAL_MISMATCH");
+      fail(`${label}: the lots add up to ${plain(lotTotal)} ${what}, but the line has ${plain(lineTotal)}. Match every unit to a lot.`, "batches", "GOODS_RECEIPT_LOT_TOTAL_MISMATCH");
     if (total("received") !== received) mismatch("received", total("received"), received);
     if (given(entry.heldQuantity ?? entry.inspectionQuantity) && total("held") !== held) mismatch("on hold", total("held"), held);
     if (given(entry.damagedQuantity) && total("damaged") !== damaged) mismatch("damaged", total("damaged"), damaged);
     const refused = entry.refusedQuantity ?? entry.rejectedQuantity;
     let presented = null;
     if (given(entry.presentedQuantity)) {
-      presented = readQuantity(entry.presentedQuantity, `${label} presented quantity`);
+      presented = readQuantity(entry.presentedQuantity, `${label} brought quantity`);
       if (presented !== add(received, readQuantity(refused, `${label} refused quantity`)))
-        fail(`${label}: of the ${plain(presented)} presented, the lots and the refused quantity do not add up. Record a shortage as a discrepancy.`, "presentedQuantity", "GOODS_RECEIPT_PRESENTED_MISMATCH");
+        fail(`${label}: of the ${plain(presented)} brought, the lots and the refused quantity do not add up. Record a shortage as a discrepancy.`, "presentedQuantity", "GOODS_RECEIPT_PRESENTED_MISMATCH");
     }
     lots.forEach((lot, position) => out.push({
       purchaseOrderLineId: entry.purchaseOrderLineId, productId: entry.productId, uomId: entry.uomId ?? entry.receiptUomId, lotGroup: `lots-${index}`,
@@ -394,7 +394,7 @@ async function receivingWarehouse(client, context, warehouseId) {
 // Without lines, every line still to be received is proposed in full.
 export async function createGoodsReceiptFromPurchaseOrder(client, context, orderId, input = {}) {
   requirePoPermission(context, PO_PERMISSIONS.receive, "You do not have permission to receive goods.");
-  if (input.post) requirePoPermission(context, PO_PERMISSIONS.post, "You do not have permission to post goods receipts.");
+  if (input.post) requirePoPermission(context, PO_PERMISSIONS.post, "You do not have permission to finalise goods receipts.");
   const idempotency = await beginIdempotentOperation(client, context, {
     operation: "procurement.goods_receipt.create", key: text(input.idempotencyKey, 200), payload: { orderId, ...input, idempotencyKey: undefined },
   });
@@ -495,7 +495,7 @@ export async function validateGoodsReceiptForPosting(client, context, receiptId,
   const period = (await client.query(
     `SELECT name, status FROM tenant.fiscal_periods WHERE organization_id = $1 AND $2::date BETWEEN start_date AND end_date ORDER BY period_type = 'standard' DESC, start_date DESC LIMIT 1`,
     [organizationId, receiptDate])).rows[0];
-  if (period && period.status !== "open") issues.push(`The accounting period ${period.name} is ${period.status}; a receipt dated ${receiptDate} cannot be posted into it.`);
+  if (period && period.status !== "open") issues.push(`The accounting period ${period.name} is ${period.status}; a receipt dated ${receiptDate} cannot be finalised into it.`);
   // An order line's entitlement is checked once, against everything this receipt brings for it (all its lots).
   const onReceipt = new Map();
   for (const line of lines) onReceipt.set(line.purchase_order_line_id, add(onReceipt.get(line.purchase_order_line_id) ?? 0n, add(line.accepted_quantity, line.held_quantity)));
@@ -668,7 +668,7 @@ export function receiptLineCaseFields(receipt, line, orderLine) {
 
 // postGoodsReceipt: under the order's lock (two receipts cannot both take the last units), revalidated, then the stock moves once.
 export async function postGoodsReceipt(client, context, receiptId) {
-  requirePoPermission(context, PO_PERMISSIONS.post, "You do not have permission to post goods receipts.");
+  requirePoPermission(context, PO_PERMISSIONS.post, "You do not have permission to finalise goods receipts.");
   const receipt = await loadReceipt(client, context, receiptId, { lock: true });
   if (receipt.status === "posted" && !receipt.reversed_at) return { id: receipt.id, status: "posted", replayed: true };
   const order = await loadPurchaseOrder(client, context, receipt.purchase_order_id, { lock: true });
@@ -737,8 +737,8 @@ export async function postGoodsReceipt(client, context, receiptId) {
       decimal(line.damaged_quantity) > 0n && `${dec(line.damaged_quantity)} damaged`, decimal(line.rejected_quantity) > 0n && `${dec(line.rejected_quantity)} refused`].filter(Boolean);
     return `line ${orderLine.line_number}: ${parts.join(", ")}`;
   }).join("; ");
-  await recordReceiptEvent(client, context, receipt.id, "goods_receipt.posted", `Posted: ${summary}${accrual ? ` · GRNI accrual ${accrual.amount}` : ""}`, { accrual });
-  await recordPoEvent(client, context, order.id, "purchase_order.goods_received", `Goods receipt ${receipt.receipt_number} posted: ${summary}`,
+  await recordReceiptEvent(client, context, receipt.id, "goods_receipt.posted", `Final: ${summary}${accrual ? ` · goods received, bill not yet received ${accrual.amount}` : ""}`, { accrual });
+  await recordPoEvent(client, context, order.id, "purchase_order.goods_received", `Goods receipt ${receipt.receipt_number} final: ${summary}`,
     { details: { receiptId: receipt.id, receiptNumber: receipt.receipt_number } });
   await publishDomainEvent(client, { organizationId, moduleKey: "procurement", eventType: "procurement.goods_receipt.posted", entityType: "procurement.goods_receipt", entityId: receipt.id,
     payload: { receiptNumber: receipt.receipt_number, purchaseOrderId: order.id, purchaseOrderNumber: order.purchase_order_number, supplierId: order.supplier_id, buyerUserId: order.buyer_user_id } });
@@ -753,7 +753,7 @@ export async function cancelDraftGoodsReceipt(client, context, receiptId, input 
   requirePoPermission(context, PO_PERMISSIONS.receive, "You do not have permission to cancel goods receipts.");
   const receipt = await loadReceipt(client, context, receiptId, { lock: true });
   if (receipt.status === "cancelled") return { id: receipt.id, status: "cancelled", replayed: true };
-  if (receipt.status !== "draft") throw new PurchaseOrderError(409, "A posted goods receipt is not cancelled; reverse it, or record a purchase return.", "GOODS_RECEIPT_LOCKED");
+  if (receipt.status !== "draft") throw new PurchaseOrderError(409, "A final goods receipt is not deleted; cancel it, or record a purchase return.", "GOODS_RECEIPT_LOCKED");
   const reason = text(input.reason, 1000);
   await client.query(`UPDATE tenant.goods_receipts SET status = 'cancelled', cancelled_by = $3, cancelled_at = now(), cancel_reason = $4, updated_at = now() WHERE organization_id = $1 AND id = $2`,
     [context.organizationId, receipt.id, context.userId ?? null, reason]);
@@ -764,10 +764,10 @@ export async function cancelDraftGoodsReceipt(client, context, receiptId, input 
 // reversePostedGoodsReceipt: undoes a posted receipt nothing has used yet — no return from it, no bill allocated to it, no held goods released or inspected,
 // and its stock still where it was put (Inventory refuses otherwise). Compensating stock movements (and the accrual's reversal) are posted; nothing is deleted.
 export async function reversePostedGoodsReceipt(client, context, receiptId, input = {}) {
-  requirePoPermission(context, PO_PERMISSIONS.reverse, "You do not have permission to reverse goods receipts.");
+  requirePoPermission(context, PO_PERMISSIONS.reverse, "You do not have permission to cancel goods receipts.");
   const receipt = await loadReceipt(client, context, receiptId, { lock: true });
   if (receipt.reversed_at) return { id: receipt.id, status: "reversed", replayed: true };
-  if (receipt.status !== "posted") throw new PurchaseOrderError(409, "Only a posted goods receipt can be reversed.", "GOODS_RECEIPT_NOT_POSTED");
+  if (receipt.status !== "posted") throw new PurchaseOrderError(409, "Only a final goods receipt can be cancelled.", "GOODS_RECEIPT_NOT_POSTED");
   const reason = text(input.reason, 1000);
   if (!reason || reason.length < 3) fail("Give the reason for the reversal.", "reason");
   const order = await loadPurchaseOrder(client, context, receipt.purchase_order_id, { lock: true });
@@ -783,14 +783,14 @@ export async function reversePostedGoodsReceipt(client, context, receiptId, inpu
                 AND inspection.id = disposition.quality_inspection_id
               WHERE disposition.organization_id = $1 AND disposition.goods_receipt_id = $2 AND inspection.status NOT IN ('draft', 'cancelled'))::int AS inspected`,
     [organizationId, receipt.id])).rows[0];
-  if (used.returns) throw new PurchaseOrderError(409, "Goods from this receipt were returned to the supplier. It can no longer be reversed.", "GOODS_RECEIPT_IN_USE");
+  if (used.returns) throw new PurchaseOrderError(409, "Goods from this receipt were returned to the supplier. It can no longer be cancelled.", "GOODS_RECEIPT_IN_USE");
   if (used.bills) throw new PurchaseOrderError(409, "A supplier bill draws on this receipt. Finance must cancel or correct the bill first.", "GOODS_RECEIPT_IN_USE");
-  if (decimal(used.released) > 0n) throw new PurchaseOrderError(409, "Held goods from this receipt were released into stock. It can no longer be reversed.", "GOODS_RECEIPT_IN_USE");
+  if (decimal(used.released) > 0n) throw new PurchaseOrderError(409, "Held goods from this receipt were released into stock. It can no longer be cancelled.", "GOODS_RECEIPT_IN_USE");
   if (used.inspected) throw new PurchaseOrderError(409, "Quality has started inspecting goods from this receipt. Finish or cancel the inspection first.", "GOODS_RECEIPT_IN_USE");
   const cases = (await client.query(`SELECT id, rejection_number, stock_source, status, resolved_quantity FROM tenant.receiving_rejections WHERE organization_id = $1 AND goods_receipt_id = $2 AND status <> 'cancelled'`,
     [organizationId, receipt.id])).rows;
   const settled = cases.find((entry) => entry.status !== "open" || decimal(entry.resolved_quantity) > 0n || entry.stock_source === "usable_stock");
-  if (settled) throw new PurchaseOrderError(409, `Rejection ${settled.rejection_number} was acted on for goods from this receipt. Resolve it through its own documents; the receipt can no longer be reversed.`, "GOODS_RECEIPT_IN_USE");
+  if (settled) throw new PurchaseOrderError(409, `Rejection ${settled.rejection_number} was acted on for goods from this receipt. Resolve it through its own documents; the receipt can no longer be cancelled.`, "GOODS_RECEIPT_IN_USE");
   const lines = (await client.query(`SELECT line.*, item.tracking_type FROM tenant.goods_receipt_lines line LEFT JOIN tenant.items item ON item.organization_id = line.organization_id AND item.id = line.product_id
      WHERE line.organization_id = $1 AND line.goods_receipt_id = $2 ORDER BY line.line_number`, [organizationId, receipt.id])).rows;
   const progress = new Map((await loadLineProgress(client, organizationId, order.id)).map((line) => [line.lineId, line]));
@@ -813,24 +813,24 @@ export async function reversePostedGoodsReceipt(client, context, receiptId, inpu
       }
     }
     await stocked(() => reverseStockMovements(client, stock, line.stock_movement_ids, { referenceType: "goods_receipt_reversal", referenceId: line.id,
-      reason: `${receipt.receipt_number} reversed: ${reason}`, keyPrefix: "grn-reversal" }), label);
+      reason: `${receipt.receipt_number} cancelled: ${reason}`, keyPrefix: "grn-reversal" }), label);
   }
   // Inspections opened for this receipt's held goods are no longer needed.
   const drafts = (await client.query(
     `SELECT inspection.id FROM tenant.goods_receipt_dispositions disposition JOIN tenant.quality_inspections inspection ON inspection.organization_id = disposition.organization_id
         AND inspection.id = disposition.quality_inspection_id WHERE disposition.organization_id = $1 AND disposition.goods_receipt_id = $2 AND inspection.status = 'draft'`,
     [organizationId, receipt.id])).rows;
-  for (const draft of drafts) await cancelInspection(client, qualityContextFor(context), draft.id, `Goods receipt ${receipt.receipt_number} reversed`);
+  for (const draft of drafts) await cancelInspection(client, qualityContextFor(context), draft.id, `Goods receipt ${receipt.receipt_number} cancelled`);
   await reconcileReversedReceipt(client, qualityContextFor(context), receipt.id);
   // Its rejection cases go with it: what the receipt recorded did not happen as recorded.
   for (const entry of cases)
     await client.query(`UPDATE tenant.receiving_rejections SET status = 'cancelled', cancelled_by = $3, cancelled_at = now(), cancel_reason = $4, updated_at = now() WHERE organization_id = $1 AND id = $2`,
-      [organizationId, entry.id, context.userId ?? null, `Goods receipt ${receipt.receipt_number} reversed: ${reason}`]);
+      [organizationId, entry.id, context.userId ?? null, `Goods receipt ${receipt.receipt_number} cancelled: ${reason}`]);
   const accrualReversal = await reverseReceiptAccrual(client, context, receipt, reason);
   await client.query(`UPDATE tenant.goods_receipts SET reversed_by = $3, reversed_at = now(), reversal_reason = $4, updated_by = $3, updated_at = now() WHERE organization_id = $1 AND id = $2`,
     [organizationId, receipt.id, context.userId ?? null, reason]);
-  await recordReceiptEvent(client, context, receipt.id, "goods_receipt.reversed", `Reversed: ${reason}`, { accrualReversalJournalEntryId: accrualReversal });
-  await recordPoEvent(client, context, order.id, "purchase_order.receipt_reversed", `Goods receipt ${receipt.receipt_number} reversed: ${reason}`, { details: { receiptId: receipt.id } });
+  await recordReceiptEvent(client, context, receipt.id, "goods_receipt.reversed", `Cancelled: ${reason}`, { accrualReversalJournalEntryId: accrualReversal });
+  await recordPoEvent(client, context, order.id, "purchase_order.receipt_reversed", `Goods receipt ${receipt.receipt_number} cancelled: ${reason}`, { details: { receiptId: receipt.id } });
   return { id: receipt.id, status: "reversed", replayed: false };
 }
 
@@ -877,7 +877,7 @@ export async function releaseHeldGoods(client, context, dispositionId, input = {
     [context.organizationId, requireUuid(dispositionId, "Held goods")])).rows[0];
   if (!disposition) throw new PurchaseOrderError(404, "Held goods not found.", "GOODS_RECEIPT_DISPOSITION_NOT_FOUND");
   const receipt = await loadReceipt(client, context, disposition.goods_receipt_id, { lock: true });
-  if (receipt.reversed_at) fail("The receipt was reversed.", "status", "GOODS_RECEIPT_LOCKED", 409);
+  if (receipt.reversed_at) fail("The receipt was cancelled.", "status", "GOODS_RECEIPT_LOCKED", 409);
   const line = (await client.query(`SELECT * FROM tenant.goods_receipt_lines WHERE organization_id = $1 AND id = $2`, [context.organizationId, disposition.goods_receipt_line_id])).rows[0];
   // Only what Quality has not rejected: rejected goods are accepted back through their rejection case.
   const open = sub(sub(sub(sub(disposition.quantity, disposition.released_quantity), disposition.returned_quantity), disposition.disposed_quantity), disposition.blocked_quantity);

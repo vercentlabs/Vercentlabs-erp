@@ -91,7 +91,7 @@ export type BillDetail = {
     buyingRegistration: { name?: string; legalName?: string; gstin?: string } | null; placeOfSupply: string | null; supplyNature: string | null; reverseCharge: boolean; sourceType: string;
     sourceLabel: string; purchaseOrderId: string | null; purchaseOrderNumber: string | null; currencyCode: string; baseCurrencyCode: string; exchangeRate: string;
     paymentTerm: { name?: string } | null; priceMode: string; notes: string | null; subtotal: string; discountTotal: string; taxableTotal: string; taxTotal: string; reverseChargeTaxTotal: string;
-    invoiceTotal: string; withholdingTotal: string; roundingAdjustment: string; netPayable: string; baseCurrencyTotal: string; supplierStatedTotal: string | null; tcsAmount?: string; rcmSelfInvoiceNumber?: string | null; paid: string; credited: string;
+    invoiceTotal: string; withholdingTotal: string; roundingAdjustment: string; netPayable: string; baseCurrencyTotal: string; supplierStatedTotal: string | null; tcsAmount?: string; rcmSelfInvoiceNumber?: string | null; irn?: string | null; irnDate?: string | null; advanceWithholdingCredit?: string; paid: string; credited: string;
     balanceDue: string; withholdingSection: { id: string; code: string; name: string } | null; matchingStatus: string; matchOverrideReason: string | null; duplicateOverrideReason: string | null;
     duplicateOverrideByName: string | null; sourceBillId: string | null; sourceBillNumber: string | null; debitNoteReason: string | null; sourcePurchaseReturnId: string | null;
     purchaseReturnNumber: string | null; createdAt: string; createdByName: string | null; updatedAt: string; postedAt: string | null; postedByName: string | null; cancelledAt: string | null;
@@ -231,3 +231,15 @@ export const approveMatchException = (id: string, reason: string) =>
   post<{ matching: BillMatching }>(`/supplier-bills/${id}/matching/exceptions`, { reason }).then((result) => result.matching);
 export const MATCH_LABELS: Record<MatchResult, string> = { matched: "Matched", mismatch: "Mismatch", approved_exception: "Approved exception", not_checked: "Not checked", not_applicable: "Not applicable" };
 export const MATCH_TONES: Record<MatchResult, "success" | "danger" | "warning" | "neutral" | "info"> = { matched: "success", mismatch: "danger", approved_exception: "warning", not_checked: "info", not_applicable: "neutral" };
+
+// Bills by email (report Phase 3).
+export type BillInboxEntry = {
+  id: string; status: "new" | "billed" | "set_aside"; receivedAt: string; fromEmail: string | null; fromName: string | null; subject: string | null; fileId: string; fileName: string;
+  supplierId: string | null; supplierName: string | null; irn: string | null; problems: string[]; billId: string | null; billNumber: string | null;
+  qr: { invoiceNumber: string | null; invoiceDate: string | null; total: string | null; irn: string; irnDate: string | null; supplierGstin: string | null } | null;
+  setAsideReason: string | null; setAsideAt: string | null;
+};
+export const listBillInbox = (view = "new") => get<{ rows: BillInboxEntry[]; counts: { new: number }; addressReady: boolean }>(`/bill-inbox?view=${encodeURIComponent(view)}`);
+export const getBillInboxEntry = (id: string) => get<{ entry: BillInboxEntry }>(`/bill-inbox/${id}`).then((result) => result.entry);
+export const setAsideBillInbox = (id: string, input: { reason?: string; restore?: boolean }) => post<{ result: BillInboxEntry }>(`/bill-inbox/${id}/set-aside`, input).then((result) => result.result);
+export const billInboxFileUrl = (id: string, inline = false) => `/api/procurement/bill-inbox/${id}/file${inline ? "?disposition=inline" : ""}`;

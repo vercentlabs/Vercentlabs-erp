@@ -6,8 +6,9 @@
 // because separate permissions change them.
 import { parseGstin } from "@vercentlabs/shared-types";
 import { purchaseTermSnapshot } from "../../../core/payment-terms/index.js";
+import { listSupplierCategories, matchSupplierCategory } from "./categories.js";
 import {
-  EMAIL_PATTERN, GSTIN_PATTERN, GST_REGISTRATION_TYPES, PAN_PATTERN, SUPPLIER_CATEGORIES, SUPPLIER_TYPES, SupplierError, UDYAM_PATTERN, has, isUuid, text,
+  EMAIL_PATTERN, GSTIN_PATTERN, GST_REGISTRATION_TYPES, PAN_PATTERN, SUPPLIER_TYPES, SupplierError, UDYAM_PATTERN, has, isUuid, text,
 } from "./constants.js";
 
 export const IDENTITY_FIELDS = Object.freeze(["supplierName", "legalName", "supplierType", "category", "primaryEmail", "primaryPhone", "website", "countryCode", "notes"]);
@@ -69,7 +70,7 @@ export function assertValidSupplier(candidate, changed = null) {
   const issue = (field, message) => issues.push({ field, message });
   if (!candidate.supplierName) issue("supplierName", "Enter the supplier name.");
   if (!SUPPLIER_TYPES.some((entry) => entry.code === candidate.supplierType)) issue("supplierType", "Choose Business or Individual.");
-  if (!SUPPLIER_CATEGORIES.some((entry) => entry.code === candidate.category)) issue("category", "Choose a category.");
+  if (!candidate.category) issue("category", "Choose a category.");
   if (candidate.primaryEmail && !EMAIL_PATTERN.test(candidate.primaryEmail)) issue("primaryEmail", "Enter a valid email address.");
   if (candidate.primaryPhone && (candidate.primaryPhone.replace(/[^0-9]/g, "").length < 6 || !/^[0-9+()\-\s.]+$/.test(candidate.primaryPhone)))
     issue("primaryPhone", "Enter a valid phone number.");
@@ -121,6 +122,12 @@ export function completeTaxDetails(candidate) {
 export async function assertSupplierReferences(client, context, candidate, changed = null) {
   const touched = (field) => !changed || changed.includes(field);
   const one = async (sql, values) => (await client.query(sql, values)).rows[0];
+  // A category of the managed list, typed by code or name; saved as the list's code.
+  if (touched("category")) {
+    const code = matchSupplierCategory(await listSupplierCategories(client, context.organizationId), candidate.category);
+    if (!code) fail([{ field: "category", message: "Choose an active category from Supplier Categories." }]);
+    candidate.category = code;
+  }
   if (touched("defaultCurrency") && !(await one(`SELECT 1 FROM tenant.currencies WHERE organization_id = $1 AND code = $2 AND status = 'active'`, [context.organizationId, candidate.defaultCurrency])))
     fail([{ field: "defaultCurrency", message: "Choose a currency your organization uses." }]);
   if (touched("paymentTermId")) {

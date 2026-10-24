@@ -23,17 +23,17 @@ export const RETURN_REASONS = Object.freeze([
 export const REASON_LABELS = Object.freeze(Object.fromEntries(RETURN_REASONS.map((entry) => [entry.code, entry.label])));
 export const COMMERCIAL_REASONS = Object.freeze(["excess_goods", "surplus_goods"]);
 
-export const EXPECTED_RESOLUTIONS = Object.freeze({ supplier_credit: "Supplier credit", supplier_refund: "Refund", replacement: "Replacement", no_resolution: "No resolution expected" });
-export const RESOLUTION_TYPES = Object.freeze({ supplier_credit: "Supplier credit", supplier_refund: "Supplier refund", replacement_received: "Replacement received",
+export const EXPECTED_RESOLUTIONS = Object.freeze({ supplier_credit: "Supplier credit note", supplier_refund: "Refund", replacement: "Replacement", no_resolution: "No resolution expected" });
+export const RESOLUTION_TYPES = Object.freeze({ supplier_credit: "Supplier credit note", supplier_refund: "Supplier refund", replacement_received: "Replacement received",
   other_authorized_resolution: "Other authorised resolution" });
-export const DOCUMENT_STATUS_LABELS = Object.freeze({ draft: "Draft", posted: "Posted", cancelled: "Cancelled", reversed: "Reversed" });
+export const DOCUMENT_STATUS_LABELS = Object.freeze({ draft: "Draft", posted: "Final", cancelled: "Cancelled", reversed: "Cancelled" });
 export const RESOLUTION_STATUS_LABELS = Object.freeze({ pending: "Pending", partially_resolved: "Partially resolved", resolved: "Resolved", not_applicable: "Not applicable" });
-export const FINANCIAL_STATUS_LABELS = Object.freeze({ not_required: "Not required", pending: "Pending", partially_reconciled: "Partially reconciled", reconciled: "Reconciled",
+export const FINANCIAL_STATUS_LABELS = Object.freeze({ not_required: "Not required", pending: "Pending", partially_reconciled: "Partially checked", reconciled: "Checked",
   not_applicable: "Not applicable" });
 export const REPLACEMENT_STATUS_LABELS = Object.freeze({ not_required: "Not required", awaiting: "Awaiting", partially_received: "Partially received", completed: "Completed" });
 
 export const RETURN_VIEWS = Object.freeze([
-  { key: "all", label: "All Returns" }, { key: "draft", label: "Draft" }, { key: "posted", label: "Posted" }, { key: "cancelled_reversed", label: "Cancelled / Reversed" },
+  { key: "all", label: "All Returns" }, { key: "draft", label: "Draft" }, { key: "posted", label: "Final" }, { key: "cancelled_reversed", label: "Cancelled" },
   { key: "awaiting_resolution", label: "Awaiting Supplier Resolution" }, { key: "awaiting_financial", label: "Awaiting Financial Adjustment" },
   { key: "awaiting_replacement", label: "Awaiting Replacement" },
 ]);

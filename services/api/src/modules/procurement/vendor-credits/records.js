@@ -39,7 +39,7 @@ export async function getVendorCredits(client, context, filters = {}) {
   let where = " AND credit.bill_type = 'credit_note'";
   if (filters.supplierId) where += ` AND credit.supplier_id = ${push(requireUuid(filters.supplierId, "Supplier"))}`;
   if (filters.origin) where += ` AND credit.credit_origin = ${push(String(filters.origin))}`;
-  if (filters.claimId) where += ` AND credit.debit_claim_id = ${push(requireUuid(filters.claimId, "Debit claim"))}`;
+  if (filters.claimId) where += ` AND credit.debit_claim_id = ${push(requireUuid(filters.claimId, "Debit note"))}`;
   if (filters.purchaseReturnId) where += ` AND EXISTS (SELECT 1 FROM tenant.purchase_return_financial_allocations allocation WHERE allocation.organization_id = credit.organization_id
       AND allocation.debit_note_id = credit.id AND allocation.purchase_return_id = ${push(requireUuid(filters.purchaseReturnId, "Purchase return"))})`;
   if (filters.billId) where += ` AND (credit.source_bill_id = ${push(requireUuid(filters.billId, "Supplier bill"))} OR EXISTS (SELECT 1 FROM tenant.accounting_vendor_bill_lines line
@@ -73,7 +73,7 @@ export async function listDebitNotesAndCredits(client, context, filters = {}) {
   const wantCredits = !claimViews.includes(view);
   const claims = wantClaims ? (await getSupplierDebitClaims(client, context, { ...filters, view })).map((claim) => ({
     id: claim.id, kind: "claim", number: claim.claimNumber, status: claim.status, statusLabel: CLAIM_STATUS_LABELS[claim.status], settlementStatus: null, settlementLabel: null,
-    supplierId: claim.supplierId, supplierName: claim.supplierName, origin: null, originLabel: "Debit claim to supplier", supplierCreditNoteNumber: claim.supplierReference, date: claim.issueDate,
+    supplierId: claim.supplierId, supplierName: claim.supplierName, origin: null, originLabel: "Debit note to supplier", supplierCreditNoteNumber: claim.supplierReference, date: claim.issueDate,
     currencyCode: claim.currencyCode, reason: claim.reason, total: claim.claimedAmount, accepted: claim.acceptedAmount, disputed: claim.disputedAmount, available: claim.remainingToCredit,
     href: `/procurement/debit-notes-credits/claims/${claim.id}` })) : [];
   const credits = wantCredits ? await getVendorCredits(client, context, { ...filters, view }) : [];
@@ -280,7 +280,7 @@ export async function getVendorCreditOptions(client, context, filters = {}) {
   };
   if (!filters.supplierId) return { ...base, bills: [], returns: [], claims: [] };
   const supplier = await supplierOf(client, organizationId, filters.supplierId);
-  const excludeCreditId = filters.excludeCreditId ? requireUuid(filters.excludeCreditId, "Vendor credit") : null;
+  const excludeCreditId = filters.excludeCreditId ? requireUuid(filters.excludeCreditId, "Supplier credit note") : null;
   const bills = (await client.query(`SELECT id, bill_number, supplier_invoice_reference, bill_date, currency_code, grand_total, outstanding_amount, buying_registration_id FROM tenant.accounting_vendor_bills
      WHERE organization_id = $1 AND party_id = $2 AND bill_type = 'bill' AND status IN ${POSTED_SQL} ORDER BY bill_date DESC LIMIT 100`, [organizationId, supplier.party_id])).rows;
   const billLines = bills.length ? (await client.query(`SELECT id, vendor_bill_id, sequence, description, quantity, unit_price, net_amount, tax_amount, reverse_charge FROM tenant.accounting_vendor_bill_lines

@@ -192,6 +192,18 @@ export * from "./modules/procurement/chain.js";
 export * from "./modules/procurement/indents/index.js";
 export * from "./modules/procurement/rfqs/index.js";
 export * from "./modules/procurement/rate-contracts/index.js";
+export * from "./modules/procurement/supplier-rates/index.js";
+export * from "./modules/procurement/supplier-bills/einvoice.js";
+export * from "./modules/procurement/payments/bank-file.js";
+export * from "./modules/procurement/payments/advice.js";
+export * from "./modules/procurement/purchase-orders/supplier-page.js";
+export * from "./modules/procurement/purchase-orders/receipt-reminders.js";
+export * from "./modules/procurement/indents/departments.js";
+export * from "./modules/procurement/warnings.js";
+export * from "./modules/procurement/job-work/index.js";
+export * from "./modules/procurement/payments/msme-returns.js";
+export * from "./modules/procurement/insights/analysis.js";
+export * from "./modules/procurement/variant-grid.js";
 export function assertEligibleLeadAssignee(
   client: QueryClient,
   context: CrmFoundationContext,

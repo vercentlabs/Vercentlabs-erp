@@ -9,7 +9,9 @@ import { useEffect, useMemo, useState } from "react";
 import { useFormRouter as useRouter } from "@/shell/form-modal/FormModal";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Plus, Trash2 } from "lucide-react";
-import { Button, Checkbox, ErrorState, IconButton, Select, TextArea, TextField } from "@vercentlabs/design-system";
+import { Button, Checkbox, ErrorState, Select, TextArea, TextField } from "@vercentlabs/design-system";
+import { VariantGridDialog } from "@/shared/ui/VariantGridDialog";
+import { GST_STATES } from "@vercentlabs/shared-types";
 
 import { LoadingState } from "@/shared/ui/LoadingState";
 import { useSubmitKey } from "@/shared/http/submit-once";
@@ -27,18 +29,19 @@ import {
 import { DocumentFormPage } from "@/shared/ui/DocumentFormPage";
 import { FormSection } from "@/shared/ui/FormSection";
 import { Notice } from "@/shared/ui/Panel";
+import { MoreDetails, MoreDetailsGroup } from "@/shared/ui/MoreDetails";
 
 const NONE = "none";
 const DEFAULT = "default";
 type Line = {
   key: number; lineId?: string; productId: string; descriptive: boolean; description: string; productType: string; quantity: string; uomId: string; unitPrice: string;
   zeroPriceReason: string; discountType: string; discountValue: string; warehouseId: string; expectedDeliveryDate: string; taxCategoryId: string; noTax: boolean; expenseAccountId: string;
-  sourceQuotationLineId?: string | null;
+  sourceQuotationLineId?: string | null; costCenterId: string;
 };
 let lineKey = 0;
 const blankLine = (warehouseId = ""): Line => ({
   key: ++lineKey, productId: "", descriptive: false, description: "", productType: "service", quantity: "1", uomId: "", unitPrice: "", zeroPriceReason: "", discountType: NONE, discountValue: "",
-  warehouseId, expectedDeliveryDate: "", taxCategoryId: "", noTax: false, expenseAccountId: "",
+  warehouseId, expectedDeliveryDate: "", taxCategoryId: "", noTax: false, expenseAccountId: "", costCenterId: "",
 });
 const trimNumber = (value: string | null | undefined) => (value == null ? "" : String(Number(value)));
 
@@ -47,6 +50,7 @@ type Header = {
   expectedDeliveryDate: string; supplierReference: string; supplierQuotationReference: string; priceMode: string; documentDiscountType: string; documentDiscountValue: string;
   supplierContactId: string; supplierAddressId: string; supplierBillingAddressId: string; supplierShipFromId: string; supplierNotes: string; internalNotes: string;
   shipToLine1: string; shipToCity: string; shipToStateCode: string; shipToPostalCode: string; advancePercentage: string; paymentTermsNote: string; paymentTermChangeReason: string;
+  incoterm: string; incotermPlace: string;
 };
 
 function headerFrom(detail: PurchaseOrderDetail | null, supplierId: string | undefined, options: PurchaseOrderOptions): Header {
@@ -59,6 +63,7 @@ function headerFrom(detail: PurchaseOrderDetail | null, supplierId: string | und
     documentDiscountValue: order?.documentDiscountType ? trimNumber(order.documentDiscountValue) : "", supplierContactId: order?.supplierContactId ?? DEFAULT,
     supplierAddressId: order?.supplierAddressId ?? DEFAULT, supplierBillingAddressId: order?.supplierBillingAddressId ?? DEFAULT, supplierShipFromId: order?.supplierShipFromId ?? DEFAULT,
     supplierNotes: order?.supplierNotes ?? "", internalNotes: order?.internalNotes ?? "", shipToLine1: order?.shipTo?.line1 ?? "", shipToCity: order?.shipTo?.city ?? "",
+    incoterm: order?.incoterm ?? "", incotermPlace: order?.incotermPlace ?? "",
     shipToStateCode: order?.shipTo?.stateCode ?? "", shipToPostalCode: order?.shipTo?.postalCode ?? "", advancePercentage: detail?.paymentTerms?.advance?.percentage ?? "",
     paymentTermsNote: detail?.paymentTerms?.notes ?? "", paymentTermChangeReason: detail?.paymentTerms?.changeReason ?? "",
   };
@@ -70,7 +75,7 @@ function linesFrom(detail: PurchaseOrderDetail | null, defaultWarehouse: string)
     key: ++lineKey, lineId: line.id, productId: line.productId ?? "", descriptive: !line.productId, description: line.product.descriptive ? line.description : "", productType: line.productType,
     quantity: trimNumber(line.orderedQuantity), uomId: line.uomId, unitPrice: trimNumber(line.unitPrice), zeroPriceReason: line.zeroPriceReason ?? "", discountType: line.discountType ?? NONE,
     discountValue: line.discountType ? trimNumber(line.discountValue) : "", warehouseId: line.warehouseId ?? "", expectedDeliveryDate: line.expectedDeliveryDate ?? "",
-    taxCategoryId: line.productId ? "" : line.taxCategoryId ?? "", noTax: !line.productId && !line.taxCategoryId, expenseAccountId: line.expenseAccountId ?? "",
+    taxCategoryId: line.productId ? "" : line.taxCategoryId ?? "", noTax: !line.productId && !line.taxCategoryId, expenseAccountId: line.expenseAccountId ?? "", costCenterId: line.costCenterId ?? "",
     sourceQuotationLineId: line.sourceQuotationLineId,
   }));
 }
@@ -106,7 +111,7 @@ export function PurchaseOrderFormScreen({ orderId, supplierId, copyFromId }: { o
   }
   if (orderId && !detailQuery.data) return <ErrorState title="Could not load this purchase order" description={errorMessage(detailQuery.error)} action={{ label: "Retry", onPress: () => detailQuery.refetch() }} />;
   if (detailQuery.data && !detailQuery.data.actions.edit)
-    return <ErrorState title="This order cannot be edited" description={`It is ${detailQuery.data.order.statusLabel.toLowerCase()}. A confirmed order is changed by amending it.`} />;
+    return <ErrorState title="This order cannot be edited" description={`It is ${detailQuery.data.order.statusLabel.toLowerCase()}. A confirmed order is changed with Change the order.`} />;
   return <OrderForm key={orderId ?? "new"} options={optionsQuery.data} detail={detailQuery.data ?? null} supplierId={supplierId} />;
 }
 
@@ -137,7 +142,7 @@ function OrderForm({ options, detail, supplierId, copy = null }: { options: Purc
       ...Object.fromEntries((["supplierContactId", "supplierAddressId", "supplierBillingAddressId", "supplierShipFromId"] as const)
         .filter((key) => header[key] !== DEFAULT).map((key) => [key, choose(header[key])])),
       shipTo, supplierNotes: header.supplierNotes, internalNotes: header.internalNotes, paymentTermsNote: header.paymentTermsNote, paymentTermChangeReason: header.paymentTermChangeReason || undefined,
-      advancePercentage: header.advancePercentage || undefined,
+      advancePercentage: header.advancePercentage || undefined, incoterm: header.incoterm || null, incotermPlace: header.incotermPlace || null,
       lines: lines.filter((line) => line.productId || line.descriptive).map((line) => ({
         lineId: line.lineId, productId: line.descriptive ? undefined : line.productId, description: line.description || undefined, productType: line.descriptive ? line.productType : undefined,
         quantity: line.quantity, uomId: line.uomId || undefined, unitPrice: line.unitPrice, zeroPriceReason: line.zeroPriceReason || undefined,
@@ -145,6 +150,7 @@ function OrderForm({ options, detail, supplierId, copy = null }: { options: Purc
         warehouseId: line.warehouseId || undefined, expectedDeliveryDate: line.expectedDeliveryDate || undefined,
         taxCategoryId: line.descriptive && !line.noTax ? line.taxCategoryId || undefined : undefined, noTax: line.descriptive ? line.noTax : undefined,
         expenseAccountId: line.descriptive ? line.expenseAccountId || undefined : undefined, sourceQuotationLineId: line.sourceQuotationLineId ?? undefined,
+        costCenterId: line.costCenterId || null,
       })),
     };
   }, [header, lines]);
@@ -173,6 +179,18 @@ function OrderForm({ options, detail, supplierId, copy = null }: { options: Purc
   // The suppliers and products this form knows: the options' first page and every one picked since (ProcurementSearchPicker).
   const [knownSuppliers, keepSupplier] = useKnownRows(options.suppliers);
   const [knownProducts, keepProduct] = useKnownRows(options.products);
+  // The variant grid: one line per size and colour filled in, in each variant's purchase unit.
+  const [grid, setGrid] = useState(false);
+  async function addVariantLines(picked: Array<{ itemId: string; quantity: number }>) {
+    setGrid(false);
+    const found = await getPurchaseOrderOptions({ productIds: picked.map((line) => line.itemId) });
+    for (const row of found.products) keepProduct(row);
+    const warehouse = header.defaultWarehouseId === NONE ? "" : header.defaultWarehouseId;
+    setLines((current) => [...current.filter((line) => line.productId || line.descriptive), ...picked.map((line) => {
+      const product = found.products.find((entry) => entry.id === line.itemId);
+      return { ...blankLine(warehouse), productId: line.itemId, quantity: String(line.quantity), uomId: product?.purchase_uom_id ?? product?.uom_id ?? "" };
+    })]);
+  }
   const uomOptions = options.uoms.map((uom) => ({ value: uom.id, label: uom.code }));
   const warehouseOptions = options.warehouses.map((warehouse) => ({ value: warehouse.id, label: warehouse.name }));
   const choosePerson = supplier ? supplier.contacts.filter((contact) => contact.status === "active").map((contact) => ({ value: contact.id, label: contact.name })) : [];
@@ -183,8 +201,8 @@ function OrderForm({ options, detail, supplierId, copy = null }: { options: Purc
     <>
     <DocumentFormPage
       header={{
-        title: detail ? `${detail.order.amending ? "Amend" : "Edit"} ${detail.order.purchaseOrderNumber}` : "New Purchase Order",
-        description: detail?.order.amending ? `Amendment: ${detail.order.amendmentReason}. Confirming it makes version ${detail.order.versionNumber + 1}.` : "The server sets the number and the totals when you save.",
+        title: detail ? `${detail.order.amending ? "Change" : "Edit"} ${detail.order.purchaseOrderNumber}` : "New Purchase Order",
+        description: detail?.order.amending ? `Change: ${detail.order.amendmentReason}. Confirming it makes version ${detail.order.versionNumber + 1}.` : "The server sets the number and the totals when you save.",
       }}
       banner={<div className="flex flex-col gap-3">
         {Boolean(failure) && <Notice>{errorMessage(failure)}{issues.length > 1 && <ul className="mt-1 list-disc pl-5">{issues.map((issue) => <li key={issue}>{issue}</li>)}</ul>}</Notice>}
@@ -196,69 +214,35 @@ function OrderForm({ options, detail, supplierId, copy = null }: { options: Purc
         </>
       }
     >
-      <FormSection columns={1} title="Supplier and terms" description="Choosing the supplier proposes its currency, payment terms, buyer, contact and locations. Change what differs.">
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+      <FormSection columns={1} title="Supplier and delivery" description="The supplier proposes its currency, terms, contact and locations.">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
           <ProcurementSearchPicker kind="suppliers" label="Supplier" isRequired activeOnly value={header.supplierId || null} isDisabled={Boolean(detail?.order.sourceQuotationId)}
             known={knownSuppliers} onPick={(id, row) => {
               keepSupplier(row as (typeof knownSuppliers)[number] | null);
               setHeader((current) => ({ ...current, supplierId: id, supplierContactId: DEFAULT, supplierAddressId: DEFAULT, supplierBillingAddressId: DEFAULT,
                 supplierShipFromId: DEFAULT, currencyCode: DEFAULT, paymentTermId: DEFAULT }));
             }} />
-          <Select label="Currency" selectedKey={header.currencyCode} onSelectionChange={(value) => set("currencyCode")(String(value))}
-            options={[{ value: DEFAULT, label: `Supplier's (${preview?.currencyCode ?? "…"})` }, ...options.currencies.map((currency) => ({ value: currency.code, label: currency.code }))]} />
           <Select label="Payment terms" selectedKey={header.paymentTermId} onSelectionChange={(value) => set("paymentTermId")(String(value))}
             options={[{ value: DEFAULT, label: `Supplier's (${preview?.paymentTerm?.name ?? "…"})` }, ...options.paymentTerms.map((term) => ({ value: term.id, label: term.name }))]} />
           {(header.advancePercentage || options.paymentTerms.find((term) => term.id === header.paymentTermId)?.term_type === "advance") && (
-            <TextField label="Advance (% of the order)" inputMode="decimal" value={header.advancePercentage} onChange={set("advancePercentage")} description="Paid by Finance as a supplier advance and applied to the bill." />
+            <TextField label="Advance (% of the order)" inputMode="decimal" value={header.advancePercentage} onChange={set("advancePercentage")} description="Paid by Finance and taken off the bill." />
           )}
-          <TextField label="Payment notes" value={header.paymentTermsNote} onChange={set("paymentTermsNote")} description="For example: as agreed in the supplier's quotation." />
           {header.paymentTermId !== DEFAULT && <TextField label="Why these terms" value={header.paymentTermChangeReason} onChange={set("paymentTermChangeReason")} description="When they differ from the supplier's." />}
-          <Select label="Buyer" selectedKey={header.buyerUserId} onSelectionChange={(value) => set("buyerUserId")(String(value))}
-            options={[{ value: DEFAULT, label: "Supplier's buyer, else me" }, ...options.buyers.map((buyer) => ({ value: buyer.id, label: buyer.name }))]} />
-          <TextField label="Order date" type="date" value={header.orderDate} onChange={set("orderDate")} description="Today if left empty." />
           <TextField label="Expected delivery" type="date" value={header.expectedDeliveryDate} onChange={set("expectedDeliveryDate")} isRequired={options.settings.requireExpectedDate} />
-          <TextField label="Supplier reference" value={header.supplierReference} onChange={set("supplierReference")} />
-          <TextField label="Supplier quotation reference" value={header.supplierQuotationReference} onChange={set("supplierQuotationReference")} />
-          <Select label="Prices" selectedKey={header.priceMode} onSelectionChange={(value) => set("priceMode")(String(value))}
-            options={[{ value: "exclusive", label: "Exclusive of tax" }, { value: "inclusive", label: "Inclusive of tax" }]} />
-        </div>
-      </FormSection>
-
-      {supplier && (
-        <FormSection columns={1} title="Supplier contact and locations" description="From the supplier's defaults unless chosen here. The order keeps a copy of what it was placed with.">
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <Select label="Contact" selectedKey={header.supplierContactId} onSelectionChange={(value) => set("supplierContactId")(String(value))}
-              options={[{ value: DEFAULT, label: `Default (${preview?.contact?.name ?? "none"})` }, ...choosePerson, { value: NONE, label: "No contact" }]} />
-            <Select label="Ordering address" selectedKey={header.supplierAddressId} onSelectionChange={(value) => set("supplierAddressId")(String(value))}
-              options={[{ value: DEFAULT, label: `Default (${preview?.orderingAddress?.label ?? "none"})` }, ...chooseLocation]} />
-            <Select label="Billing address" selectedKey={header.supplierBillingAddressId} onSelectionChange={(value) => set("supplierBillingAddressId")(String(value))}
-              options={[{ value: DEFAULT, label: `Default (${preview?.billingAddress?.label ?? "none"})` }, ...chooseLocation]} />
-            <Select label="Ship-from location" selectedKey={header.supplierShipFromId} onSelectionChange={(value) => set("supplierShipFromId")(String(value))}
-              options={[{ value: DEFAULT, label: `Default (${preview?.shipFrom?.label ?? "none"})` }, ...chooseLocation, { value: NONE, label: "Not known" }]} />
-          </div>
-          {preview?.supplierTaxRegistration?.gstin && <p className="text-sm text-text-secondary">Supplier GSTIN {preview.supplierTaxRegistration.gstin}{preview.supplyType === "non_gst" ? " · no GST charged" : ""}</p>}
-        </FormSection>
-      )}
-
-      <FormSection columns={1} title="Buying company and delivery" description="The registration the order is placed from, and where the goods are received.">
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-          <Select label="Company registration" selectedKey={header.buyingRegistrationId} onSelectionChange={(value) => set("buyingRegistrationId")(String(value))}
-            options={[{ value: DEFAULT, label: "Default registration" }, ...options.registrations.map((entry) => ({ value: entry.id, label: `${entry.name}${entry.gstin ? ` · ${entry.gstin}` : ""}` }))]} />
           {stockOn && <Select label="Receiving warehouse" selectedKey={header.defaultWarehouseId} onSelectionChange={(value) => set("defaultWarehouseId")(String(value))}
             options={[{ value: NONE, label: "None (services only)" }, ...warehouseOptions]} />}
-          <TextField label="Ship to (address)" value={header.shipToLine1} onChange={set("shipToLine1")} description="Leave empty to deliver to the receiving warehouse’s address (else the company address)." />
-          <TextField label="Ship to (city)" value={header.shipToCity} onChange={set("shipToCity")} />
-          <TextField label="Ship to (state code)" value={header.shipToStateCode} onChange={set("shipToStateCode")} description="Decides intra- or inter-state GST." />
-          <TextField label="Ship to (PIN)" value={header.shipToPostalCode} onChange={set("shipToPostalCode")} />
         </div>
       </FormSection>
 
       <FormSection columns={1} title="Items" actions={(
-        <span className="flex gap-2">
+        <span className="flex flex-wrap gap-2">
           <Button size="compact" variant="secondary" onPress={() => setLines((current) => [...current, blankLine(header.defaultWarehouseId === NONE ? "" : header.defaultWarehouseId)])}>
             <Plus className="size-3.5" aria-hidden="true" />Add product
           </Button>
+          <Button size="compact" variant="ghost" onPress={() => setGrid(true)}>Add by size and colour</Button>
           {canDescribe && <Button size="compact" variant="ghost" onPress={() => setLines((current) => [...current, { ...blankLine(), descriptive: true }])}>Add one-off service or expense</Button>}
+          {grid && <VariantGridDialog basePath="/api/procurement" scope="procurement" emptyText="No item bought in variants matches." onClose={() => setGrid(false)}
+            onAdd={(picked) => void addVariantLines(picked)} />}
         </span>
       )}>
         <div className="flex flex-col gap-3">
@@ -282,13 +266,13 @@ function OrderForm({ options, detail, supplierId, copy = null }: { options: Purc
                         const chosen = (row ?? knownProducts.find((entry) => entry.id === id)) as (typeof knownProducts)[number] | undefined;
                         keepProduct(chosen ?? null);
                         setLine(line.key, { productId: id, uomId: chosen?.purchase_uom_id ?? chosen?.uom_id ?? "",
-                          unitPrice: line.unitPrice || (chosen?.contract_rate ? trimNumber(chosen.contract_rate) : chosen?.last_purchase_price ? trimNumber(chosen.last_purchase_price) : "") });
+                          unitPrice: line.unitPrice || (chosen?.contract_rate ? trimNumber(chosen.contract_rate) : chosen?.supplier_rate ? trimNumber(chosen.supplier_rate) : chosen?.last_purchase_price ? trimNumber(chosen.last_purchase_price) : "") });
                       }} />
                   )}
                   <TextField label="Quantity" inputMode="decimal" value={line.quantity} onChange={(value) => setLine(line.key, { quantity: value })} />
                   <Select label="Unit" selectedKey={line.uomId || null} onSelectionChange={(value) => setLine(line.key, { uomId: String(value) })} options={uomOptions} isDisabled={Boolean(line.sourceQuotationLineId)} />
                   <TextField label={`Unit price (${preview?.currencyCode ?? ""})`} inputMode="decimal" value={line.unitPrice} onChange={(value) => setLine(line.key, { unitPrice: value })}
-                    description={line.sourceQuotationLineId ? "Quoted price" : product?.contract_rate ? `Rate contract ${product.contract_number}: ${trimNumber(product.contract_rate)}` : product?.last_purchase_price ? `Last price paid ${trimNumber(product.last_purchase_price)}: confirm the agreed price` : undefined} />
+                    description={line.sourceQuotationLineId ? "Quoted price" : product?.contract_rate ? `Rate contract ${product.contract_number}: ${trimNumber(product.contract_rate)}` : product?.supplier_rate ? `Supplier's rate ${trimNumber(product.supplier_rate)}${product.supplier_item_code ? ` · their code ${product.supplier_item_code}` : ""}` : product?.last_purchase_price ? `Last price paid ${trimNumber(product.last_purchase_price)}: confirm the agreed price` : undefined} />
                 </div>
                 <div className="grid grid-cols-1 items-end gap-2 sm:grid-cols-6">
                   <Select label="Discount" selectedKey={line.discountType} onSelectionChange={(value) => setLine(line.key, { discountType: String(value) })}
@@ -296,6 +280,8 @@ function OrderForm({ options, detail, supplierId, copy = null }: { options: Purc
                   {line.discountType !== NONE && <TextField label="Discount value" inputMode="decimal" value={line.discountValue} onChange={(value) => setLine(line.key, { discountValue: value })} />}
                   {stocked && stockOn && <Select label="Warehouse" selectedKey={line.warehouseId || null} onSelectionChange={(value) => setLine(line.key, { warehouseId: String(value) })} options={warehouseOptions} />}
                   <TextField label="Expected date" type="date" value={line.expectedDeliveryDate} onChange={(value) => setLine(line.key, { expectedDeliveryDate: value })} />
+                  {options.costCenters.length > 0 && <Select label="Cost centre" selectedKey={line.costCenterId || "none"} onSelectionChange={(value) => setLine(line.key, { costCenterId: value === "none" ? "" : String(value) })}
+                    options={[{ value: "none", label: "None" }, ...options.costCenters.map((center) => ({ value: center.id, label: center.name }))]} />}
                   {line.unitPrice !== "" && Number(line.unitPrice) === 0 && <TextField label="Why no charge" value={line.zeroPriceReason} onChange={(value) => setLine(line.key, { zeroPriceReason: value })} />}
                   {line.descriptive && (
                     <>
@@ -309,9 +295,9 @@ function OrderForm({ options, detail, supplierId, copy = null }: { options: Purc
                   <div className="flex items-end justify-between gap-2 sm:col-start-6">
                     <span className="text-sm tabular-nums text-text-secondary">{priced ? money(preview?.currencyCode, priced.lineTotal) : ""}
                       {priced && Number(priced.taxTotal) > 0 && <span className="block text-xs text-text-muted">incl. {priced.components.map((c) => `${c.label} ${Number(c.rate)}%`).join(" + ")}</span>}</span>
-                    <IconButton aria-label={`Remove line ${index + 1}`} variant="ghost" isDisabled={lines.length <= 1} onPress={() => setLines((current) => current.filter((entry) => entry.key !== line.key))}>
-                      <Trash2 className="size-4" aria-hidden="true" />
-                    </IconButton>
+                    <Button variant="ghost" isDisabled={lines.length <= 1} onPress={() => setLines((current) => current.filter((entry) => entry.key !== line.key))}>
+                      <Trash2 className="size-4" aria-hidden="true" />Remove
+                    </Button>
                   </div>
                 </div>
               </div>
@@ -339,12 +325,60 @@ function OrderForm({ options, detail, supplierId, copy = null }: { options: Purc
         {preview?.warnings.map((warning) => <p key={`${warning.line}-${warning.code}`} className="text-sm text-warning">{warning.message}</p>)}
       </FormSection>
 
-      <FormSection columns={1} title="Notes">
+      <MoreDetails columns={1} description="Currency, buyer, references, supplier contact and locations, our GSTIN, ship-to address and notes."
+        hasContent={Boolean(header.currencyCode !== DEFAULT || header.paymentTermsNote || header.buyerUserId !== DEFAULT || header.orderDate || header.supplierReference
+          || header.supplierQuotationReference || header.priceMode !== "exclusive" || header.supplierContactId !== DEFAULT || header.supplierAddressId !== DEFAULT
+          || header.supplierBillingAddressId !== DEFAULT || header.supplierShipFromId !== DEFAULT || header.buyingRegistrationId !== DEFAULT || header.shipToLine1
+          || header.shipToCity || header.shipToStateCode || header.shipToPostalCode || header.supplierNotes || header.internalNotes || header.incoterm)}>
+        <MoreDetailsGroup first>Terms and references</MoreDetailsGroup>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <Select label="Currency" selectedKey={header.currencyCode} onSelectionChange={(value) => set("currencyCode")(String(value))}
+            options={[{ value: DEFAULT, label: `Supplier's (${preview?.currencyCode ?? "…"})` }, ...options.currencies.map((currency) => ({ value: currency.code, label: currency.code }))]} />
+          <Select label="Prices" selectedKey={header.priceMode} onSelectionChange={(value) => set("priceMode")(String(value))}
+            options={[{ value: "exclusive", label: "Exclusive of tax" }, { value: "inclusive", label: "Inclusive of tax" }]} />
+          <Select label="Buyer" selectedKey={header.buyerUserId} onSelectionChange={(value) => set("buyerUserId")(String(value))}
+            options={[{ value: DEFAULT, label: "Supplier's buyer, else me" }, ...options.buyers.map((buyer) => ({ value: buyer.id, label: buyer.name }))]} />
+          <TextField label="Order date" type="date" value={header.orderDate} onChange={set("orderDate")} description="Today if left empty." />
+          <TextField label="Supplier reference" value={header.supplierReference} onChange={set("supplierReference")} />
+          <TextField label="Supplier quotation reference" value={header.supplierQuotationReference} onChange={set("supplierQuotationReference")} />
+          <TextField label="Payment notes" value={header.paymentTermsNote} onChange={set("paymentTermsNote")} description="For example: as agreed in the quotation." />
+          <Select label="Incoterm" selectedKey={header.incoterm || "none"} onSelectionChange={(value) => set("incoterm")(value === "none" ? "" : String(value))}
+            description="Who pays freight and where the risk passes." options={[{ value: "none", label: "Not stated" }, ...options.incoterms.map((term) => ({ value: term.code, label: term.label }))]} />
+          {header.incoterm && <TextField label="Named place" value={header.incotermPlace} onChange={set("incotermPlace")} placeholder="Our factory, Pune" />}
+        </div>
+        {supplier && (
+          <>
+            <MoreDetailsGroup hint="The supplier's defaults unless chosen here.">Supplier contact and locations</MoreDetailsGroup>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <Select label="Contact" selectedKey={header.supplierContactId} onSelectionChange={(value) => set("supplierContactId")(String(value))}
+                options={[{ value: DEFAULT, label: `Default (${preview?.contact?.name ?? "none"})` }, ...choosePerson, { value: NONE, label: "No contact" }]} />
+              <Select label="Ordering address" selectedKey={header.supplierAddressId} onSelectionChange={(value) => set("supplierAddressId")(String(value))}
+                options={[{ value: DEFAULT, label: `Default (${preview?.orderingAddress?.label ?? "none"})` }, ...chooseLocation]} />
+              <Select label="Billing address" selectedKey={header.supplierBillingAddressId} onSelectionChange={(value) => set("supplierBillingAddressId")(String(value))}
+                options={[{ value: DEFAULT, label: `Default (${preview?.billingAddress?.label ?? "none"})` }, ...chooseLocation]} />
+              <Select label="Ship-from location" selectedKey={header.supplierShipFromId} onSelectionChange={(value) => set("supplierShipFromId")(String(value))}
+                options={[{ value: DEFAULT, label: `Default (${preview?.shipFrom?.label ?? "none"})` }, ...chooseLocation, { value: NONE, label: "Not known" }]} />
+            </div>
+            {preview?.supplierTaxRegistration?.gstin && <p className="text-sm text-text-secondary">Supplier GSTIN {preview.supplierTaxRegistration.gstin}{preview.supplyType === "non_gst" ? " · no GST charged" : ""}</p>}
+          </>
+        )}
+        <MoreDetailsGroup hint="Empty: delivered to the receiving warehouse (else the company address).">Our GSTIN and ship-to</MoreDetailsGroup>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <Select label="Our GSTIN" selectedKey={header.buyingRegistrationId} onSelectionChange={(value) => set("buyingRegistrationId")(String(value))}
+            options={[{ value: DEFAULT, label: "Default registration" }, ...options.registrations.map((entry) => ({ value: entry.id, label: `${entry.name}${entry.gstin ? ` · ${entry.gstin}` : ""}` }))]} />
+          <TextField label="Ship to (address)" value={header.shipToLine1} onChange={set("shipToLine1")} />
+          <TextField label="Ship to (city)" value={header.shipToCity} onChange={set("shipToCity")} />
+          <Select label="Ship to (state)" selectedKey={header.shipToStateCode || NONE} onSelectionChange={(value) => set("shipToStateCode")(String(value) === NONE ? "" : String(value))}
+            description="Decides intra- or inter-state GST."
+            options={[{ value: NONE, label: "Not set" }, ...GST_STATES.map((state) => ({ value: state.code, label: `${state.name} (${state.code})` }))]} />
+          <TextField label="Ship to (PIN)" inputMode="numeric" value={header.shipToPostalCode} onChange={set("shipToPostalCode")} />
+        </div>
+        <MoreDetailsGroup>Notes</MoreDetailsGroup>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <TextArea label="Notes for the supplier" value={header.supplierNotes} onChange={set("supplierNotes")} description="Printed on the purchase order." />
           <TextArea label="Internal notes" value={header.internalNotes} onChange={set("internalNotes")} description="Never shown to the supplier." />
         </div>
-      </FormSection>
+      </MoreDetails>
     </DocumentFormPage>
     
     </>

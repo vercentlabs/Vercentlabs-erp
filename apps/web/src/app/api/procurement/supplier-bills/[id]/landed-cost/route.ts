@@ -8,7 +8,9 @@ type Params = { params: Promise<{ id: string }> };
 
 export async function GET(request: Request, ctx: Params) {
   const { id } = await ctx.params;
-  return procurementRead(request, async (client, context) => ({ landedCost: await getBillLandedCosts(client, context, id) }), "procurement.bills.view");
+  const url = new URL(request.url);
+  const filters = { search: url.searchParams.get("search") ?? "", from: url.searchParams.get("from"), to: url.searchParams.get("to") };
+  return procurementRead(request, async (client, context) => ({ landedCost: await getBillLandedCosts(client, context, id, filters) }), "procurement.bills.view");
 }
 
 export async function POST(request: Request, ctx: Params) {

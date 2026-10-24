@@ -18,7 +18,7 @@ async function accounted(work) {
   try {
     return await work();
   } catch (error) {
-    if (error instanceof AccountingError) throw new PurchaseOrderError(error.status ?? 409, `Receipt accrual: ${error.message}`, "GOODS_RECEIPT_ACCRUAL_FAILED");
+    if (error instanceof AccountingError) throw new PurchaseOrderError(error.status ?? 409, `Goods received, bill not yet received: ${error.message}`, "GOODS_RECEIPT_ACCRUAL_FAILED");
     throw error;
   }
 }
@@ -31,7 +31,7 @@ export async function accrualEnabled(client, organizationId) {
 async function journalOf(client, organizationId, ledgerId) {
   const row = (await client.query(`SELECT id FROM tenant.accounting_journals WHERE organization_id = $1 AND ledger_id = $2 AND journal_type = 'purchase' AND status = 'active' ORDER BY created_at LIMIT 1`,
     [organizationId, ledgerId])).rows[0];
-  if (!row) throw new PurchaseOrderError(409, "Receipt accrual: a Purchase accounting journal is not configured.", "GOODS_RECEIPT_ACCRUAL_FAILED");
+  if (!row) throw new PurchaseOrderError(409, "Goods received, bill not yet received: a Purchase accounting journal is not configured.", "GOODS_RECEIPT_ACCRUAL_FAILED");
   return row.id;
 }
 
@@ -78,7 +78,7 @@ export async function reverseReceiptAccrual(client, context, receipt, reason) {
   if (!receipt.accrual_journal_entry_id || receipt.accrual_reversal_journal_entry_id) return null;
   const ctx = accountingContext(context);
   return accounted(async () => {
-    const reversal = await reverseJournalEntry(client, ctx, receipt.accrual_journal_entry_id, { reason: `Goods receipt ${receipt.receipt_number} reversed: ${reason}` });
+    const reversal = await reverseJournalEntry(client, ctx, receipt.accrual_journal_entry_id, { reason: `Goods receipt ${receipt.receipt_number} cancelled: ${reason}` });
     const id = reversal.entry?.id ?? reversal.id;
     await client.query(`UPDATE tenant.goods_receipts SET accrual_reversal_journal_entry_id = $3 WHERE organization_id = $1 AND id = $2`, [context.organizationId, receipt.id, id]);
     return id;
@@ -161,7 +161,7 @@ export async function reverseReturnAccrual(client, context, purchaseReturn, reas
   if (!purchaseReturn.accrual_journal_entry_id) return null;
   const ctx = accountingContext(context);
   return accounted(async () => {
-    const reversal = await reverseJournalEntry(client, ctx, purchaseReturn.accrual_journal_entry_id, { reason: `Purchase return ${purchaseReturn.return_number} reversed: ${reason}` });
+    const reversal = await reverseJournalEntry(client, ctx, purchaseReturn.accrual_journal_entry_id, { reason: `Purchase return ${purchaseReturn.return_number} cancelled: ${reason}` });
     return reversal.entry?.id ?? reversal.id;
   });
 }

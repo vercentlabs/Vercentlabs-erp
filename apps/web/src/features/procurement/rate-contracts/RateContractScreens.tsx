@@ -10,7 +10,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ColumnDef } from "@tanstack/react-table";
 import { Plus, Trash2 } from "lucide-react";
 import {
-  Button, EmptyState, EnterpriseDataGrid, EnterpriseListPage, ErrorState, IconButton, LinkButton, NoResultsState, PageHeader, PermissionState, RecordDetailsPage, SearchField,
+  Button, EmptyState, EnterpriseDataGrid, EnterpriseListPage, ErrorState, LinkButton, NoResultsState, PageHeader, PermissionState, RecordDetailsPage, SearchField,
   Select, StatusBadge, TextArea, TextField,
 } from "@vercentlabs/design-system";
 
@@ -23,6 +23,7 @@ import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext"
 import { useListState } from "@/features/procurement/shared/navigation";
 import { gridPaging, pageFilters, usePageIndex } from "@/features/procurement/shared/paging";
 import { ProcurementSearchPicker, SupplierFilter, useKnownRows } from "@/features/procurement/shared/ProcurementSearchPicker";
+import { OneOffDescription, OneOffToggle, blankOneOff, oneOffInput, type OneOffFields } from "@/features/procurement/shared/OneOffLine";
 import { ProcApiError } from "@/features/procurement/shared/http";
 import { calendarDate, money, quantity } from "@/features/procurement/shared/format";
 import { getPurchaseOrderOptions } from "@/features/procurement/purchase-orders/api/purchase-orders-api";
@@ -75,14 +76,14 @@ export function RateContractsScreen() {
   );
 }
 
-type Line = { key: number; productId: string; uomId: string; rate: string; maxQuantity: string; maxValue: string };
+type Line = OneOffFields & { key: number; productId: string; uomId: string; rate: string; maxQuantity: string; maxValue: string };
 let lineKey = 0;
-const blank = (): Line => ({ key: ++lineKey, productId: "", uomId: "", rate: "", maxQuantity: "", maxValue: "" });
+const blank = (): Line => ({ key: ++lineKey, productId: "", uomId: "", rate: "", maxQuantity: "", maxValue: "", ...blankOneOff() });
 
 export function RateContractFormScreen({ contractId }: { contractId?: string }) {
   const workspace = useWorkspaceContext();
   const existing = useQuery({ queryKey: scopedQueryKey(workspace, "procurement", "rate-contract", contractId), queryFn: () => getRateContract(contractId!), enabled: Boolean(contractId) });
-  const include = { supplierIds: [existing.data?.contract.supplierId ?? ""], productIds: (existing.data?.lines ?? []).map((line) => line.productId) };
+  const include = { supplierIds: [existing.data?.contract.supplierId ?? ""], productIds: (existing.data?.lines ?? []).map((line) => line.productId).filter((id): id is string => Boolean(id)) };
   const options = useQuery({ queryKey: scopedQueryKey(workspace, "procurement", "po-options", include.supplierIds.join(","), include.productIds.join(",")),
     queryFn: () => getPurchaseOrderOptions(include), staleTime: 60_000, enabled: !contractId || Boolean(existing.data) });
   if ((contractId && existing.isLoading) || options.isLoading) return <LoadingState label="Loading rate contract" />;
@@ -96,8 +97,9 @@ function ContractForm({ options, existing }: { options: NonNullable<Awaited<Retu
   const current = existing?.contract;
   const [values, setValues] = useState({ supplierId: current?.supplierId ?? "", validFrom: current?.validFrom ?? "", validTo: current?.validTo ?? "", supplierReference: current?.supplierReference ?? "",
     notes: current?.notes ?? "" });
-  const [lines, setLines] = useState<Line[]>(() => existing?.lines.length ? existing.lines.map((line) => ({ key: ++lineKey, productId: line.productId, uomId: line.uomId ?? "",
-    rate: String(Number(line.rate)), maxQuantity: line.maxQuantity ? String(Number(line.maxQuantity)) : "", maxValue: line.maxValue ? String(Number(line.maxValue)) : "" })) : [blank()]);
+  const [lines, setLines] = useState<Line[]>(() => existing?.lines.length ? existing.lines.map((line) => ({ key: ++lineKey, productId: line.productId ?? "", uomId: line.uomId ?? "",
+    rate: String(Number(line.rate)), maxQuantity: line.maxQuantity ? String(Number(line.maxQuantity)) : "", maxValue: line.maxValue ? String(Number(line.maxValue)) : "",
+    oneOff: Boolean(line.oneOff), description: line.oneOff ? line.description ?? "" : "", oneOffType: line.oneOffType ?? "service" })) : [blank()]);
   const [knownSuppliers, keepSupplier] = useKnownRows(options.suppliers);
   const [knownProducts, keepProduct] = useKnownRows(options.products);
   const set = (key: keyof typeof values) => (value: string) => setValues((state) => ({ ...state, [key]: value }));
@@ -106,7 +108,8 @@ function ContractForm({ options, existing }: { options: NonNullable<Awaited<Retu
   const save = useMutation({
     mutationFn: (activate: boolean) => submitKey.run(async () => {
       const body = { supplierId: values.supplierId, validFrom: values.validFrom, validTo: values.validTo, supplierReference: values.supplierReference || null, notes: values.notes || null,
-        lines: lines.filter((line) => line.productId).map((line) => ({ productId: line.productId, uomId: line.uomId || undefined, rate: line.rate, maxQuantity: line.maxQuantity || null,
+        lines: lines.filter((line) => (line.oneOff ? line.description.trim() : line.productId)).map((line) => ({
+          ...(line.oneOff ? oneOffInput(line) : { productId: line.productId, uomId: line.uomId || undefined }), rate: line.rate, maxQuantity: line.maxQuantity || null,
           maxValue: line.maxValue || null })) };
       if (existing) {
         await updateRateContract(existing.contract.id, body);
@@ -117,7 +120,7 @@ function ContractForm({ options, existing }: { options: NonNullable<Awaited<Retu
     }),
     onSuccess: (id) => router.replace(`/procurement/rate-contracts/${id}`),
   });
-  const ready = Boolean(values.supplierId && values.validFrom && values.validTo) && lines.some((line) => line.productId && line.rate);
+  const ready = Boolean(values.supplierId && values.validFrom && values.validTo) && lines.some((line) => (line.oneOff ? line.description.trim() && line.uomId : line.productId) && line.rate);
   return (
     <div className="flex flex-col gap-6">
       <PageHeader title={existing ? `Edit ${existing.contract.number}` : "New rate contract"} description="The rates a supplier agreed for a period. Activating it makes orders take these rates."
@@ -137,20 +140,26 @@ function ContractForm({ options, existing }: { options: NonNullable<Awaited<Retu
       <Panel title="Agreed rates" actions={<Button size="compact" variant="secondary" onPress={() => setLines((state) => [...state, blank()])}><Plus className="size-3.5" aria-hidden="true" />Add item</Button>}>
         <div className="flex flex-col gap-3">
           {lines.map((line, index) => (
-            <div key={line.key} className="grid grid-cols-1 items-end gap-2 sm:grid-cols-[2fr_1fr_1fr_1fr_1fr_auto]">
-              <ProcurementSearchPicker kind="products" label={`Item ${index + 1}`} value={line.productId || null} known={knownProducts}
-                onPick={(id, row) => {
-                  const product = (row ?? knownProducts.find((entry) => entry.id === id)) as (typeof knownProducts)[number] | undefined;
-                  keepProduct(product ?? null);
-                  setLine(line.key, { productId: id, uomId: product?.purchase_uom_id ?? product?.uom_id ?? "" });
-                }} />
+            <div key={line.key} className="flex flex-col gap-2 rounded-[var(--radius-control)] border border-border p-2 sm:border-0 sm:p-0">
+            <div className="grid grid-cols-1 items-end gap-2 sm:grid-cols-[2fr_1fr_1fr_1fr_1fr_auto]">
+              {line.oneOff ? <OneOffDescription line={line} label={`Item ${index + 1}`} onChange={(change) => setLine(line.key, change)} /> : (
+                <ProcurementSearchPicker kind="products" label={`Item ${index + 1}`} value={line.productId || null} known={knownProducts}
+                  onPick={(id, row) => {
+                    const product = (row ?? knownProducts.find((entry) => entry.id === id)) as (typeof knownProducts)[number] | undefined;
+                    keepProduct(product ?? null);
+                    setLine(line.key, { productId: id, uomId: product?.purchase_uom_id ?? product?.uom_id ?? "" });
+                  }} />
+              )}
               <Select label="Unit" selectedKey={line.uomId || null} onSelectionChange={(value) => setLine(line.key, { uomId: String(value) })} options={options.uoms.map((uom) => ({ value: uom.id, label: uom.code }))} />
               <TextField label="Rate (excl. GST)" inputMode="decimal" value={line.rate} onChange={(value) => setLine(line.key, { rate: value })} />
               <TextField label="Up to quantity" inputMode="decimal" value={line.maxQuantity} onChange={(value) => setLine(line.key, { maxQuantity: value })} description="Optional" />
               <TextField label="Up to value" inputMode="decimal" value={line.maxValue} onChange={(value) => setLine(line.key, { maxValue: value })} description="Optional" />
-              <IconButton aria-label={`Remove item ${index + 1}`} variant="ghost" isDisabled={lines.length <= 1} onPress={() => setLines((state) => state.filter((entry) => entry.key !== line.key))}>
-                <Trash2 className="size-4" aria-hidden="true" />
-              </IconButton>
+              <Button variant="ghost" isDisabled={lines.length <= 1} onPress={() => setLines((state) => state.filter((entry) => entry.key !== line.key))}>
+                <Trash2 className="size-4" aria-hidden="true" />Remove
+              </Button>
+            </div>
+            <OneOffToggle value={line.oneOff} onChange={(on) => setLine(line.key, { oneOff: on, productId: on ? "" : line.productId, description: on ? line.description : "" })} />
+            {line.oneOff && <p className="text-xs text-text-muted">Orders take this rate for a line with the same description and unit.</p>}
             </div>
           ))}
         </div>
@@ -164,15 +173,30 @@ export function RateContractDetailScreen({ contractId }: { contractId: string })
   const workspace = useWorkspaceContext();
   const queryClient = useQueryClient();
   const query = useQuery({ queryKey: scopedQueryKey(workspace, "procurement", "rate-contract", contractId), queryFn: () => getRateContract(contractId) });
-  const act = useMutation({ mutationFn: (action: "activate" | "cancel") => rateContractAction(contractId, action),
-    onSuccess: () => queryClient.invalidateQueries({ predicate: (entry) => entry.queryKey.includes("procurement") }) });
+  const [cancelling, setCancelling] = useState(false);
+  const [reason, setReason] = useState("");
+  const act = useMutation({ mutationFn: (action: "activate" | "cancel") => rateContractAction(contractId, action, action === "cancel" ? { reason: reason.trim() } : {}),
+    onSuccess: () => { setCancelling(false); void queryClient.invalidateQueries({ predicate: (entry) => entry.queryKey.includes("procurement") }); } });
   if (query.isLoading) return <LoadingState label="Loading rate contract" />;
   if (query.isError || !query.data) return <ErrorState title="Could not load this rate contract" description={errorMessage(query.error)} action={{ label: "Try again", onPress: () => void query.refetch() }} />;
-  const { contract, lines, orders, actions } = query.data;
+  const { contract, lines, orders, actions, history, waitingApproval } = query.data;
   const currency = contract.currencyCode;
   return (
     <div className="flex flex-col gap-4">
       {act.error && <Notice>{errorMessage(act.error)}</Notice>}
+      {waitingApproval && <Notice tone="warning">Waiting for approval (level {waitingApproval.level}). Press Activate again once it is approved.</Notice>}
+      {contract.cancelReason && <Notice>Cancelled{contract.cancelledAt ? ` on ${calendarDate(String(contract.cancelledAt).slice(0, 10))}` : ""}: {contract.cancelReason}</Notice>}
+      {cancelling && (
+        <Panel title="Cancel this contract">
+          <div className="flex flex-col gap-3">
+            <TextField label="Reason" isRequired value={reason} onChange={setReason} placeholder="For example: supplier raised prices" />
+            <div className="flex flex-wrap justify-end gap-2">
+              <Button variant="secondary" onPress={() => setCancelling(false)}>Keep it</Button>
+              <Button variant="danger" isLoading={act.isPending} isDisabled={reason.trim().length < 3} onPress={() => act.mutate("cancel")}>Cancel contract</Button>
+            </div>
+          </div>
+        </Panel>
+      )}
       <RecordDetailsPage
         header={{
           title: contract.number,
@@ -186,7 +210,7 @@ export function RateContractDetailScreen({ contractId }: { contractId: string })
           secondaryActions: (
             <div className="flex flex-wrap items-center gap-2">
               {actions.edit && <LinkButton variant="secondary" href={`/procurement/rate-contracts/${contract.id}/edit`}>Edit</LinkButton>}
-              {actions.cancel && <Button variant="ghost" onPress={() => act.mutate("cancel")}>Cancel contract</Button>}
+              {actions.cancel && !cancelling && <Button variant="ghost" onPress={() => setCancelling(true)}>Cancel contract</Button>}
             </div>
           ),
         }}
@@ -195,7 +219,7 @@ export function RateContractDetailScreen({ contractId }: { contractId: string })
           <LinesTable columns={["Item", { label: "Rate", numeric: true }, { label: "Drawn", numeric: true }, { label: "Left", numeric: true }]}>
             {lines.map((line) => (
               <tr key={line.id}>
-                <Cell><span className="font-medium">{line.productName}</span><span className="block text-xs text-text-muted">{line.productCode} · per {line.uomCode}</span></Cell>
+                <Cell><span className="font-medium">{line.productName}</span><span className="block text-xs text-text-muted">{line.productCode ? `${line.productCode} · ` : "Not in the list · "}per {line.uomCode}</span></Cell>
                 <Cell numeric>{money(currency, line.rate)}</Cell>
                 <Cell numeric>{quantity(line.drawnQuantity)} · {money(currency, line.drawnValue)}</Cell>
                 <Cell numeric>{[line.remainingQuantity !== null ? `${quantity(line.remainingQuantity)} ${line.uomCode ?? ""}` : null, line.remainingValue !== null ? money(currency, line.remainingValue) : null]
@@ -210,6 +234,18 @@ export function RateContractDetailScreen({ contractId }: { contractId: string })
           ) : <p className="text-sm text-text-muted">No order has used this contract yet.</p>}
         </Panel>
         <Panel title="Details"><Facts items={[{ label: "Notes", value: contract.notes ?? "—" }, { label: "Activated", value: contract.activatedAt ? calendarDate(String(contract.activatedAt).slice(0, 10)) : "—" }]} /></Panel>
+        <Panel title="History">
+          {history.length ? (
+            <ul className="flex flex-col divide-y divide-border text-sm">
+              {history.map((event, index) => (
+                <li key={`${event.at}-${index}`} className="flex flex-col py-2 sm:flex-row sm:justify-between sm:gap-3">
+                  <span>{event.summary}</span>
+                  <span className="text-xs text-text-muted">{[event.by, calendarDate(String(event.at).slice(0, 10))].filter(Boolean).join(" · ")}</span>
+                </li>
+              ))}
+            </ul>
+          ) : <p className="text-sm text-text-muted">Nothing recorded yet.</p>}
+        </Panel>
       </RecordDetailsPage>
     </div>
   );

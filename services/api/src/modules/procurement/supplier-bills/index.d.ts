@@ -83,5 +83,16 @@ export declare function getPurchaseOrderMatchingSummary(client: QueryClient, con
 export declare function getSupplierBillMatchStatus(client: QueryClient, context: any, ...args: any[]): Promise<any>;
 export declare function getEligibleGoodsReceiptLines(client: QueryClient, ...args: any[]): Promise<any>;
 // Landed cost (Procurement plan Phase 3).
-export declare function getBillLandedCosts(client: any, context: any, billId: string): Promise<Record<string, any>>;
+export declare function getBillLandedCosts(client: any, context: any, billId: string, filters?: { search?: string; from?: string | null; to?: string | null }): Promise<Record<string, any>>;
 export declare function allocateLandedCost(client: any, context: any, billId: string, input?: Record<string, unknown>): Promise<Record<string, any>>;
+// Bills by email (Procurement report Phase 3).
+export type BillInboxEntry = {
+  id: string; status: "new" | "billed" | "set_aside"; receivedAt: string; fromEmail: string | null; fromName: string | null; subject: string | null; fileId: string; fileName: string;
+  supplierId: string | null; supplierName: string | null; irn: string | null; qr: Record<string, any> | null; problems: string[]; billId: string | null; billNumber: string | null;
+  setAsideReason: string | null; setAsideAt: string | null;
+};
+export declare const BILL_INBOX_FILE_ENTITY: string;
+export declare function listBillInbox(client: QueryClient, context: any, options?: { view?: string; limit?: number }): Promise<{ rows: BillInboxEntry[]; counts: { new: number }; addressReady: boolean }>;
+export declare function getBillInboxEntry(client: QueryClient, context: any, id: string): Promise<BillInboxEntry>;
+export declare function readBillInboxFile(client: QueryClient, context: any, id: string, options?: any): Promise<{ fileName: string; mimeType: string; body: Buffer }>;
+export declare function setAsideBillInboxEntry(client: QueryClient, context: any, id: string, input?: { reason?: string; restore?: boolean }): Promise<BillInboxEntry>;

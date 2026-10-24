@@ -28,7 +28,7 @@ type Matching = { rows: MatchRow[]; counts: Record<string, number>; views: Array
 
 const ALL = "__all";
 const RESULT: Record<string, { label: string; tone: "success" | "warning" | "danger" | "neutral" | "info" }> = {
-  matched: { label: "Matched", tone: "success" }, approved_exception: { label: "Variance approved", tone: "info" }, mismatch: { label: "Exception", tone: "danger" },
+  matched: { label: "Matched", tone: "success" }, approved_exception: { label: "Difference approved", tone: "info" }, mismatch: { label: "Exception", tone: "danger" },
   pending_receipt: { label: "Awaiting receipt", tone: "warning" },
 };
 const SCOPE: Record<string, string> = { two_way: "2-way", three_way: "3-way" };
@@ -69,7 +69,7 @@ export function InvoiceMatchingScreen() {
       const result = row.original.result ? RESULT[row.original.result] : undefined;
       return (
         <span className="flex flex-col gap-0.5">{result ? <StatusBadge tone={result.tone}>{result.label}</StatusBadge> : <StatusBadge tone="neutral">Not evaluated</StatusBadge>}
-          {row.original.approvedVariances > 0 && row.original.result !== "approved_exception" && <span className="text-xs text-text-muted">{row.original.approvedVariances} variance{row.original.approvedVariances === 1 ? "" : "s"} approved</span>}</span>
+          {row.original.approvedVariances > 0 && row.original.result !== "approved_exception" && <span className="text-xs text-text-muted">{row.original.approvedVariances} difference{row.original.approvedVariances === 1 ? "" : "s"} approved</span>}</span>
       );
     } },
     { id: "ordered", accessorKey: "ordered", header: "Ordered", cell: ({ row }) => <span className="tabular-nums">{quantity(row.original.ordered)}</span> },
@@ -77,7 +77,7 @@ export function InvoiceMatchingScreen() {
     { id: "billed", accessorKey: "billed", header: "Billed", cell: ({ row }) => <span className="tabular-nums">{quantity(row.original.billed)}</span> },
     { id: "expected", accessorKey: "expected", header: "Expected", cell: ({ row }) => amount(row.original, row.original.expected) },
     { id: "actual", accessorKey: "actual", header: "Billed amount", cell: ({ row }) => amount(row.original, row.original.actual) },
-    { id: "variance", accessorKey: "variance", header: "Variance", cell: ({ row }) => (
+    { id: "variance", accessorKey: "variance", header: "Difference", cell: ({ row }) => (
       <span className={row.original.variance && Number(row.original.variance) !== 0 ? "text-danger" : undefined}>{amount(row.original, row.original.variance)}</span>
     ) },
   ], []);
@@ -90,7 +90,7 @@ export function InvoiceMatchingScreen() {
 
   return (
     <EnterpriseListPage
-      header={{ title: "Bill Matching", description: "Purchase-order bills against what was ordered and received. Open a bill to review its match, approve a variance or correct it." }}
+      header={{ title: "Bill Matching", description: "Bills checked against their order and goods received. Open one to fix or approve a difference." }}
       savedViews={{
         views: (data?.views ?? [{ key: "all", label: "All bills" }]).map((entry) => ({ id: entry.key, label: entry.label, count: data?.counts[entry.key] })),
         activeViewId: filters.view, onSelect: (id) => { set("view", id); paged.resetPage(); },

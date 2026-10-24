@@ -12,6 +12,8 @@ import { loadPurchaseOrder, poCan } from "../purchase-orders/access.js";
 import { PurchaseOrderError, dayOf, fail, optionalUuid, readDate, text } from "../purchase-orders/constants.js";
 import { recordPoEvent } from "../purchase-orders/persist.js";
 import { validateStatutoryPaymentDeadline } from "./statutory.js";
+import { advanceWithholding } from "../payments/advance-tds.js";
+import { databaseToday } from "../org-day.js";
 
 const dec = (value) => (value === null || value === undefined ? null : formatDecimal(value));
 const fin = (context) => ({ ...context, permissions: [...new Set([...(context.permissions ?? []), "accounting.view"])] });
@@ -47,10 +49,17 @@ export async function getPurchaseOrderPaymentTerms(client, context, orderId) {
   const advance = order.advance_percentage === null ? null : {
     percentage: String(Number(order.advance_percentage)), amount: dec(order.advance_amount), ...(canSeeMoney ? await advanceTracking(client, context, order) : {}),
   };
+  // The TDS an advance deducts at the supplier's usual section (the rate applied to what is still to pay).
+  if (advance && canSeeMoney && order.status === "confirmed") {
+    const tds = await advanceWithholding(client, context.organizationId, { supplierId: order.supplier_id, amount: advance.remaining ?? advance.amount ?? "0",
+      date: await databaseToday(client, context.organizationId) });
+    advance.tds = tds.section ? { sectionCode: tds.section.code, rate: tds.rate, amount: tds.amount } : null;
+    advance.tdsNote = tds.reason;
+  }
   return {
     orderId: order.id, paymentTerm: term && { id: term.id, code: term.code, name: term.name, termType: term.termType, termTypeLabel: term.termTypeLabel, summary: term.summary, version: term.version,
       rules: term.rules },
-    paymentAgreement: term ? term.rules.map((rule) => ({ invoice_date: "From the supplier invoice date", invoice_received: "From the invoice received date", posting_date: "From the posting date" }[rule.basis]))
+    paymentAgreement: term ? term.rules.map((rule) => ({ invoice_date: "From the supplier invoice date", invoice_received: "From the invoice received date", posting_date: "From the accounting date" }[rule.basis]))
       .filter((value, index, all) => all.indexOf(value) === index).join("; ") : null,
     advance, notes: order.payment_terms_note, changeReason: order.payment_term_change_reason,
     statutory: statutory.applies ? { statutoryDays: statutory.statutoryDays, exceeds: statutory.exceeds, message: statutory.message, classification: statutory.rule.classification,
@@ -61,7 +70,8 @@ export async function getPurchaseOrderPaymentTerms(client, context, orderId) {
 
 // recordPurchaseOrderAdvance: Finance pays the supplier the advance the confirmed order expects — a supplier advance (a supplier payment not
 // allocated to any bill) recorded against the order. Never more than the advance still requested. The same idempotency key records it once.
-// input: { amount, paymentDate?, paymentMethod?, bankAccountId?, reference?, idempotencyKey? }
+// input: { amount, paymentDate?, paymentMethod?, bankAccountId?, reference?, withholdingSectionId? (default the supplier's; null: none), idempotencyKey? }
+// The advance is credited in full; the supplier is paid it less TDS, which Finance books as owed to the government.
 export async function recordPurchaseOrderAdvance(client, context, orderId, input = {}) {
   if (!poCan(context, "accounting.payments.manage")) throw new PurchaseOrderError(403, "You do not have permission to record supplier advances.", "PERMISSION_DENIED");
   // Finance pays the advance: it reads the order it pays against.
@@ -76,18 +86,23 @@ export async function recordPurchaseOrderAdvance(client, context, orderId, input
   const tracking = await advanceTracking(client, context, order);
   if (decimal(raw) > decimal(tracking.remaining)) fail(`Only ${tracking.remaining} of the ${tracking.requested} advance is still to be paid.`, "amount", "PURCHASE_ORDER_ADVANCE_EXCEEDED", 409);
   const method = ["cash", "bank_transfer", "card", "upi", "cheque", "gateway", "other"].includes(input.paymentMethod) ? input.paymentMethod : "bank_transfer";
+  const paidOn = readDate(input.paymentDate, "Payment date") ?? await databaseToday(client, context.organizationId);
+  const tds = await advanceWithholding(client, context.organizationId, { supplierId: order.supplier_id, amount: raw, paidOn, date: paidOn,
+    sectionId: input.withholdingSectionId === undefined ? undefined : optionalUuid(input.withholdingSectionId, "TDS section") });
   const reference = text(input.reference, 100);
   const payment = await finance(() => createVendorPayment(client, fin(context), {
     partyId: order.party_id, paymentDate: readDate(input.paymentDate, "Payment date") ?? undefined, currencyCode: order.currency_code.trim(), amount: raw, paymentMethod: method,
     bankAccountId: optionalUuid(input.bankAccountId, "Bank account") ?? undefined, externalReference: reference ?? `Advance ${order.purchase_order_number}`,
   }));
-  await client.query(`UPDATE tenant.accounting_vendor_payments SET purchase_order_id = $3 WHERE organization_id = $1 AND id = $2`, [context.organizationId, payment.id, order.id]);
+  await client.query(`UPDATE tenant.accounting_vendor_payments SET purchase_order_id = $3, withholding_section_id = $4, withholding_amount = $5 WHERE organization_id = $1 AND id = $2`,
+    [context.organizationId, payment.id, order.id, tds.section?.id ?? null, tds.amount]);
   const submitted = await finance(() => submitSubledgerDocument(client, fin(context), "vendor_payment", payment.id));
   let status = "awaiting_approval";
   if (submitted.status !== "pending_approval") { await finance(() => postVendorPayment(client, fin(context), payment.id)); status = "posted"; }
   await recordPoEvent(client, context, order.id, "purchase_order.advance_recorded", `Supplier advance ${payment.payment_number} of ${raw} ${status === "posted" ? "paid" : "recorded, awaiting approval"}`,
     { details: { paymentId: payment.id, amount: raw } });
-  const response = { paymentId: payment.id, paymentNumber: payment.payment_number, status, amount: raw, replayed: false };
+  const response = { paymentId: payment.id, paymentNumber: payment.payment_number, status, amount: raw, tds: tds.amount, tdsSection: tds.section?.code ?? null, tdsNote: tds.reason,
+    paidToSupplier: formatDecimal(decimal(raw) - decimal(tds.amount)), replayed: false };
   await completeIdempotentOperation(client, context, idempotency, { response, aggregateType: "vendor_payment", aggregateId: payment.id });
   return response;
 }

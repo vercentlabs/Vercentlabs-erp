@@ -79,7 +79,7 @@ export function AddressesContactsPanel({ detail, options, onChanged, onShowHisto
       {error && <Notice>{error}</Notice>}
       {warning && <Notice tone="warning">{warning}</Notice>}
 
-      {actions.viewAddresses && show !== "contacts" && <Panel title="Addresses" description="Each location with what it is used for. A purpose has one default; documents start from it and can choose another active location."
+      {actions.viewAddresses && show !== "contacts" && <Panel title="Addresses" description="Each location and what it is used for. Documents start from the default one."
         actions={actions.manageAddresses ? <Button size="compact" variant="secondary" onPress={() => setAddress("new")}>Add address</Button> : undefined}>
         <ActionBar start={<>
           <SearchField aria-label="Search addresses" placeholder="Label, city, state, PIN or GSTIN" className="w-full sm:w-72" value={addressSearch} onChange={setAddressSearch} />
@@ -128,7 +128,7 @@ export function AddressesContactsPanel({ detail, options, onChanged, onShowHisto
         )}
       </Panel>}
 
-      {actions.viewContacts && show !== "addresses" && <Panel title="Contacts" description="The people at this supplier. One person can hold several roles; documents keep the person they named even if they leave."
+      {actions.viewContacts && show !== "addresses" && <Panel title="Contacts" description="The people at this supplier. Documents keep the person they named, even if that person leaves."
         actions={actions.manageContacts ? <Button size="compact" variant="secondary" onPress={() => setContact("new")}>Add contact</Button> : undefined}>
         <ActionBar start={<>
           <SearchField aria-label="Search contacts" placeholder="Name, email, phone, designation or location" className="w-full sm:w-72" value={contactSearch} onChange={setContactSearch} />

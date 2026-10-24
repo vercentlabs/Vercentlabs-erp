@@ -64,7 +64,7 @@ type LineDraft = {
   priceReason: string;
   warehouseId: string;
   // Make-to-order (Sales report Phase 3): from stock, or bought or made for this order when it is confirmed.
-  supplyRoute: "stock" | "buy" | "make";
+  supplyRoute: "stock" | "buy" | "make" | "dropship";
   // A free line of a scheme: no price, no discount (Sales audit M3).
   schemeRuleId: string;
   // A line without a catalogue product (Create-Where-You-Are): what is sold, its HSN/SAC and GST are typed; unitPrice is its price.
@@ -538,8 +538,9 @@ function FormBody({ options: initialOptions, defaults, existing, orderId, initia
                           onChange={(value) => updateLine(line.key, { description: value })} />
                         {!line.typed && !line.schemeRuleId && (
                           <Select aria-label={`Supply ${index + 1}`} selectedKey={line.supplyRoute}
-                            onSelectionChange={(key) => updateLine(line.key, { supplyRoute: key === "buy" ? "buy" : key === "make" ? "make" : "stock" })}
-                            options={[{ value: "stock", label: "From stock" }, { value: "buy", label: "Buy for this order" }, ...(service ? [] : [{ value: "make", label: "Make for this order" }])]} />
+                            onSelectionChange={(key) => updateLine(line.key, { supplyRoute: key === "buy" || key === "make" || key === "dropship" ? key : "stock" })}
+                            options={[{ value: "stock", label: "From stock" }, { value: "buy", label: "Buy for this order" },
+                              ...(service ? [] : [{ value: "make", label: "Make for this order" }, { value: "dropship", label: "Ship from supplier" }])]} />
                         )}
                       </div>
                     )}

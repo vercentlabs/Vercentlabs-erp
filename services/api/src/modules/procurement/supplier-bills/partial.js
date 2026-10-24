@@ -93,8 +93,8 @@ export async function getPurchaseOrderBillingProgress(client, context, orderId) 
   const status = deriveBillingStatus(progress);
   const warnings = [];
   for (const line of lines) {
-    if (line.overbilled) warnings.push(`Line ${line.lineNumber}: posted bills exceed what may now be billed (after returns or cancellations). a vendor credit corrects it.`);
-    if (decimal(line.draftBilled) > 0n) warnings.push(`Line ${line.lineNumber}: ${line.draftBilled} on unposted bill${line.draftBills.length === 1 ? "" : "s"} ${line.draftBills.join(", ")} (not billed until posted).`);
+    if (line.overbilled) warnings.push(`Line ${line.lineNumber}: final bills exceed what may now be billed (after returns or cancellations). a supplier credit note corrects it.`);
+    if (decimal(line.draftBilled) > 0n) warnings.push(`Line ${line.lineNumber}: ${line.draftBilled} on unposted bill${line.draftBills.length === 1 ? "" : "s"} ${line.draftBills.join(", ")} (not billed until finalised).`);
   }
   const result = {
     order: { id: order.id, purchaseOrderNumber: order.purchase_order_number, status: order.status, currencyCode: order.currency_code.trim(), supplierId: order.supplier_id },

@@ -1,10 +1,11 @@
 "use client";
 
-import { useRef, useState, type ReactNode } from "react";
+import { type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Lock } from "lucide-react";
+import { useRailTooltip } from "./useRailTooltip";
 
 function isActive(pathname: string, href: string) {
   if (href === "/") return pathname === "/";
@@ -59,23 +60,8 @@ export function PrimaryNavItem({
     ? disabledReason || `${label} is unavailable`
     : label;
 
-  const triggerRef = useRef<HTMLSpanElement>(null);
-  const [tooltipPosition, setTooltipPosition] = useState<{
-    top: number;
-    left: number;
-  } | null>(null);
-
-  function showTooltip() {
-    const rect = triggerRef.current?.getBoundingClientRect();
-    if (!rect) return;
-    setTooltipPosition({
-      top: rect.top + rect.height / 2,
-      left: rect.right + 8,
-    });
-  }
-  function hideTooltip() {
-    setTooltipPosition(null);
-  }
+  // Shown on hover or keyboard focus only, and gone on click, leave, Escape, scroll or a page change.
+  const { ref: triggerRef, position: tooltipPosition, handlers: tooltipHandlers } = useRailTooltip<HTMLSpanElement>();
 
   const iconChrome = (
     <span
@@ -131,10 +117,7 @@ export function PrimaryNavItem({
       <span
         ref={triggerRef}
         className="relative flex"
-        onMouseEnter={showTooltip}
-        onMouseLeave={hideTooltip}
-        onFocus={showTooltip}
-        onBlur={hideTooltip}
+        {...tooltipHandlers}
       >
         <button
           type="button"
@@ -153,10 +136,7 @@ export function PrimaryNavItem({
     <span
       ref={triggerRef}
       className="relative flex"
-      onMouseEnter={showTooltip}
-      onMouseLeave={hideTooltip}
-      onFocus={showTooltip}
-      onBlur={hideTooltip}
+      {...tooltipHandlers}
     >
       <Link
         href={href}

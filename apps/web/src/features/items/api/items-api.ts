@@ -17,6 +17,9 @@ export type Item = {
   salesWarningLevel?: "none" | "warn" | "block";
   invoiceBasis?: "ordered" | "delivered" | null;
   salesWarning?: string | null;
+  purchaseWarning?: string | null;
+  purchaseWarningLevel?: string;
+  purchaseBillBasis?: string | null;
   code: string;
   sku: string;
   skuGenerationMode: "manual" | "automatic";

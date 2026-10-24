@@ -84,7 +84,7 @@ export function calculateClosureEligibility(order, lines, { draftReceipts = 0 } 
     else if (line.billed < line.billTarget) reasons.push(`Line ${line.lineNumber}: ${dec(sub(line.billTarget, line.billed))} still to bill.`);
     if (line.openInspection > ZERO) reasons.push(`Line ${line.lineNumber}: ${dec(line.openInspection)} still on inspection hold (release or return it).`);
     if (line.openDamaged > ZERO) reasons.push(`Line ${line.lineNumber}: ${dec(line.openDamaged)} damaged goods still held (return or release them).`);
-    if (line.unpostedBilled > ZERO) reasons.push(`Line ${line.lineNumber}: a supplier bill is not posted yet.`);
+    if (line.unpostedBilled > ZERO) reasons.push(`Line ${line.lineNumber}: a supplier bill is not final yet.`);
     if (line.openRejections > 0) reasons.push(`Line ${line.lineNumber}: ${line.openRejections} rejection${line.openRejections === 1 ? " is" : "s are"} still open (resolve ${line.openRejections === 1 ? "it" : "them"}).`);
   }
   if (draftReceipts) reasons.push(`${draftReceipts} goods receipt${draftReceipts === 1 ? " is" : "s are"} still a draft.`);

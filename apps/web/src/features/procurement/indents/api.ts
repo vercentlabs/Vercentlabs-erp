@@ -17,11 +17,13 @@ export type IndentLine = {
   id: string; lineNumber: number; productId: string; productCode: string; productName: string; description: string | null; quantity: string; uomId: string | null; uomCode: string | null;
   requiredBy: string | null; warehouseId: string | null; warehouseName: string | null; status: string; ordered: string; remaining: string; notes: string | null;
   contract: { rate: string; contractNumber: string; supplierName: string; supplierId: string } | null;
+  oneOff?: boolean; oneOffType?: "service" | "non_stock" | null; expenseAccountId?: string | null; taxCategoryId?: string | null; noTax?: boolean;
 };
 export type IndentDetail = {
   indent: { id: string; number: string; status: string; statusLabel: string; source: string; requiredBy: string | null; purpose: string | null; notes: string | null; warehouseId: string | null;
     departmentId: string | null; costCenterId: string | null; requestedById: string | null; requestedBy: string | null; submittedAt: string | null; decidedAt: string | null;
-    decidedBy: string | null; decisionNote: string | null; createdAt: string };
+    decidedBy: string | null; decisionNote: string | null; createdAt: string; departmentName?: string | null; headName?: string | null; headApprovedAt?: string | null;
+    headApprovedBy?: string | null; waitingApproval?: { level: number } | null };
   lines: IndentLine[];
   orders: Array<{ id: string; number: string; status: string; href: string }>;
   rfqs: Array<{ id: string; number: string; status: string; href: string }>;
@@ -32,8 +34,8 @@ export type IndentLineToOrder = {
   uomId: string | null; uomCode: string | null; requiredBy: string | null; warehouseId: string | null; purchasePrice: string | null;
 };
 export type IndentInput = {
-  requiredBy?: string | null; warehouseId?: string | null; purpose?: string | null; notes?: string | null; submit?: boolean;
-  lines: Array<{ productId: string; quantity: string; uomId?: string; requiredBy?: string | null; notes?: string | null }>;
+  requiredBy?: string | null; warehouseId?: string | null; purpose?: string | null; notes?: string | null; departmentId?: string | null; submit?: boolean;
+  lines: Array<{ productId?: string; description?: string; oneOffType?: string; quantity: string; uomId?: string; requiredBy?: string | null; notes?: string | null }>;
 };
 
 export const listIndents = (filters: Record<string, string | undefined>) => request<{ rows: IndentRow[]; total: number }>(`/indents${qs(filters)}`);

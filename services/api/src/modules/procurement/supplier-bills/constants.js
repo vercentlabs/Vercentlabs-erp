@@ -28,8 +28,8 @@ export const SOURCE_TYPES = Object.freeze([
 ]);
 export const BILL_VIEWS = Object.freeze([
   // The accountant's day (Procurement plan Phase 1): goods receipts still to bill, drafts to post, and what falls due this week.
-  { key: "to_create", label: "To create" }, { key: "to_post", label: "To post" }, { key: "due_week", label: "Due this week" }, { key: "not_in_2b", label: "Not in GSTR-2B" },
-  { key: "all", label: "All Bills" }, { key: "draft", label: "Draft" }, { key: "posted", label: "Posted" }, { key: "reversed_cancelled", label: "Cancelled / Reversed" },
+  { key: "to_create", label: "To create" }, { key: "by_email", label: "By email" }, { key: "to_post", label: "To finalise" }, { key: "due_week", label: "Due this week" }, { key: "not_in_2b", label: "Not in GSTR-2B" },
+  { key: "all", label: "All Bills" }, { key: "draft", label: "Draft" }, { key: "posted", label: "Final" }, { key: "reversed_cancelled", label: "Cancelled" },
   { key: "direct", label: "Direct Bills" }, { key: "po_based", label: "PO-Based Bills" }, { key: "partially_billed_pos", label: "Partially Billed POs" },
   { key: "matching_issues", label: "Matching Issues" }, { key: "unpaid", label: "Unpaid" }, { key: "partially_paid", label: "Partially Paid" }, { key: "paid", label: "Paid" },
   { key: "overdue", label: "Overdue" },

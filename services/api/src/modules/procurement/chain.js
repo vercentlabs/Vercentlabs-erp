@@ -13,7 +13,7 @@ export const PROCUREMENT_CHAIN_TYPES = Object.freeze(["purchase_indent", "purcha
 const one = async (client, sql, values) => (await client.query(sql, values)).rows[0] ?? null;
 const ids = async (client, sql, values, key = "id") => (await client.query(sql, values)).rows.map((row) => row[key]).filter(Boolean);
 const STATUS = {
-  draft: "Draft", confirmed: "Confirmed", closed: "Closed", cancelled: "Cancelled", posted: "Posted", reversed: "Reversed", received: "Received", converted: "Converted",
+  draft: "Draft", confirmed: "Confirmed", closed: "Closed", cancelled: "Cancelled", posted: "Final", reversed: "Cancelled", received: "Received", converted: "Converted",
   pending_approval: "Awaiting approval", approved: "Approved", partially_paid: "Part paid", paid: "Paid", overdue: "Overdue", disputed: "Disputed", partially_applied: "Paid",
   applied: "Paid", submitted: "To approve", rejected: "Rejected", sent: "Sent", awarded: "Awarded",
 };

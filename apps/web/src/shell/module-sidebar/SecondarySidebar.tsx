@@ -166,7 +166,24 @@ function SidebarBody({ module, pathname, search, open, viewer, onNavigate, touch
     enabled: module.moduleKey === "crm",
     staleTime: 300_000,
   });
-  const sections = sidebarItems(module, module.moduleKey === "crm" && leadsSwitch.data === false ? { ...viewer, hiddenRoutes: ["/crm/leads"] } : viewer);
+  // Procurement's Purchase Requests (indents) and Price Requests (RFQs) are switched on in Procurement Setup; while off they leave the menu.
+  const purchasing = useQuery({
+    queryKey: scopedQueryKey(workspace, "procurement", "sidebar-switches"),
+    queryFn: async () => {
+      const response = await fetch("/api/procurement/purchase-orders/settings");
+      if (!response.ok) return null;
+      const settings = ((await response.json()) as { settings?: { useIndents?: boolean; useRfqs?: boolean } }).settings;
+      return settings ? { useIndents: settings.useIndents !== false, useRfqs: settings.useRfqs !== false } : null;
+    },
+    enabled: module.moduleKey === "procurement",
+    staleTime: 300_000,
+  });
+  const hiddenRoutes = [
+    ...(module.moduleKey === "crm" && leadsSwitch.data === false ? ["/crm/leads"] : []),
+    ...(module.moduleKey === "procurement" && purchasing.data?.useIndents === false ? ["/procurement/indents"] : []),
+    ...(module.moduleKey === "procurement" && purchasing.data?.useRfqs === false ? ["/procurement/rfqs"] : []),
+  ];
+  const sections = sidebarItems(module, hiddenRoutes.length ? { ...viewer, hiddenRoutes } : viewer);
   const reader = SIDEBAR_BADGES[module.moduleKey];
   const badges: Record<string, string> = useQuery({
     queryKey: scopedQueryKey(workspace, "sidebar-badges", module.moduleKey),

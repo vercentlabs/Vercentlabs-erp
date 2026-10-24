@@ -111,3 +111,96 @@ export async function restateReceiptCost(client, c, sourceLineId, { amount, cred
   }
   return { stockAmount: T(stockAmount, 2), issuedAmount: T(total - stockAmount, 2), journalEntryId };
 }
+
+// reverseReceiptCost(sourceLineId, { reference, debitAccountId, description }): takes back every landed cost `reference` (the bill's number)
+// added to one goods receipt line, when that bill is cancelled. Each restatement is undone by a new one (reversal_of_id): the part still in
+// stock comes off the stock value; the part issued since reached the cost of goods sold through the higher rate and comes back from there.
+// The journal returns the whole amount to the charge's account. Returns { amount, journalEntryId }.
+export async function reverseReceiptCost(client, c, sourceLineId, { reference, debitAccountId, description }) {
+  const organizationId = c.organizationId;
+  const originals = (await client.query(
+    `SELECT restatement.* FROM tenant.inventory_valuation_entries restatement
+       JOIN tenant.inventory_valuation_entries entry ON entry.organization_id = restatement.organization_id AND entry.id = restatement.restates_entry_id
+       JOIN tenant.stock_movements movement ON movement.organization_id = entry.organization_id AND movement.id = entry.movement_id
+      WHERE restatement.organization_id = $1 AND restatement.entry_kind = 'restatement' AND restatement.source_cost_type = 'landed_cost' AND restatement.reversal_of_id IS NULL
+        AND restatement.details->>'reference' = $3 AND movement.source_line_id = $2
+        AND NOT EXISTS (SELECT 1 FROM tenant.inventory_valuation_entries undo WHERE undo.organization_id = restatement.organization_id AND undo.reversal_of_id = restatement.id)
+      ORDER BY restatement.effective_at`, [organizationId, sourceLineId, reference])).rows;
+  let fromStock = 0n;
+  let total = 0n;
+  const undone = [];
+  for (const original of originals) {
+    const added = D(original.value_delta);
+    if (added <= 0n) continue;
+    total += added;
+    const entry = (await client.query(`SELECT * FROM tenant.inventory_valuation_entries WHERE organization_id = $1 AND id = $2`, [organizationId, original.restates_entry_id])).rows[0];
+    const stream = (await client.query(`SELECT * FROM tenant.inventory_valuation_balances WHERE organization_id = $1 AND warehouse_id = $2 AND item_id = $3 FOR UPDATE`,
+      [organizationId, original.warehouse_id, original.item_id])).rows[0];
+    const quantity = D(stream.base_quantity);
+    const onHandThen = D(original.details?.onHandQuantity ?? entry.base_quantity_delta);
+    let onHandNow;
+    let layers = [];
+    if (original.valuation_method === "fifo") {
+      layers = (await client.query(`SELECT * FROM tenant.inventory_cost_layers WHERE organization_id = $1 AND source_entry_id = $2 AND status = 'open' FOR UPDATE`,
+        [organizationId, entry.id])).rows;
+      onHandNow = layers.reduce((sum, layer) => sum + D(layer.remaining_quantity), 0n);
+    } else {
+      onHandNow = quantity < D(entry.base_quantity_delta) ? (quantity > 0n ? quantity : 0n) : D(entry.base_quantity_delta);
+    }
+    if (onHandNow > onHandThen) onHandNow = onHandThen;
+    let back = money(share(added, onHandNow, onHandThen));
+    if (back > D(stream.inventory_value)) back = D(stream.inventory_value) > 0n ? D(stream.inventory_value) : 0n;
+    if (original.valuation_method === "fifo" && back > 0n) {
+      let spread = 0n;
+      for (const [position, layer] of layers.entries()) {
+        let take = position === layers.length - 1 ? back - spread : money(share(back, D(layer.remaining_quantity), onHandNow));
+        if (take > D(layer.remaining_value)) take = D(layer.remaining_value);
+        spread += take;
+        const remainingValue = D(layer.remaining_value) - take;
+        await client.query(`UPDATE tenant.inventory_cost_layers SET remaining_value = $3, unit_cost = $4, updated_at = now() WHERE organization_id = $1 AND id = $2`,
+          [organizationId, layer.id, T(remainingValue, 2), T(D(layer.remaining_quantity) > 0n ? (remainingValue * SCALE) / D(layer.remaining_quantity) : D(layer.unit_cost))]);
+      }
+      back = spread;
+    }
+    fromStock += back;
+    const value = D(stream.inventory_value) - back;
+    const undo = (await client.query(
+      `INSERT INTO tenant.inventory_valuation_entries (organization_id, warehouse_id, item_id, entry_kind, cost_role, valuation_method, ledger_type, base_quantity_delta, base_unit_cost,
+         value_delta, base_currency, source_cost_type, effective_at, restates_entry_id, reversal_of_id, balance_quantity_after, balance_value_after, details, created_by)
+       VALUES ($1, $2, $3, 'restatement', 'adjustment', $4, $5, 0, 0, $6, $7, 'landed_cost', now(), $8, $9, $10, $11, $12, $13) RETURNING *`,
+      [organizationId, original.warehouse_id, original.item_id, original.valuation_method, original.ledger_type, T(-back, 2), original.base_currency, original.restates_entry_id, original.id,
+        stream.base_quantity, T(value, 2), JSON.stringify({ landedCost: true, reversal: true, reference, onHandQuantity: T(onHandNow), issuedAmount: T(added - back, 2) }), c.userId ?? null])).rows[0];
+    undone.push(undo);
+    if (back > 0n) {
+      const average = quantity > 0n ? (value * SCALE) / quantity : null;
+      await client.query(
+        `UPDATE tenant.inventory_valuation_balances SET inventory_value = $3, moving_average_cost = COALESCE($4, moving_average_cost), last_valuation_entry_id = $5, version = version + 1, updated_at = now()
+          WHERE organization_id = $1 AND id = $2`, [organizationId, stream.id, T(value, 2), average === null ? null : T(average), undo.id]);
+      if (average !== null)
+        await client.query(`UPDATE tenant.stock_balances SET average_cost = $4 WHERE organization_id = $1 AND warehouse_id = $2 AND item_id = $3`,
+          [organizationId, original.warehouse_id, original.item_id, T(average)]);
+    }
+  }
+  if (!undone.length || total === 0n) return { amount: "0.00", journalEntryId: null };
+  const ctx = { ...c, permissions: [...new Set([...(c.permissions ?? []), "accounting.view", "accounting.journal.create"])] };
+  const date = (await client.query(`SELECT (now() AT TIME ZONE COALESCE(NULLIF(timezone, ''), 'Asia/Kolkata'))::date::text AS d FROM public.organizations WHERE id = $1`, [organizationId])).rows[0].d;
+  const ledger = await getPrimaryLedger(client, ctx);
+  const inventory = (await getAccountMapping(client, ctx, ledger.id, "inventory", { itemId: undone[0].item_id, date })).account_id;
+  const journal = (await client.query(`SELECT id FROM tenant.accounting_journals WHERE organization_id = $1 AND ledger_id = $2 AND journal_type = 'general' AND status = 'active' ORDER BY code LIMIT 1`,
+    [organizationId, ledger.id])).rows[0];
+  if (!journal) throw new StockError(409, "Finance: a General journal is not configured for landed costs.", "LANDED_COST_FINANCE_FAILED");
+  const currency = (await client.query(`SELECT base_currency FROM public.organizations WHERE id = $1`, [organizationId])).rows[0]?.base_currency?.trim() || "INR";
+  const lines = [{ accountId: debitAccountId, description, debit: T(total, 2), credit: 0, referenceType: "inventory_valuation", referenceId: undone[0].id }];
+  if (fromStock > 0n) lines.push({ accountId: inventory, description, debit: 0, credit: T(fromStock, 2), referenceType: "inventory_valuation", referenceId: undone[0].id });
+  if (total - fromStock > 0n) {
+    const cogs = (await getAccountMapping(client, ctx, ledger.id, "cogs", { itemId: undone[0].item_id, date })).account_id;
+    lines.push({ accountId: cogs, description, debit: 0, credit: T(total - fromStock, 2), referenceType: "inventory_valuation", referenceId: undone[0].id });
+  }
+  const created = await createJournalEntry(client, ctx, { ledgerId: ledger.id, journalId: journal.id, entryDate: date, accountingDate: date, documentDate: date, entryType: "subledger",
+    reference: reference ?? "Landed cost", description, currencyCode: currency, exchangeRate: "1", lines },
+  { internal: true, sourceModule: "inventory", sourceType: "inventory_valuation", sourceId: undone[0].id, sourceNumber: reference ?? "Landed cost" });
+  await postJournalEntry(client, ctx, created.entry.id, { internal: true, allowDraft: true });
+  for (const row of undone)
+    await client.query(`UPDATE tenant.inventory_valuation_entries SET journal_entry_id = $3 WHERE organization_id = $1 AND id = $2`, [organizationId, row.id, created.entry.id]);
+  return { amount: T(total, 2), journalEntryId: created.entry.id };
+}

@@ -21,3 +21,13 @@ export function formatPhone(value) {
   const parsed = raw.startsWith("+") ? parsePhoneNumberFromString(raw) : null;
   return parsed?.isValid() ? parsed.formatInternational() : raw;
 }
+
+// The number a wa.me link wants: international digits, no + (919876543210). "98765 43210", "098765 43210" and "+91 98765 43210" all give
+// the same; a number from another country keeps its own code. Null when it cannot be read as a phone number.
+export function whatsappNumber(value, country = "IN") {
+  const phone = readPhone(value, country);
+  if (phone.e164) return phone.e164.slice(1);
+  const digits = String(value ?? "").replace(/\D/g, "").replace(/^0+/, "");
+  if (digits.length === 10 && (country || "IN").toUpperCase() === "IN") return `91${digits}`;
+  return digits.length >= 8 ? digits : null;
+}

@@ -103,7 +103,7 @@ export async function confirmPurchaseOrder(client, context, orderId, input = {})
      VALUES ($1, $2, $3, $4, $5::jsonb, $6, $7, $8)`,
     [context.organizationId, order.id, version, version > 1 ? order.amendment_reason : null, JSON.stringify(snapshot), hash, formatDecimal(priced.totals.grandTotal), context.userId ?? null]);
   await recordPoEvent(client, context, order.id, version > 1 ? "purchase_order.reconfirmed" : "purchase_order.confirmed",
-    `${version > 1 ? `Amendment confirmed as version ${version}` : "Confirmed"} · ${header.currencyCode} ${dec(priced.totals.grandTotal)}`,
+    `${version > 1 ? `Change confirmed as version ${version}` : "Confirmed"} · ${header.currencyCode} ${dec(priced.totals.grandTotal)}`,
     { from: STATUS.draft, to: STATUS.confirmed, details: { version, total: dec(priced.totals.grandTotal), contentHash: hash } });
   await publishDomainEvent(client, { organizationId: context.organizationId, moduleKey: "procurement", eventType: "procurement.purchase_order.confirmed", entityType: "procurement.purchase_order",
     entityId: order.id, payload: { purchaseOrderNumber: order.purchase_order_number, supplierId: order.supplier_id, buyerUserId: order.buyer_user_id, total: dec(priced.totals.grandTotal), version } });
@@ -113,19 +113,19 @@ export async function confirmPurchaseOrder(client, context, orderId, input = {})
 // amendPurchaseOrder: a confirmed order nothing has been done against goes back to Draft, with the reason;
 // its confirmed version stays on record and the reconfirmation becomes the next version.
 export async function amendPurchaseOrder(client, context, orderId, input = {}) {
-  requirePoPermission(context, PO_PERMISSIONS.amend, "You do not have permission to amend purchase orders.");
+  requirePoPermission(context, PO_PERMISSIONS.amend, "You do not have permission to change purchase orders.");
   const order = await loadPurchaseOrder(client, context, orderId, { lock: true });
-  if (order.status !== STATUS.confirmed) throw new PurchaseOrderError(409, "Only a confirmed order can be amended.", "PURCHASE_ORDER_INVALID_STATE");
+  if (order.status !== STATUS.confirmed) throw new PurchaseOrderError(409, "Only a confirmed order can be changed.", "PURCHASE_ORDER_INVALID_STATE");
   checkRevision(order, input.expectedRevision);
   const reason = text(input.reason, 1000);
-  if (!reason || reason.length < 3) fail("Give the reason for the amendment.", "reason");
+  if (!reason || reason.length < 3) fail("Give the reason for the change.", "reason");
   const executed = await executionOf(client, context.organizationId, order.id);
   if (executed.any)
     throw new PurchaseOrderError(409, "Goods have been received, billed or cancelled against this order, so its quantities, products, prices and taxes can no longer change. Update the expected dates or cancel what is still outstanding instead.",
       "PURCHASE_ORDER_EXECUTED");
   await client.query(`UPDATE tenant.purchase_orders SET status = 'draft', amendment_reason = $3, revision = revision + 1, updated_by = $4, updated_at = now() WHERE organization_id = $1 AND id = $2`,
     [context.organizationId, order.id, reason, context.userId ?? null]);
-  await recordPoEvent(client, context, order.id, "purchase_order.amendment_started", `Amendment started: ${reason}`,
+  await recordPoEvent(client, context, order.id, "purchase_order.amendment_started", `Change started: ${reason}`,
     { from: STATUS.confirmed, to: STATUS.draft, details: { version: order.version_number, reason } });
   return { id: order.id, status: STATUS.draft, versionNumber: order.version_number, revision: Number(order.revision) + 1 };
 }
@@ -268,7 +268,7 @@ export async function changePurchaseOrderLineWarehouse(client, context, orderId,
   const draft = (await client.query(
     `SELECT 1 FROM tenant.goods_receipt_lines line JOIN tenant.goods_receipts receipt ON receipt.organization_id = line.organization_id AND receipt.id = line.goods_receipt_id
       WHERE line.organization_id = $1 AND line.purchase_order_line_id = $2 AND receipt.status = 'draft' LIMIT 1`, [context.organizationId, line.id])).rows[0];
-  if (draft) throw new PurchaseOrderError(409, "A draft goods receipt is open for this line. Post or cancel it first.", "PURCHASE_ORDER_RECEIPT_IN_PROGRESS");
+  if (draft) throw new PurchaseOrderError(409, "A draft goods receipt is open for this line. Finalise or cancel it first.", "PURCHASE_ORDER_RECEIPT_IN_PROGRESS");
   const reason = text(input.reason, 1000);
   await client.query(`UPDATE tenant.purchase_order_lines SET receiving_warehouse_id = $3, updated_at = now() WHERE organization_id = $1 AND id = $2`, [context.organizationId, line.id, warehouse.id]);
   await client.query(`UPDATE tenant.purchase_orders SET revision = revision + 1, updated_by = $3, updated_at = now() WHERE organization_id = $1 AND id = $2`,
@@ -283,21 +283,21 @@ export async function changePurchaseOrderLineWarehouse(client, context, orderId,
 // exceptions, with a business reason, recorded on the order and in its history. Whoever records a bill can never change it. Draft bills are
 // matched again under the new policy (the revision changes); posted bills keep the policy they were posted with in their evidence.
 // input: { policy, reason }
-export const MATCHING_POLICY_LABELS = Object.freeze({ three_way_accepted: "3-Way — acceptance required", three_way_received: "3-Way — physical receipt", two_way: "2-Way — PO-based billing" });
+export const MATCHING_POLICY_LABELS = Object.freeze({ three_way_accepted: "Order and goods received — acceptance required", three_way_received: "Order and goods received — physical receipt", two_way: "Order only — PO-based billing" });
 export async function changePurchaseOrderMatchingPolicy(client, context, orderId, input = {}) {
-  requirePoPermission(context, "procurement.matching.override", "You do not have permission to change an order's matching policy.");
+  requirePoPermission(context, "procurement.matching.override", "You do not have permission to change how an order's bills are checked.");
   const order = await loadPurchaseOrder(client, context, orderId, { lock: true });
-  if (!["confirmed", "draft"].includes(order.status)) throw new PurchaseOrderError(409, `The order is ${order.status}: its matching policy no longer changes.`, "PURCHASE_ORDER_INVALID_STATE");
+  if (!["confirmed", "draft"].includes(order.status)) throw new PurchaseOrderError(409, `The order is ${order.status}: its way of checking bills no longer changes.`, "PURCHASE_ORDER_INVALID_STATE");
   const policy = String(input.policy ?? "");
-  if (!MATCHING_POLICY_LABELS[policy]) fail("Choose the matching policy: 3-Way on accepted goods, 3-Way on received goods, or 2-Way.", "policy");
+  if (!MATCHING_POLICY_LABELS[policy]) fail("Choose how bills are checked: Order and goods received on accepted goods, Order and goods received on received goods, or Order only.", "policy");
   const reason = text(input.reason, 1000);
-  if (!reason || reason.length < 10) fail("Explain why the order's matching policy changes (at least a sentence).", "reason");
+  if (!reason || reason.length < 10) fail("Explain why the order's way of checking bills changes (at least a sentence).", "reason");
   if (order.matching_policy === policy) return { id: order.id, policy, replayed: true };
   await client.query(
     `UPDATE tenant.purchase_orders SET matching_policy = $3, matching_policy_reason = $4, matching_policy_changed_by = $5, matching_policy_changed_at = now(), revision = revision + 1,
             updated_by = $5, updated_at = now() WHERE organization_id = $1 AND id = $2`, [context.organizationId, order.id, policy, reason, context.userId ?? null]);
   await recordPoEvent(client, context, order.id, "purchase_order.matching_policy_changed",
-    `Matching policy: ${MATCHING_POLICY_LABELS[order.matching_policy] ?? "workspace default"} → ${MATCHING_POLICY_LABELS[policy]} — ${reason}`,
+    `How bills are checked: ${MATCHING_POLICY_LABELS[order.matching_policy] ?? "workspace default"} → ${MATCHING_POLICY_LABELS[policy]} — ${reason}`,
     { details: { from: order.matching_policy, to: policy, reason } });
   return { id: order.id, policy, replayed: false };
 }

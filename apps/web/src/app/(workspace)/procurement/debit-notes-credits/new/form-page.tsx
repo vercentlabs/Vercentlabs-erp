@@ -1,6 +1,6 @@
 import { NewDebitNoteOrCreditScreen } from "@/features/procurement/vendor-credits/screens/DebitNotesCreditsScreens";
 
-export const metadata = { title: "New debit note or vendor credit" };
+export const metadata = { title: "New debit note or supplier credit note" };
 
 // ?supplierBillId= / ?purchaseReturnId= / ?supplierId= carry the source into the chosen form.
 export default async function Page({ searchParams }: { searchParams: Promise<{ supplierBillId?: string; purchaseReturnId?: string; supplierId?: string }> }) {

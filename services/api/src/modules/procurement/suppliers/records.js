@@ -10,7 +10,7 @@ import { nextDocumentNumber } from "../../../core/platform/numbering/index.js";
 import { getSupplierDefaultPaymentTerm, listPurchaseTermOptions } from "../../../core/payment-terms/index.js";
 import { GST_STATES, gstStateName } from "../../../core/tax/index.js";
 import {
-  CONTACT_NUMBER_DOCUMENT_TYPE, GST_REGISTRATION_TYPES, PARTY_CODE_DOCUMENT_TYPE, SUPPLIER_ADDRESS_PURPOSES, SUPPLIER_CATEGORIES, SUPPLIER_CONTACT_PURPOSES, SUPPLIER_CONTACT_ROLES,
+  CONTACT_NUMBER_DOCUMENT_TYPE, GST_REGISTRATION_TYPES, PARTY_CODE_DOCUMENT_TYPE, SUPPLIER_ADDRESS_PURPOSES, SUPPLIER_CONTACT_PURPOSES, SUPPLIER_CONTACT_ROLES,
   SUPPLIER_NUMBER_DOCUMENT_TYPE, SUPPLIER_PERMISSIONS, SUPPLIER_STATUS, SUPPLIER_STATUS_LABELS, SUPPLIER_TYPES, SUPPLIER_VIEWS, SupplierError, gstRegistrationLabel,
   has, isUuid, requireUuid, supplierCategoryLabel, supplierTypeLabel, text,
 } from "./constants.js";
@@ -19,6 +19,7 @@ import {
   COMMERCIAL_FIELDS, IDENTITY_FIELDS, TAX_FIELDS, assertSupplierReferences, assertValidSupplier, completeTaxDetails, fieldLabel, normalizeSupplierInput,
 } from "./validation.js";
 import { assertNoBlockingSupplierDuplicate } from "./duplicates.js";
+import { listSupplierCategories } from "./categories.js";
 import { ADDRESS_SELECT, insertSupplierAddress, toAddress } from "./addresses.js";
 import { CONTACT_SELECT, addSupplierContact, toContact } from "./contacts.js";
 import { defaultsView, readDefaults } from "./default-assignments.js";
@@ -48,7 +49,7 @@ const currentOf = (row) => ({
 });
 
 const SELECT = `
-  SELECT supplier.id, supplier.supplier_number, supplier.party_id, supplier.supplier_type, supplier.category, supplier.status, supplier.default_currency, supplier.payment_term_id, supplier.withholding_section_id,
+  SELECT supplier.id, supplier.supplier_number, supplier.party_id, supplier.purchase_warning, supplier.supplier_type, supplier.category, supplier.status, supplier.default_currency, supplier.payment_term_id, supplier.withholding_section_id,
          supplier.msme_classification, supplier.msme_registration_number, supplier.msme_effective_from, supplier.msme_evidence_reference, supplier.written_payment_agreement,
          supplier.agreed_payment_days, supplier.payment_agreement_reference,
          supplier.assigned_buyer_id, supplier.primary_email, supplier.primary_phone, supplier.notes, supplier.status_reason, supplier.status_changed_at, supplier.blocked_reason,
@@ -58,7 +59,9 @@ const SELECT = `
          location.id AS location_id, location.label AS location_label, location.line1 AS location_line1, location.city AS location_city,
          location.state AS location_state, location.state_code AS location_state_code, location.postal_code AS location_postal_code, location.country_code AS location_country_code,
          person.relationship_id AS primary_contact_relationship_id, person.contact_id AS primary_contact_id, person.name AS primary_contact_name, person.email AS primary_contact_email,
-         person.phone AS primary_contact_phone, person.designation AS primary_contact_designation
+         person.phone AS primary_contact_phone, person.designation AS primary_contact_designation,
+         (SELECT category.data->>'name' FROM tenant.procurement_categories category WHERE category.organization_id = supplier.organization_id
+            AND upper(category.data->>'code') = upper(supplier.category) LIMIT 1) AS category_name
     FROM tenant.procurement_suppliers supplier
     JOIN tenant.business_parties party ON party.organization_id = supplier.organization_id AND party.id = supplier.party_id
     LEFT JOIN tenant.payment_terms term ON term.organization_id = supplier.organization_id AND term.id = supplier.payment_term_id
@@ -88,7 +91,8 @@ export function toSupplier(row) {
     supplierType: row.supplier_type,
     supplierTypeLabel: supplierTypeLabel(row.supplier_type),
     category: row.category,
-    categoryLabel: supplierCategoryLabel(row.category),
+    categoryLabel: row.category_name ?? supplierCategoryLabel(row.category),
+    purchaseWarning: row.purchase_warning ?? null,
     status: row.status,
     statusLabel: SUPPLIER_STATUS_LABELS[row.status] ?? row.status,
     statusReason: row.status_reason ?? null,
@@ -370,7 +374,7 @@ export async function listSuppliers(client, context, filters = {}) {
     default: break;
   }
   if (Object.values(SUPPLIER_STATUS).includes(filters.status)) where += ` AND supplier.status = ${bind(filters.status)}`;
-  if (SUPPLIER_CATEGORIES.some((entry) => entry.code === filters.category)) where += ` AND supplier.category = ${bind(filters.category)}`;
+  if (text(filters.category, 60)) where += ` AND upper(supplier.category) = upper(${bind(text(filters.category, 60))})`;
   if (isUuid(filters.buyerId)) where += ` AND supplier.assigned_buyer_id = ${bind(filters.buyerId)}`;
   if (filters.buyerId === "none") where += " AND supplier.assigned_buyer_id IS NULL";
   if (/^[A-Z]{2}$/i.test(filters.countryCode ?? "")) where += ` AND party.country_code = ${bind(filters.countryCode.toUpperCase())}`;
@@ -425,7 +429,7 @@ export async function getSupplierFormOptions(client, context) {
   return {
     baseCurrency: organization.currency ?? null, countryCode: organization.country_code ?? "IN", currencies, paymentTerms: await listPurchaseTermOptions(client, context.organizationId),
     withholdingSections: (await client.query(`SELECT id, code, name, rate FROM tenant.withholding_tax_sections WHERE organization_id = $1 AND status = 'active' ORDER BY code`, [context.organizationId])).rows,
-    buyers, types: SUPPLIER_TYPES, categories: SUPPLIER_CATEGORIES, gstRegistrationTypes: GST_REGISTRATION_TYPES,
+    buyers, types: SUPPLIER_TYPES, categories: await listSupplierCategories(client, context.organizationId), gstRegistrationTypes: GST_REGISTRATION_TYPES,
     addressPurposes: SUPPLIER_ADDRESS_PURPOSES.map(({ code, label, defaultColumn }) => ({ code, label, hasDefault: Boolean(defaultColumn) })),
     contactPurposes: SUPPLIER_CONTACT_PURPOSES.map(({ code, label }) => ({ code, label })),
     contactRoles: SUPPLIER_CONTACT_ROLES, states: GST_STATES.map(({ code, name }) => ({ code, name })), statuses: Object.entries(SUPPLIER_STATUS_LABELS).map(([code, label]) => ({ code, label })),

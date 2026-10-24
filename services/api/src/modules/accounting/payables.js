@@ -564,11 +564,26 @@ export async function postVendorPayment(client, context, idValue) {
   }
   const bank = await paymentJournal(client, context, payment.ledger_id, payment.bank_account_id);
   const payable = await getAccountMapping(client, context, payment.ledger_id, "payable", { partyId: payment.party_id, date: payment.accounting_date });
+  // TDS deducted on an advance (Procurement): the supplier is credited the full amount and paid it less the TDS, which is owed to the government.
+  const withheld = decimal(payment.withholding_amount ?? 0);
+  if (withheld < 0n || withheld >= decimal(payment.amount)) throw new AccountingError(409, "The TDS on the payment must be less than the payment.");
+  const withholdingAccount = withheld > 0n ? await getAccountMapping(client, context, payment.ledger_id, "withholding_tax", { date: payment.accounting_date }) : null;
   const journal = await createJournalEntry(client, context, { ledgerId: payment.ledger_id, journalId: bank.journal_id, entryDate: payment.payment_date, accountingDate: payment.accounting_date, entryType: "subledger", reference: payment.external_reference || payment.payment_number, description: `Vendor payment ${payment.payment_number}`, currencyCode: payment.currency_code, exchangeRate: payment.exchange_rate, lines: [
     { accountId: payable.account_id, partyId: payment.party_id, description: `Supplier payment ${payment.payment_number}`, debit: payment.amount, credit: 0, referenceType: "vendor_payment", referenceId: payment.id },
-    { accountId: bank.gl_account_id, description: `Bank payment ${payment.payment_number}`, debit: 0, credit: payment.amount, referenceType: "vendor_payment", referenceId: payment.id },
+    { accountId: bank.gl_account_id, description: `Bank payment ${payment.payment_number}`, debit: 0, credit: asDatabaseDecimal(decimal(payment.amount) - withheld), referenceType: "vendor_payment", referenceId: payment.id },
+    ...(withheld > 0n ? [{ accountId: withholdingAccount.account_id, partyId: payment.party_id, description: `Withholding on advance ${payment.payment_number}`, debit: 0, credit: asDatabaseDecimal(withheld), referenceType: "vendor_payment", referenceId: payment.id }] : []),
   ] }, { internal: true, sourceModule: "accounting", sourceType: "vendor_payment", sourceId: payment.id, sourceNumber: payment.payment_number });
   await postJournalEntry(client, context, journal.entry.id, { internal: true, allowDraft: true });
+  if (withheld > 0n) {
+    const line = (await client.query(`SELECT id FROM tenant.accounting_journal_lines WHERE organization_id=$1 AND journal_entry_id=$2 AND description LIKE 'Withholding %' ORDER BY sequence LIMIT 1`,
+      [context.organizationId, journal.entry.id])).rows[0];
+    const pan = (await client.query(`SELECT pan FROM tenant.business_parties WHERE organization_id=$1 AND id=$2`, [context.organizationId, payment.party_id])).rows[0]?.pan ?? null;
+    if (line) await client.query(
+      `INSERT INTO tenant.accounting_tax_ledger (organization_id,journal_entry_id,journal_line_id,source_type,source_id,party_id,tax_registration,tax_type,direction,tax_period,
+         taxable_amount,tax_amount,recoverable_amount,reverse_charge,status)
+       VALUES ($1,$2,$3,'vendor_payment',$4,$5,$6,'tds','withholding',to_char($7::date,'YYYY-MM'),$8,$9,0,false,'open') ON CONFLICT (organization_id,journal_line_id,tax_type,direction) DO NOTHING`,
+      [context.organizationId, journal.entry.id, line.id, payment.id, payment.party_id, pan, payment.accounting_date, payment.amount, asDatabaseDecimal(withheld)]);
+  }
   const updated = await client.query(`UPDATE tenant.accounting_vendor_payments SET status='posted',journal_entry_id=$3,posted_at=now(),posted_by=$4,updated_by=$4 WHERE organization_id=$1 AND id=$2 RETURNING *`, [context.organizationId, id, journal.entry.id, context.userId]);
   await event(client, context, "vendor_payment", id, "accounting.vendor_payment.posted", payment.status, "posted", { journalEntryId: journal.entry.id });
   return updated.rows[0];

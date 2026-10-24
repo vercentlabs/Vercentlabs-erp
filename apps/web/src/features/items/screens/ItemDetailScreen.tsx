@@ -31,6 +31,7 @@ import { RelatedDocuments } from "@/shared/related/RelatedDocuments";
 
 import { ItemUnitsCard } from "../components/ItemUnitsCard";
 import { SalesWarningDialog } from "@/features/sales/shared/SalesWarningDialog";
+import { ItemPurchasingCard } from "@/features/procurement/shared/ItemPurchasingCard";
 import { ReclassifyDialog } from "../components/ReclassifyDialog";
 import { CategoryPath, CopySkuButton, ErrorBanner, ItemTypeBadge, LENS, LifecycleBadge, attributesText, money, quantity, taxLine, unitLine, yesNo, type ItemLens } from "../item-format";
 
@@ -394,6 +395,9 @@ function TrackingPanel({ item, canSeeStock }: { item: Item; canSeeStock: boolean
 }
 
 function PurchasingPanel({ item, details }: { item: Item; details?: ItemDetails }) {
+  const workspace = useWorkspaceContext();
+  const queryClient = useQueryClient();
+  const canEdit = workspace.roleSlugs.includes("organization_owner") || workspace.permissions.includes("products.edit") || workspace.permissions.includes("procurement.settings.manage");
   const last = details?.purchasing.lastPurchase;
   const lists = details?.access.procurement ? [{ id: "purchases", label: "Purchase orders" }, ...(item.type !== "service" ? [{ id: "receipts", label: "Goods receipts" }, { id: "purchase_returns", label: "Purchase returns" }] : [])] : [];
   return (
@@ -404,6 +408,11 @@ function PurchasingPanel({ item, details }: { item: Item; details?: ItemDetails 
           ["Purchase description", item.purchaseDescription]]} />
         <p className="text-xs text-text-muted">The agreed price is set on each purchase order; the last price is read from them.</p>
       </Card>
+      {details?.access.procurement && (
+        <Card title="Purchasing">
+          <ItemPurchasingCard item={item} canEdit={canEdit} onChanged={() => void queryClient.invalidateQueries({ queryKey: scopedQueryKey(workspace, "products", "product", item.id) })} />
+        </Card>
+      )}
       {lists.length > 0 && <TransactionsPanel itemId={item.id} tabs={lists} />}
     </div>
   );

@@ -14,7 +14,7 @@ const POSTED_NOTE = "note.status IN ('posted', 'partially_paid', 'paid', 'overdu
 
 async function postedReturn(client, context, returnId, { lock = true } = {}) {
   const row = await loadReturn(client, context, returnId, { lock });
-  if (row.document_status !== "posted") throw new PurchaseReturnError(409, "This is recorded on a posted return (the goods have left).", "PURCHASE_RETURN_NOT_POSTED");
+  if (row.document_status !== "posted") throw new PurchaseReturnError(409, "This is recorded on a final return (the goods have left).", "PURCHASE_RETURN_NOT_POSTED");
   return row;
 }
 const readAmount = (value, label, field) => {
@@ -124,7 +124,7 @@ export async function recordPurchaseReturnResolution(client, context, returnId, 
   requirePermission(context, RETURN_PERMISSIONS.resolve, "You do not have permission to record purchase return resolutions.");
   const row = await postedReturn(client, context, returnId);
   const type = String(input.type ?? "");
-  if (!["replacement_received", "other_authorized_resolution"].includes(type)) fail("Record a replacement received or another authorised resolution here; credits are vendor credits and refunds have their own step.", "type");
+  if (!["replacement_received", "other_authorized_resolution"].includes(type)) fail("Record a replacement received or another authorised resolution here; credits are supplier credit notes and refunds have their own step.", "type");
   const quantity = readAmount(input.quantity, "Quantity", "quantity");
   const open = await unresolvedQuantity(client, context, row);
   if (quantity > open) throw new PurchaseReturnError(409, `Only ${dec(open > 0n ? open : 0n)} of the return is still unresolved.`, "PURCHASE_RETURN_OVER_RESOLVED");
@@ -184,13 +184,13 @@ async function linkNoteLines(client, context, row, noteId, allocations) {
 // linkSupplierCreditToPurchaseReturn: a vendor credit raised on the bill (not from the return) linked to the return's billed goods.
 // input: { creditId }
 export async function linkSupplierCreditToPurchaseReturn(client, context, returnId, input = {}) {
-  requirePermission(context, RETURN_PERMISSIONS.resolve, "You do not have permission to link supplier credits.");
+  requirePermission(context, RETURN_PERMISSIONS.resolve, "You do not have permission to link supplier credit notes.");
   const row = await postedReturn(client, context, returnId);
   const note = (await client.query(`SELECT id, bill_number, bill_type, party_id, status, source_purchase_order_id, source_purchase_return_id FROM tenant.accounting_vendor_bills WHERE organization_id = $1 AND id = $2`,
-    [context.organizationId, requireUuid(input.creditId, "Vendor credit")])).rows[0];
-  if (!note || note.bill_type !== "credit_note") throw new PurchaseReturnError(404, "Vendor credit not found.", "PURCHASE_RETURN_NOTE_INVALID");
+    [context.organizationId, requireUuid(input.creditId, "Supplier credit note")])).rows[0];
+  if (!note || note.bill_type !== "credit_note") throw new PurchaseReturnError(404, "Supplier credit note not found.", "PURCHASE_RETURN_NOTE_INVALID");
   if (note.source_purchase_order_id !== row.purchase_order_id || (note.source_purchase_return_id && note.source_purchase_return_id !== row.id))
-    throw new PurchaseReturnError(409, "The vendor credit does not correct this return's order.", "PURCHASE_RETURN_NOTE_INVALID");
+    throw new PurchaseReturnError(409, "The supplier credit note does not correct this return's order.", "PURCHASE_RETURN_NOTE_INVALID");
   if (["cancelled", "reversed"].includes(note.status)) throw new PurchaseReturnError(409, `${note.bill_number} is ${note.status}.`, "PURCHASE_RETURN_NOTE_INVALID");
   if ((await client.query(`SELECT 1 FROM tenant.purchase_return_financial_allocations WHERE organization_id = $1 AND debit_note_id = $2 LIMIT 1`, [context.organizationId, note.id])).rows[0])
     throw new PurchaseReturnError(409, `${note.bill_number} is already linked to a return.`, "PURCHASE_RETURN_NOTE_LINKED");
@@ -204,7 +204,7 @@ export async function linkSupplierCreditToPurchaseReturn(client, context, return
     [context.organizationId, row.id])).rows;
   const linked = await linkNoteLines(client, context, row, note.id, open);
   if (linked <= 0n) throw new PurchaseReturnError(409, `${note.bill_number} does not correct any billed goods of this return still uncorrected.`, "PURCHASE_RETURN_NOTE_INVALID");
-  await recordReturnEvent(client, context, row.id, "purchase_return.credit_linked", `Vendor credit ${note.bill_number} linked (${dec(linked)})`);
+  await recordReturnEvent(client, context, row.id, "purchase_return.credit_linked", `Supplier credit note ${note.bill_number} linked (${dec(linked)})`);
   return { id: row.id, creditId: note.id, quantity: dec(linked) };
 }
 

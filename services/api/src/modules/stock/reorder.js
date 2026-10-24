@@ -360,13 +360,15 @@ export async function getOtherWarehouseAvailability(client, c, itemId, warehouse
   return rows.map((row) => ({ warehouseId: row.id, warehouse: row.code, warehouseName: row.name, eligible: n(row.eligible), available: n(row.available) }));
 }
 
-// The supplier Procurement would buy from: an active supplier price for the item (the latest valid one), else the supplier of its latest
-// purchase order; with its lead time and price. Nothing is copied onto the rule.
+// The supplier Procurement would buy from: the preferred supplier's current rate (Supplier Rates), else the lowest current rate, else the
+// supplier of its latest purchase order; with its lead time and price. Nothing is copied onto the rule. Dates are the company's.
+const COMPANY_DAY = `(SELECT (now() AT TIME ZONE COALESCE(NULLIF(org.timezone, ''), 'Asia/Kolkata'))::date FROM public.organizations org WHERE org.id = $1)`;
 async function preferredSupplier(client, c, itemId) {
   const priced = (await client.query(
-    `SELECT price.supplier_id, price.rate, price.uom_id, price.currency_code, price.minimum_quantity FROM tenant.procurement_supplier_prices price
-      WHERE price.organization_id = $1 AND price.item_id = $2 AND price.status = 'active' AND (price.valid_from IS NULL OR price.valid_from <= current_date)
-        AND (price.valid_to IS NULL OR price.valid_to >= current_date) ORDER BY price.valid_from DESC NULLS LAST, price.created_at DESC LIMIT 1`, [c.organizationId, itemId])).rows[0];
+    `SELECT price.supplier_id, price.rate, price.uom_id, price.currency_code, price.minimum_quantity, price.lead_time_days FROM tenant.procurement_supplier_prices price
+       JOIN tenant.procurement_suppliers supplier ON supplier.organization_id = price.organization_id AND supplier.id = price.supplier_id AND supplier.status = 'active'
+      WHERE price.organization_id = $1 AND price.item_id = $2 AND price.status = 'active' AND (price.valid_from IS NULL OR price.valid_from <= ${COMPANY_DAY})
+        AND (price.valid_to IS NULL OR price.valid_to >= ${COMPANY_DAY}) ORDER BY price.is_preferred DESC, price.rate, price.valid_from DESC NULLS LAST LIMIT 1`, [c.organizationId, itemId])).rows[0];
   const last = priced ? null : (await client.query(
     `SELECT purchase_order.supplier_id, line.unit_price AS rate, line.purchase_uom_id AS uom_id, purchase_order.currency_code FROM tenant.purchase_order_lines line
        JOIN tenant.purchase_orders purchase_order ON purchase_order.organization_id = line.organization_id AND purchase_order.id = line.purchase_order_id
@@ -380,12 +382,12 @@ async function preferredSupplier(client, c, itemId) {
     [c.organizationId, source.supplier_id])).rows[0];
   const lead = (await client.query(
     `SELECT lead_time_days FROM tenant.procurement_supplier_lead_times WHERE organization_id = $1 AND supplier_id = $2 AND item_id = $3 AND status = 'active'
-        AND (effective_from IS NULL OR effective_from <= current_date) AND (effective_to IS NULL OR effective_to >= current_date) ORDER BY effective_from DESC NULLS LAST LIMIT 1`,
+        AND (effective_from IS NULL OR effective_from <= ${COMPANY_DAY}) AND (effective_to IS NULL OR effective_to >= ${COMPANY_DAY}) ORDER BY effective_from DESC NULLS LAST LIMIT 1`,
     [c.organizationId, source.supplier_id, itemId]).catch(() => ({ rows: [] }))).rows[0];
   const uom = source.uom_id ? (await client.query(`SELECT code FROM tenant.units_of_measure WHERE organization_id = $1 AND id = $2`, [c.organizationId, source.uom_id])).rows[0] : null;
   return { supplierId: supplier?.id ?? source.supplier_id, number: supplier?.supplier_number ?? null, name: supplier?.name ?? null, source: priced ? "supplier_price" : "last_purchase",
     unitPrice: source.rate === null || source.rate === undefined ? null : String(source.rate), priceUomId: source.uom_id ?? null, priceUom: uom?.code ?? null,
-    currencyCode: source.currency_code?.trim?.() ?? null, leadTimeDays: lead?.lead_time_days ?? null };
+    currencyCode: source.currency_code?.trim?.() ?? null, leadTimeDays: priced?.lead_time_days ?? lead?.lead_time_days ?? null };
 }
 
 // The planning position of any item at a warehouse (with or without a rule), from the one database definition.

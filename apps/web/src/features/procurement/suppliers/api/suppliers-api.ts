@@ -29,7 +29,7 @@ export type ContactMatch = {
 };
 export type Supplier = {
   id: string; supplierNumber: string; partyId: string; supplierName: string; legalName: string | null; supplierType: string; supplierTypeLabel: string; category: string;
-  categoryLabel: string; status: SupplierStatus; statusLabel: string; statusReason: string | null; statusChangedAt: string | null; statusChangedByName: string | null;
+  categoryLabel: string; purchaseWarning?: string | null; status: SupplierStatus; statusLabel: string; statusReason: string | null; statusChangedAt: string | null; statusChangedByName: string | null;
   blockedReason: string | null; blockedAt: string | null; blockedByName: string | null; primaryEmail: string | null; primaryPhone: string | null; website: string | null;
   countryCode: string | null; notes: string | null; gstRegistrationType: string | null; gstRegistrationLabel: string | null; gstin: string | null; pan: string | null;
   registeredStateCode: string | null; registeredStateName: string | null; defaultCurrency: string; paymentTermId: string; paymentTermName: string | null; withholdingSectionId?: string | null;

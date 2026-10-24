@@ -118,7 +118,7 @@ export function SupplierListScreen() {
       <EnterpriseListPage
         header={{
           title: "Suppliers",
-          description: "The companies and people you buy from: their places, people, terms and tax details. Every RFQ, purchase order, receipt, bill and payment names one of them.",
+          description: "The companies and people you buy from, with their places, people, terms and tax details.",
           primaryAction: can?.create ? <LinkButton href="/procurement/suppliers/new" variant="primary"><Plus className="size-4" aria-hidden="true" />New supplier</LinkButton> : undefined,
           secondaryActions: (
             <>

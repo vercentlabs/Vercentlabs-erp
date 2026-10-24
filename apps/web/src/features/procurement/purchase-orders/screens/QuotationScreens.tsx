@@ -3,6 +3,7 @@
 // Procurement → Supplier Quotations: what a supplier offered, recorded so the
 // purchase order made from it keeps the quoted prices, discounts and terms. A
 // quotation becomes one order; making it again names that order.
+import { OneOffAccountFields, oneOffAccountInput, oneOffAccountReady, type OneOffAccount } from "@/features/procurement/shared/OneOffLine";
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useFormRouter as useRouter } from "@/shell/form-modal/FormModal";
@@ -10,7 +11,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ColumnDef } from "@tanstack/react-table";
 import { Plus, Trash2 } from "lucide-react";
 import {
-  Button, EmptyState, EnterpriseDataGrid, EnterpriseListPage, ErrorState, IconButton, LinkButton, NoResultsState, PageHeader, RecordDetailsPage, SearchField, Select, StatusBadge, TextArea,
+  Button, Dialog, EmptyState, EnterpriseDataGrid, EnterpriseListPage, ErrorState, IconButton, LinkButton, NoResultsState, PageHeader, RecordDetailsPage, SearchField, Select, StatusBadge, TextArea,
   TextField, type SavedViewBarProps,
 } from "@vercentlabs/design-system";
 
@@ -167,7 +168,12 @@ export function SupplierQuotationDetailScreen({ quotationId }: { quotationId: st
   const queryClient = useQueryClient();
   const query = useQuery({ queryKey: scopedQueryKey(workspace, "procurement", "quotation", quotationId), queryFn: () => getQuotation(quotationId) });
   const [key] = useState(() => crypto.randomUUID());
-  const convert = useMutation({ mutationFn: () => convertQuotation(quotationId, { idempotencyKey: key }), onSuccess: (result) => router.push(`/procurement/purchase-orders/${result.id}`) });
+  // One-off lines need the expense account and tax the order line is booked with.
+  const [accounts, setAccounts] = useState<Record<string, OneOffAccount>>({});
+  const [asking, setAsking] = useState(false);
+  const ledger = useQuery({ queryKey: ["procurement", "po-options", "accounts"], queryFn: () => getPurchaseOrderOptions(), staleTime: 60_000, enabled: asking });
+  const convert = useMutation({ mutationFn: () => convertQuotation(quotationId, { idempotencyKey: key,
+    accounts: Object.fromEntries(Object.entries(accounts).map(([lineId, value]) => [lineId, oneOffAccountInput(value)])) }), onSuccess: (result) => router.push(`/procurement/purchase-orders/${result.id}`) });
   const cancel = useMutation({ mutationFn: () => cancelQuotation(quotationId), onSuccess: () => void queryClient.invalidateQueries({ queryKey: scopedQueryKey(workspace, "procurement") }) });
   if (query.isLoading) return <LoadingState label="Loading quotation" />;
   if (!query.data) return <ErrorState title="Could not load this quotation" description={errorMessage(query.error)} action={{ label: "Retry", onPress: () => query.refetch() }} />;
@@ -177,6 +183,23 @@ export function SupplierQuotationDetailScreen({ quotationId }: { quotationId: st
       {(convert.error || cancel.error) && <Notice>{errorMessage(convert.error ?? cancel.error)}</Notice>}
       {quotation.expired && quotation.status === "received" && <Notice tone="warning">This quotation expired on {calendarDate(quotation.validUntil)}. Check the prices with the supplier before ordering.</Notice>}
       <DocumentChain type="supplier_quotation" id={quotation.id} />
+      {asking && (
+        <Dialog isOpen onOpenChange={(open) => !open && setAsking(false)} title="Book the one-off lines" description="Choose where each line not in the list is booked." size="lg">
+          <div className="flex flex-col gap-3">
+            {lines.filter((line) => accounts[line.id]).map((line) => (
+              <div key={line.id} className="flex flex-col gap-1">
+                <p className="text-sm font-medium">{line.productName}</p>
+                <OneOffAccountFields value={accounts[line.id]} accounts={ledger.data?.expenseAccounts ?? []} taxCategories={ledger.data?.taxCategories ?? []}
+                  onChange={(value) => setAccounts((state) => ({ ...state, [line.id]: value }))} />
+              </div>
+            ))}
+            <div className="flex flex-wrap justify-end gap-2">
+              <Button variant="secondary" onPress={() => setAsking(false)}>Cancel</Button>
+              <Button variant="primary" isDisabled={!Object.values(accounts).every(oneOffAccountReady)} isLoading={convert.isPending} onPress={() => convert.mutate()}>Create Purchase Order</Button>
+            </div>
+          </div>
+        </Dialog>
+      )}
       <RecordDetailsPage header={{
         title: quotation.quotationNumber,
         status: <StatusBadge tone={statusTone(quotation.status)}>{statusLabel(quotation.status)}</StatusBadge>,
@@ -186,7 +209,11 @@ export function SupplierQuotationDetailScreen({ quotationId }: { quotationId: st
           { label: "Quoted on", value: calendarDate(quotation.quotationDate) },
           { label: "Valid until", value: quotation.validUntil ? calendarDate(quotation.validUntil) : "—" },
         ],
-        primaryAction: actions.convert ? <Button variant="primary" isLoading={convert.isPending || convert.isSuccess} isDisabled={convert.isPending || convert.isSuccess} onPress={() => convert.mutate()}>Create Purchase Order</Button>
+        primaryAction: actions.convert ? <Button variant="primary" isLoading={convert.isPending || convert.isSuccess} isDisabled={convert.isPending || convert.isSuccess} onPress={() => {
+          const needs = (query.data?.lines ?? []).filter((line) => line.oneOff && !line.expenseAccountId);
+          if (needs.length && !asking) { setAccounts(Object.fromEntries(needs.map((line) => [line.id, { expenseAccountId: "", taxCategoryId: line.taxCategoryId ?? "", noTax: Boolean(line.noTax) }]))); setAsking(true); }
+          else convert.mutate();
+        }}>Create Purchase Order</Button>
           : quotation.convertedPurchaseOrderId ? <LinkButton variant="secondary" href={`/procurement/purchase-orders/${quotation.convertedPurchaseOrderId}`}>Open {quotation.convertedPurchaseOrderNumber}</LinkButton> : undefined,
         secondaryActions: (
           <div className="flex gap-2">

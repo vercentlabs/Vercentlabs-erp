@@ -39,6 +39,8 @@
     "@vercentlabs/shared-types": "workspace:*",
     "@vercentlabs/workflows": "workspace:*",
     "csv-parse": "^7.0.3",
+    "jpeg-js": "0.4.4",
+    "jsqr": "1.4.0",
     "nodemailer": "^9.1.1",
     "undici": "^7.16.0"
   }

@@ -32,7 +32,7 @@ export async function resolveSupplierBillDefaults(client, context, supplierId) {
   const company = (await client.query(`SELECT id, name, registration_number AS gstin, state_code FROM tenant.tax_registrations WHERE organization_id = $1 AND status = 'active'
      ORDER BY is_default DESC, created_at LIMIT 1`, [organizationId])).rows[0] ?? null;
   const warnings = [];
-  if (supplier.status !== "active") warnings.push(`The supplier is ${supplier.status}${supplier.blocked_reason ? ` (${supplier.blocked_reason})` : ""}: only Accounts Payable records a bill for an existing obligation.`);
+  if (supplier.status !== "active") warnings.push(`The supplier is ${supplier.status}${supplier.blocked_reason ? ` (${supplier.blocked_reason})` : ""}: only Accounts Payable records a bill for an existing payment due.`);
   if (registrations.length > 1) warnings.push("The supplier has several GSTINs: choose the one on the invoice.");
   return {
     supplierId: supplier.id, supplierNumber: supplier.supplier_number, supplierName: supplier.display_name, legalName: supplier.legal_name ?? supplier.display_name, status: supplier.status,
@@ -108,7 +108,7 @@ export async function validateDirectBillAccounts(client, context, lines = []) {
 export async function validateDirectBillTaxTreatment(client, context, { lines = [], supplierStateCode = null, placeOfSupply = null, billDate = null, buyingRegistrationId = null } = {}) {
   requireBillAccess(context);
   let tax;
-  try { tax = await loadTaxContext(client, { organizationId: context.organizationId, sellerRegistrationId: optionalUuid(buyingRegistrationId, "Company registration") , purchase: true }); }
+  try { tax = await loadTaxContext(client, { organizationId: context.organizationId, sellerRegistrationId: optionalUuid(buyingRegistrationId, "Our GSTIN") , purchase: true }); }
   catch (error) { return { valid: false, issues: [error.message] }; }
   const issues = [];
   for (const [index, line] of lines.entries()) {

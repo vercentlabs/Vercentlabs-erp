@@ -19,7 +19,7 @@ const label = (status: string) => LABELS[status] ?? status.replace(/_/g, " ");
 
 // The order's own status: one of four. Receiving, billing, payment and sending each stand beside it.
 export function LifecycleBadge({ status, amending = false }: { status: string; amending?: boolean }) {
-  return <StatusBadge tone={LIFECYCLE[status] ?? "neutral"}>{amending ? "Draft (amending)" : label(status)}</StatusBadge>;
+  return <StatusBadge tone={LIFECYCLE[status] ?? "neutral"}>{amending ? "Draft (changing)" : label(status)}</StatusBadge>;
 }
 export function ReceiptBadge({ status }: { status: string }) {
   return <StatusBadge tone={RECEIPT[status] ?? "neutral"}>{label(status)}</StatusBadge>;

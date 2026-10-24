@@ -9,5 +9,5 @@ export const metadata = formMetadata;
 // procurement/debit-notes-credits/vendor-credits/[id]/edit, opened from inside the app: the same form, in a modal over the page it was opened from.
 export default function InterceptedForm(props: Props) {
   const Form = FormPage as unknown as ComponentType<Props>;
-  return <FormModal title="Edit vendor credit"><Form {...props} /></FormModal>;
+  return <FormModal title="Edit supplier credit note"><Form {...props} /></FormModal>;
 }

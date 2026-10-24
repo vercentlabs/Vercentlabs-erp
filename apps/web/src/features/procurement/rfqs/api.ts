@@ -15,7 +15,8 @@ export type RfqDetail = {
   rfq: { id: string; number: string; status: string; statusLabel: string; title: string | null; responseDueDate: string | null; currencyCode: string; warehouseId: string | null;
     notes: string | null; sentAt: string | null; awardedAt: string | null; createdAt: string };
   lines: Array<{ id: string; lineNumber: number; productId: string; productCode: string; productName: string; description: string | null; quantity: string; uomId: string | null;
-    uomCode: string | null; requiredBy: string | null; indentLineId: string | null; indentId: string | null; indentNumber: string | null; awardedQuotationLineId: string | null }>;
+    uomCode: string | null; requiredBy: string | null; indentLineId: string | null; indentId: string | null; indentNumber: string | null; awardedQuotationLineId: string | null;
+    oneOff?: boolean; oneOffType?: "service" | "non_stock" | null; expenseAccountId?: string | null; taxCategoryId?: string | null; noTax?: boolean }>;
   suppliers: Array<{ id: string; supplierId: string; supplierName: string; supplierNumber: string; gstin: string | null; msme: boolean; email: string | null; phone: string | null;
     status: string; sentAt: string | null; declinedReason: string | null; quotation: { id: string; number: string; status: string; convertedPurchaseOrderId: string | null } | null }>;
   orders: Array<{ id: string; number: string; status: string; href: string }>;
@@ -23,7 +24,7 @@ export type RfqDetail = {
 };
 export type Offer = {
   quotationId: string; quotationNumber: string; quotationLineId: string; supplierId: string; supplierName: string | null; msme: boolean; quantity: string; unitPrice: string;
-  discountType: string | null; discountValue: string; netRate: string; gstRate: string; freightPerUnit: string; landedRate: string; landedValue: string; leadDays: number | null;
+  discountType: string | null; discountValue: string; netRate: string; gstRate: string; gstClaimable: boolean; freightPerUnit: string; landedRate: string; landedValue: string; leadDays: number | null;
   paymentTerms: string | null; validUntil: string | null; expired: boolean; awarded: boolean; lowest: boolean;
 };
 export type Comparison = {
@@ -33,7 +34,7 @@ export type Comparison = {
   lines: Array<RfqDetail["lines"][number] & { offers: Offer[]; lastPrice: { unitPrice: string; date: string; supplierName: string } | null }>;
 };
 export type RfqInput = { title?: string | null; responseDueDate?: string | null; notes?: string | null; supplierIds?: string[]; indentLineIds?: string[];
-  lines?: Array<{ productId: string; quantity: string; uomId?: string; requiredBy?: string | null }> };
+  lines?: Array<{ productId?: string; description?: string; oneOffType?: string; quantity: string; uomId?: string; requiredBy?: string | null }> };
 
 export const listRfqs = (filters: Record<string, string | undefined>) => request<{ rows: RfqRow[]; total: number }>(`/rfqs${qs(filters)}`);
 export const getRfq = (id: string) => request<RfqDetail>(`/rfqs/${id}`);

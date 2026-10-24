@@ -67,7 +67,7 @@ export function PurchaseReturnsScreen() {
   ], []);
   const filtered = search || view !== "all" || Object.values(filters).some((value) => value !== "any");
   return (
-    <EnterpriseListPage header={{ title: "Purchase Returns", description: "Goods sent back to suppliers after they were received. Each return is its own document: the receipt it draws on is never changed.",
+    <EnterpriseListPage header={{ title: "Purchase Returns", description: "Goods sent back to suppliers after receipt. The receipt itself never changes.",
       primaryAction: options.data?.capabilities.manage ? <LinkButton variant="primary" href="/procurement/purchase-returns/new"><Plus className="size-4" aria-hidden="true" />New Purchase Return</LinkButton> : undefined }}
       savedViews={{ views: (options.data?.views ?? [{ key: "all", label: "All Returns" }]).map((entry) => ({ id: entry.key, label: entry.label })), activeViewId: view, onSelect: setView }}
       actionBar={{ end: <ListStateViews listKey="purchase-returns" list={listState} />,  start: (
@@ -76,8 +76,8 @@ export function PurchaseReturnsScreen() {
           <Select aria-label="Reason" size="compact" selectedKey={filters.reason} onSelectionChange={set("reason")}
             options={[{ value: "any", label: "Any reason" }, ...(options.data?.reasons ?? []).map((reason) => ({ value: reason.code, label: reason.label }))]} />
           <Select aria-label="Financial status" size="compact" selectedKey={filters.financialStatus} onSelectionChange={set("financialStatus")}
-            options={[{ value: "any", label: "Any financial status" }, { value: "pending", label: "Pending" }, { value: "partially_reconciled", label: "Partially reconciled" },
-              { value: "reconciled", label: "Reconciled" }, { value: "not_required", label: "Not required" }]} />
+            options={[{ value: "any", label: "Any financial status" }, { value: "pending", label: "Pending" }, { value: "partially_reconciled", label: "Partially checked" },
+              { value: "reconciled", label: "Checked" }, { value: "not_required", label: "Not required" }]} />
           <Select aria-label="Replacement status" size="compact" selectedKey={filters.replacementStatus} onSelectionChange={set("replacementStatus")}
             options={[{ value: "any", label: "Any replacement" }, { value: "awaiting", label: "Awaiting" }, { value: "partially_received", label: "Partially received" },
               { value: "completed", label: "Completed" }, { value: "not_required", label: "Not required" }]} />
@@ -87,7 +87,7 @@ export function PurchaseReturnsScreen() {
         state={list.isLoading ? "loading" : list.isError ? "error" : rows.length === 0 ? (filtered ? "no-results" : "empty") : "ready"}
         loadingContent={<LoadingState label="Loading purchase returns" rows={6} />}
         errorContent={<ErrorState title="Could not load purchase returns" description={errorMessage(list.error)} action={{ label: "Try again", onPress: () => void list.refetch() }} />}
-        emptyContent={<EmptyState title="No purchase returns yet" description="Return goods from a posted goods receipt or purchase order." />}
+        emptyContent={<EmptyState title="No purchase returns yet" description="Return goods from a final goods receipt or purchase order." />}
         noResultsContent={<NoResultsState title="Nothing in this view" description="Try another view, filter or search." />}
         onRowClick={(row) => router.push(`/procurement/purchase-returns/${row.id}`)}
         renderMobileCard={(row) => <div className="flex flex-col gap-1"><span className="font-medium tabular-nums">{row.returnNumber} · {row.supplierName}</span>
@@ -135,9 +135,9 @@ export function PurchaseReturnDetailScreen({ returnId }: { returnId: string }) {
   return (
     <div className="flex flex-col gap-4">
       {notice && <Notice tone="success">{notice}</Notice>}
-      {validation && (validation.ready ? <Notice tone="success">Ready to post: every quantity and the stock check out.{validation.warnings?.length ? ` ${validation.warnings.join(" ")}` : ""}</Notice>
+      {validation && (validation.ready ? <Notice tone="success">Ready to finalise: every quantity and the stock check out.{validation.warnings?.length ? ` ${validation.warnings.join(" ")}` : ""}</Notice>
         : <Notice>{(validation.issues ?? []).map((issue) => <p key={issue}>{issue}</p>)}</Notice>)}
-      {ret.status === "reversed" && <Notice tone="warning">Reversed {dateTime(ret.reversedAt)}{ret.reversedByName ? ` by ${ret.reversedByName}` : ""}: {ret.reversalReason}. The goods came back; the return no longer counts.</Notice>}
+      {ret.status === "reversed" && <Notice tone="warning">Cancelled {dateTime(ret.reversedAt)}{ret.reversedByName ? ` by ${ret.reversedByName}` : ""}: {ret.reversalReason}. The goods came back; the return no longer counts.</Notice>}
       {ret.status === "cancelled" && <Notice tone="info">Cancelled {dateTime(ret.cancelledAt)}{ret.cancelReason ? `: ${ret.cancelReason}` : ""}.</Notice>}
       <DocumentChain type="purchase_return" id={ret.id} />
       <RecordDetailsPage header={{
@@ -151,8 +151,8 @@ export function PurchaseReturnDetailScreen({ returnId }: { returnId: string }) {
           { label: "Return date", value: calendarDate(ret.returnDate) },
           { label: "Warehouse", value: ret.warehouseName ?? "—" },
         ],
-        primaryAction: actions.post ? <Button variant="primary" onPress={() => setDialog("post")}>Post Dispatch</Button>
-          : actions.createCredit ? <LinkButton variant="primary" href={`/procurement/debit-notes-credits/vendor-credits/new?purchaseReturnId=${ret.id}&supplierId=${ret.supplierId}`}>Record Vendor Credit</LinkButton> : undefined,
+        primaryAction: actions.post ? <Button variant="primary" onPress={() => setDialog("post")}>Finalise Dispatch</Button>
+          : actions.createCredit ? <LinkButton variant="primary" href={`/procurement/debit-notes-credits/vendor-credits/new?purchaseReturnId=${ret.id}&supplierId=${ret.supplierId}`}>Record Supplier Credit Note</LinkButton> : undefined,
         secondaryActions: (
           <div className="flex flex-wrap gap-2">
             {actions.edit && <LinkButton variant="secondary" href={`/procurement/purchase-returns/${ret.id}/edit`}><Pencil className="size-4" aria-hidden="true" />Edit</LinkButton>}
@@ -162,7 +162,7 @@ export function PurchaseReturnDetailScreen({ returnId }: { returnId: string }) {
             {actions.refund && <Button variant="ghost" onPress={() => setDialog("refund")}>Record Refund</Button>}
             {actions.resolve && <Button variant="ghost" onPress={() => setDialog("resolve")}>Record Resolution</Button>}
             {actions.cancel && <Button variant="ghost" onPress={() => setDialog("cancel")}>Cancel Draft</Button>}
-            {actions.reverse && <Button variant="ghost" onPress={() => setDialog("reverse")}>Reverse (goods came back)</Button>}
+            {actions.reverse && <Button variant="ghost" onPress={() => setDialog("reverse")}>Cancel (goods came back)</Button>}
             <a className={buttonVariants({ variant: "ghost" })} href={returnNoteUrl(ret.id, true)} target="_blank" rel="noreferrer"><Eye className="size-4" aria-hidden="true" />Return note</a>
             <a className={buttonVariants({ variant: "ghost" })} href={returnNoteUrl(ret.id)} download><Download className="size-4" aria-hidden="true" />PDF</a>
           </div>
@@ -193,7 +193,7 @@ export function PurchaseReturnDetailScreen({ returnId }: { returnId: string }) {
                   { label: "Challan / dispatch ref", value: ret.dispatchReference ?? "—" },
                   { label: "Dispatched", value: ret.dispatchedAt ? dateTime(ret.dispatchedAt) : "Not yet" },
                   { label: "Created", value: `${dateTime(ret.createdAt)}${ret.createdByName ? ` by ${ret.createdByName}` : ""}` },
-                  { label: "Posted", value: ret.postedAt ? `${dateTime(ret.postedAt)}${ret.postedByName ? ` by ${ret.postedByName}` : ""}` : "Not posted" },
+                  { label: "Final", value: ret.postedAt ? `${dateTime(ret.postedAt)}${ret.postedByName ? ` by ${ret.postedByName}` : ""}` : "Not final" },
                   { label: "Summary", value: ret.reason },
                 ]} />
               </Panel>
@@ -227,7 +227,7 @@ export function PurchaseReturnDetailScreen({ returnId }: { returnId: string }) {
           </TabPanel>
           <TabPanel id="movements">
             <div className="pt-4">
-              <Panel title="Inventory movements" description="Out when the return posted; back in only if it was reversed because the goods came back. Physical non-stock goods move no stock.">
+              <Panel title="Inventory movements" description="Stock goes out when the return is final, and back only if the goods came back.">
                 {!detail.movements.length ? <p className="text-sm text-text-muted">{ret.status === "draft" ? "A draft moves no stock." : "No stock movements (non-stock goods)."}</p> : (
                   <ul className="flex flex-col divide-y divide-border text-sm">
                     {detail.movements.map((movement) => (
@@ -282,11 +282,11 @@ export function PurchaseReturnDetailScreen({ returnId }: { returnId: string }) {
           </TabPanel>
           <TabPanel id="financial">
             <div className="flex flex-col gap-4 pt-4">
-              <Panel title="Financial adjustment" description="Returned goods that were not billed need no credit (they are simply not billed). Billed goods are corrected by a vendor credit, or a refund Finance received — never twice.">
+              <Panel title="Financial adjustment" description="Unbilled goods need no credit. Billed goods are corrected once: by a supplier credit note or a refund.">
                 <Facts columns={3} items={[
                   { label: "Status", value: detail.financial.label }, { label: "Unbilled returned", value: quantity(detail.financial.figures.unbilledQuantity ?? "0") },
                   { label: "Billed returned", value: `${quantity(detail.financial.figures.billedQuantity ?? "0")} (${detail.financial.figures.billedValue ?? "0"})` },
-                  { label: "Credited (posted vendor credits)", value: `${quantity(detail.financial.figures.creditedQuantity ?? "0")} (${detail.financial.figures.creditedValue ?? "0"})` },
+                  { label: "Credited (final supplier credit notes)", value: `${quantity(detail.financial.figures.creditedQuantity ?? "0")} (${detail.financial.figures.creditedValue ?? "0"})` },
                   { label: "Refunded", value: detail.financial.figures.refunded ?? "0" }, { label: "Still uncorrected", value: detail.financial.figures.outstandingValue ?? "0" },
                 ]} />
                 {detail.financial.allocations.length > 0 && (
@@ -298,10 +298,10 @@ export function PurchaseReturnDetailScreen({ returnId }: { returnId: string }) {
                   </ul>
                 )}
               </Panel>
-              <Panel title="Bills and vendor credits">
+              <Panel title="Bills and supplier credit notes">
                 <ul className="flex flex-col gap-1 text-sm">
                   {detail.financial.bills.map((bill) => <li key={bill.id}>Bill <Link className="text-brand hover:underline" href={bill.href}>{bill.billNumber}</Link>{bill.supplierInvoiceNumber ? ` (${bill.supplierInvoiceNumber})` : ""} · {statusLabel(bill.status)} · outstanding {bill.outstanding}</li>)}
-                  {detail.financial.vendorCredits.map((note) => <li key={note.id}>Vendor credit <Link className="text-brand hover:underline" href={note.href}>{note.number}</Link> · {statusLabel(note.status)} · {note.total}</li>)}
+                  {detail.financial.vendorCredits.map((note) => <li key={note.id}>Supplier credit note <Link className="text-brand hover:underline" href={note.href}>{note.number}</Link> · {statusLabel(note.status)} · {note.total}</li>)}
                   {!detail.financial.bills.length && !detail.financial.vendorCredits.length && <li className="text-text-muted">No bills yet for these goods.</li>}
                 </ul>
               </Panel>
@@ -315,7 +315,7 @@ export function PurchaseReturnDetailScreen({ returnId }: { returnId: string }) {
                   {detail.related.receipts.map((entry) => <li key={entry.id}>Goods receipt <Link className="text-brand hover:underline" href={entry.href}>{entry.number}</Link></li>)}
                   {detail.related.rejections.map((entry) => <li key={entry.id}>Rejection <Link className="text-brand hover:underline" href={entry.href}>{entry.number}</Link></li>)}
                   {detail.related.replacement && <li>Replacement order <Link className="text-brand hover:underline" href={detail.related.replacement.href}>{detail.related.replacement.number}</Link></li>}
-                  {detail.financial.vendorCredits.map((note) => <li key={note.id}>Vendor credit <Link className="text-brand hover:underline" href={note.href}>{note.number}</Link></li>)}
+                  {detail.financial.vendorCredits.map((note) => <li key={note.id}>Supplier credit note <Link className="text-brand hover:underline" href={note.href}>{note.number}</Link></li>)}
                 </ul>
               </Panel>
             </div>
@@ -348,11 +348,11 @@ function PostDialog({ detail, onClose, onDone }: { detail: ReturnDetail; onClose
   const ret = detail.purchaseReturn;
   const [confirmed, setConfirmed] = useState(false);
   const [values, setValues] = useState({ carrierReference: ret.carrierReference ?? "", trackingReference: ret.trackingReference ?? "", dispatchReference: ret.dispatchReference ?? "" });
-  const mutation = useMutation({ mutationFn: () => returnAction(ret.id, "post", { dispatchConfirmed: confirmed, ...values }), onSuccess: () => onDone("Posted: the goods left and the stock was issued.") });
+  const mutation = useMutation({ mutationFn: () => returnAction(ret.id, "post", { dispatchConfirmed: confirmed, ...values }), onSuccess: () => onDone("Final: the goods left and the stock was issued.") });
   const set = (key: keyof typeof values) => (value: string) => setValues((current) => ({ ...current, [key]: value }));
   return (
-    <Shell title="Post the dispatch" description={`The eligible stock leaves ${ret.warehouseName ?? "the warehouse"} now. Supplier credit, refund and replacement are tracked separately.`}
-      error={mutation.error} onClose={onClose} label="Post Dispatch" isLoading={mutation.isPending} isDisabled={!confirmed} onPress={() => mutation.mutate()}>
+    <Shell title="Finalise the dispatch" description={`The eligible stock leaves ${ret.warehouseName ?? "the warehouse"} now. Supplier credit note, refund and replacement are tracked separately.`}
+      error={mutation.error} onClose={onClose} label="Finalise Dispatch" isLoading={mutation.isPending} isDisabled={!confirmed} onPress={() => mutation.mutate()}>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         <TextField label="Carrier" value={values.carrierReference} onChange={set("carrierReference")} />
         <TextField label="Tracking reference" value={values.trackingReference} onChange={set("trackingReference")} />
@@ -376,10 +376,10 @@ function ReasonDialog({ title, label, action, returnId, required, onClose, onDon
 function ReverseDialog({ returnId, onClose, onDone }: { returnId: string; onClose: () => void; onDone: (message: string) => void }) {
   const [reason, setReason] = useState("");
   const [back, setBack] = useState(false);
-  const mutation = useMutation({ mutationFn: () => returnAction(returnId, "reverse", { reason, goodsReceivedBack: back }), onSuccess: () => onDone("Reversed: the goods are back in stock.") });
+  const mutation = useMutation({ mutationFn: () => returnAction(returnId, "reverse", { reason, goodsReceivedBack: back }), onSuccess: () => onDone("Cancelled: the goods are back in stock.") });
   return (
-    <Shell title="Reverse the return" description="Only when the goods physically came back. They are received back where they left from; the return no longer counts."
-      error={mutation.error} onClose={onClose} label="Reverse" isLoading={mutation.isPending} isDisabled={!back || reason.trim().length < 5} onPress={() => mutation.mutate()}>
+    <Shell title="Cancel the return" description="Only when the goods physically came back. They are received back where they left from; the return no longer counts."
+      error={mutation.error} onClose={onClose} label="Cancel" isLoading={mutation.isPending} isDisabled={!back || reason.trim().length < 5} onPress={() => mutation.mutate()}>
       <TextArea label="Reason" value={reason} onChange={setReason} />
       <Checkbox isSelected={back} onChange={setBack}>The goods have physically come back into our custody.</Checkbox>
     </Shell>
@@ -391,7 +391,7 @@ function AcknowledgeDialog({ returnId, onClose, onDone }: { returnId: string; on
   const mutation = useMutation({ mutationFn: () => returnAction(returnId, "acknowledge", values), onSuccess: () => onDone("Supplier acknowledgement recorded.") });
   const set = (key: keyof typeof values) => (value: string) => setValues((current) => ({ ...current, [key]: value }));
   return (
-    <Shell title="Record the supplier's acknowledgement" description="It records that the supplier accepted the return; only posting says the goods left." error={mutation.error}
+    <Shell title="Record the supplier's acknowledgement" description="It records that the supplier accepted the return; only finalising says the goods left." error={mutation.error}
       onClose={onClose} label="Record" isLoading={mutation.isPending} onPress={() => mutation.mutate()}>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         <TextField label="Acknowledgement reference" value={values.reference} onChange={set("reference")} />
@@ -444,7 +444,7 @@ function ReplacementDialog({ returnId, onClose, onDone }: { returnId: string; on
   const mutation = useMutation({ mutationFn: () => returnAction(returnId, "replacement", { create: true, noCharge }),
     onSuccess: (result) => onDone(`Replacement order ${String(result.replacementNumber ?? "")} drafted. Confirm it, then receive the replacement on its own goods receipt.`) });
   return (
-    <Shell title="Order the replacement" description="Drafts a purchase order for the returned goods — the commitment the replacement is received against. The original order is never reopened."
+    <Shell title="Order the replacement" description="Drafts a new order for the replacement goods. The original order stays closed."
       error={mutation.error} onClose={onClose} label="Draft replacement order" isLoading={mutation.isPending} onPress={() => mutation.mutate()}>
       <Checkbox isSelected={noCharge} onChange={setNoCharge}>The supplier replaces at no charge (zero prices — no second payable)</Checkbox>
     </Shell>

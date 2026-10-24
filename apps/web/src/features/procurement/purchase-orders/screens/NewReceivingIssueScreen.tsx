@@ -30,7 +30,7 @@ export function NewReceivingIssueScreen({ purchaseOrderId, goodsReceiptId }: { p
   const back = () => router.replace("/procurement/goods-receipts?view=receiving-issues");
   return (
     <div className="flex flex-col gap-4">
-      <PageHeader title="Report Receiving Issue" description="A refusal at the dock is recorded against the purchase order and creates no goods receipt; a rejection after receipt is recorded against the posted goods receipt. Neither moves stock twice." />
+      <PageHeader title="Report Receiving Issue" description="Refused at the gate: recorded on the order. Rejected after receipt: recorded on the goods receipt." />
       <Panel title="What happened">
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <Select label="Custody stage" selectedKey={stage} onSelectionChange={(value) => setStage(String(value))}

@@ -4,6 +4,7 @@
 // approved indent lines; each supplier's answer recorded against it; the side-by-side comparison (rate, GST, freight, landed rate, lead
 // time, terms, last price, MSME) with the lowest landed rate marked; and the award, per line or whole, opening one draft purchase order
 // per supplier. The Quotations view lists every supplier quotation (with or without an RFQ).
+import { PurchaseWarningNote } from "@/features/procurement/shared/PurchaseWarningDialog";
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useFormRouter as useRouter } from "@/shell/form-modal/FormModal";
@@ -11,7 +12,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ColumnDef } from "@tanstack/react-table";
 import { Eye, Plus, Send, Trash2 } from "lucide-react";
 import {
-  Button, Dialog, EmptyState, EnterpriseDataGrid, EnterpriseListPage, ErrorState, IconButton, LinkButton, NoResultsState, PageHeader, PermissionState, RecordDetailsPage, SearchField,
+  Button, Dialog, EmptyState, EnterpriseDataGrid, EnterpriseListPage, ErrorState, LinkButton, NoResultsState, PageHeader, PermissionState, RecordDetailsPage, SearchField,
   Select, StatusBadge, TextArea, TextField, buttonVariants,
 } from "@vercentlabs/design-system";
 
@@ -24,6 +25,7 @@ import { DocumentChain } from "@/features/procurement/shared/DocumentChain";
 import { useListState } from "@/features/procurement/shared/navigation";
 import { gridPaging, pageFilters, usePageIndex } from "@/features/procurement/shared/paging";
 import { ProcurementSearchPicker, useKnownRows } from "@/features/procurement/shared/ProcurementSearchPicker";
+import { OneOffAccountFields, OneOffDescription, OneOffToggle, blankOneOff, oneOffAccountInput, oneOffAccountReady, oneOffInput, type OneOffAccount, type OneOffFields } from "@/features/procurement/shared/OneOffLine";
 import { ProcApiError } from "@/features/procurement/shared/http";
 import { calendarDate, money, quantity } from "@/features/procurement/shared/format";
 import { getPurchaseOrderOptions } from "@/features/procurement/purchase-orders/api/purchase-orders-api";
@@ -78,9 +80,9 @@ export function RfqsScreen() {
 
 // ---------------------------------------------------------------- form
 
-type Line = { key: number; productId: string; quantity: string; uomId: string; requiredBy: string };
+type Line = OneOffFields & { key: number; productId: string; quantity: string; uomId: string; requiredBy: string };
 let lineKey = 0;
-const blank = (): Line => ({ key: ++lineKey, productId: "", quantity: "", uomId: "", requiredBy: "" });
+const blank = (): Line => ({ key: ++lineKey, productId: "", quantity: "", uomId: "", requiredBy: "", ...blankOneOff() });
 
 export function RfqFormScreen({ indentLineIds }: { indentLineIds?: string[] }) {
   const workspace = useWorkspaceContext();
@@ -106,13 +108,14 @@ function RfqForm({ options, indentLines }: { options: NonNullable<Awaited<Return
     mutationFn: (send: boolean) => submitKey.run(async () => {
       const made = await createRfq({ title: values.title || null, responseDueDate: values.responseDueDate || null, notes: values.notes || null, supplierIds: suppliers,
         ...(indentLines.length ? { indentLineIds: indentLines.map((line) => line.id) }
-          : { lines: lines.filter((line) => line.productId).map((line) => ({ productId: line.productId, quantity: line.quantity, uomId: line.uomId || undefined, requiredBy: line.requiredBy || null })) }) });
+          : { lines: lines.filter((line) => (line.oneOff ? line.description.trim() : line.productId)).map((line) => ({
+            ...(line.oneOff ? oneOffInput(line) : { productId: line.productId, uomId: line.uomId || undefined }), quantity: line.quantity, requiredBy: line.requiredBy || null })) }) });
       if (send) await rfqAction(made.id, "send");
       return made.id;
     }),
     onSuccess: (id) => router.replace(`/procurement/rfqs/${id}`),
   });
-  const ready = suppliers.length > 0 && (indentLines.length > 0 || lines.some((line) => line.productId && Number(line.quantity) > 0));
+  const ready = suppliers.length > 0 && (indentLines.length > 0 || lines.some((line) => (line.oneOff ? line.description.trim() && line.uomId : line.productId) && Number(line.quantity) > 0));
   const nameOf = (id: string) => knownSuppliers.find((row) => row.id === id)?.label ?? "Supplier";
   return (
     <div className="flex flex-col gap-6">
@@ -136,8 +139,8 @@ function RfqForm({ options, indentLines }: { options: NonNullable<Awaited<Return
             <ul className="flex flex-wrap gap-2">
               {suppliers.map((id) => (
                 <li key={id} className="flex items-center gap-1 rounded-[var(--radius-control)] border border-border px-2 py-1 text-sm">{nameOf(id)}
-                  <IconButton aria-label={`Remove ${nameOf(id)}`} variant="ghost" size="compact" onPress={() => setSuppliers((state) => state.filter((entry) => entry !== id))}>
-                    <Trash2 className="size-3.5" aria-hidden="true" /></IconButton>
+                  <Button variant="ghost" size="compact" onPress={() => setSuppliers((state) => state.filter((entry) => entry !== id))}>
+                    <Trash2 className="size-3.5" aria-hidden="true" />Remove</Button>
                 </li>
               ))}
             </ul>
@@ -156,20 +159,26 @@ function RfqForm({ options, indentLines }: { options: NonNullable<Awaited<Return
         <Panel title="Items" actions={<Button size="compact" variant="secondary" onPress={() => setLines((state) => [...state, blank()])}><Plus className="size-3.5" aria-hidden="true" />Add item</Button>}>
           <div className="flex flex-col gap-3">
             {lines.map((line, index) => (
-              <div key={line.key} className="grid grid-cols-1 items-end gap-2 sm:grid-cols-[2fr_1fr_1fr_1fr_auto]">
-                <ProcurementSearchPicker kind="products" label={`Item ${index + 1}`} value={line.productId || null} known={knownProducts}
-                  onPick={(id, row) => {
-                    const product = (row ?? knownProducts.find((entry) => entry.id === id)) as (typeof knownProducts)[number] | undefined;
-                    keepProduct(product ?? null);
-                    setLine(line.key, { productId: id, uomId: product?.purchase_uom_id ?? product?.uom_id ?? "" });
-                  }} />
+              <div key={line.key} className="flex flex-col gap-2 rounded-[var(--radius-control)] border border-border p-2 sm:border-0 sm:p-0">
+              <div className="grid grid-cols-1 items-end gap-2 sm:grid-cols-[2fr_1fr_1fr_1fr_auto]">
+                {line.oneOff ? <OneOffDescription line={line} label={`Item ${index + 1}`} onChange={(change) => setLine(line.key, change)} /> : (
+                  <ProcurementSearchPicker kind="products" label={`Item ${index + 1}`} value={line.productId || null} known={knownProducts}
+                    onPick={(id, row) => {
+                      const product = (row ?? knownProducts.find((entry) => entry.id === id)) as (typeof knownProducts)[number] | undefined;
+                      keepProduct(product ?? null);
+                      setLine(line.key, { productId: id, uomId: product?.purchase_uom_id ?? product?.uom_id ?? "" });
+                    }} />
+                )}
                 <TextField label="Quantity" inputMode="decimal" value={line.quantity} onChange={(value) => setLine(line.key, { quantity: value })} />
                 <Select label="Unit" selectedKey={line.uomId || null} onSelectionChange={(value) => setLine(line.key, { uomId: String(value) })}
                   options={options.uoms.map((uom) => ({ value: uom.id, label: uom.code }))} />
                 <TextField label="Needed by" type="date" value={line.requiredBy} onChange={(value) => setLine(line.key, { requiredBy: value })} />
-                <IconButton aria-label={`Remove item ${index + 1}`} variant="ghost" isDisabled={lines.length <= 1} onPress={() => setLines((state) => state.filter((entry) => entry.key !== line.key))}>
-                  <Trash2 className="size-4" aria-hidden="true" />
-                </IconButton>
+                <Button variant="ghost" isDisabled={lines.length <= 1} onPress={() => setLines((state) => state.filter((entry) => entry.key !== line.key))}>
+                  <Trash2 className="size-4" aria-hidden="true" />Remove
+                </Button>
+              </div>
+              {!line.oneOff && <PurchaseWarningNote row={knownProducts.find((entry) => entry.id === line.productId) as { purchase_warning?: string | null; purchase_warning_level?: string | null } | undefined} />}
+              <OneOffToggle value={line.oneOff} onChange={(on) => setLine(line.key, { oneOff: on, productId: on ? "" : line.productId, description: on ? line.description : "" })} />
               </div>
             ))}
           </div>
@@ -199,7 +208,7 @@ export function RfqDetailScreen({ rfqId }: { rfqId: string }) {
     <div className="flex flex-col gap-4">
       <DocumentChain type="purchase_rfq" id={rfq.id} />
       {act.error && <Notice>{errorMessage(act.error)}</Notice>}
-      {rfq.status === "awarded" && orders.length > 0 && <Notice tone="success">Awarded: {orders.map((order, index) => <span key={order.id}>{index ? ", " : ""}
+      {orders.length > 0 && <Notice tone="success">{rfq.status === "awarded" ? "Awarded" : "Partly awarded"}: {orders.map((order, index) => <span key={order.id}>{index ? ", " : ""}
         <Link className="font-medium underline" href={order.href}>{order.number}</Link></span>)}.</Notice>}
       <RecordDetailsPage
         header={{
@@ -230,8 +239,7 @@ export function RfqDetailScreen({ rfqId }: { rfqId: string }) {
                     {entry.email ? ` · ${entry.email}` : ""}</span></span>
                 <span className="flex gap-2">
                   <a className={buttonVariants({ variant: "ghost", size: "compact" })} href={rfqPdfUrl(rfq.id, entry.supplierId)} download>PDF</a>
-                  {entry.phone && <a className={buttonVariants({ variant: "ghost", size: "compact" })} target="_blank" rel="noreferrer"
-                    href={`https://wa.me/${entry.phone.replace(/\D/g, "").replace(/^0/, "91")}?text=${encodeURIComponent(`Request for quotation ${rfq.number}${rfq.title ? ` — ${rfq.title}` : ""}. Please send your rates${rfq.responseDueDate ? ` by ${calendarDate(rfq.responseDueDate)}` : ""}.`)}`}>WhatsApp</a>}
+                  {rfq.status === "sent" && !entry.quotation && entry.status !== "declined" && actions.send && <SupplierLinkButton rfqId={rfq.id} supplierId={entry.supplierId} />}
                   {actions.recordQuote && !entry.quotation && entry.status !== "declined" && <Button size="compact" variant="secondary" onPress={() => setQuoting(entry)}>Record prices</Button>}
                 </span>
               </li>
@@ -290,16 +298,24 @@ function QuoteDialog({ rfq, supplier, onClose, onDone }: { rfq: RfqDetail; suppl
 function ComparisonPanel({ comparison, onAwarded }: { comparison: Comparison; onAwarded: () => void }) {
   const [picked, setPicked] = useState<Record<string, string>>(() => Object.fromEntries(comparison.lines.map((line) => [line.id,
     line.offers.find((offer) => offer.awarded)?.quotationLineId ?? line.offers.find((offer) => offer.lowest)?.quotationLineId ?? ""])));
+  // Lines already awarded keep their winner; only the others are awarded now.
+  const open = comparison.lines.filter((line) => !line.awardedQuotationLineId);
   const [reason, setReason] = useState("");
+  // One-off lines need the expense account and tax their order line is booked with.
+  const [accounts, setAccounts] = useState<Record<string, OneOffAccount>>(() => Object.fromEntries(comparison.lines.filter((line) => line.oneOff)
+    .map((line) => [line.id, { expenseAccountId: line.expenseAccountId ?? "", taxCategoryId: line.taxCategoryId ?? "", noTax: Boolean(line.noTax) }])));
+  const ledger = useQuery({ queryKey: ["procurement", "po-options", "accounts"], queryFn: () => getPurchaseOrderOptions(), staleTime: 60_000, enabled: comparison.lines.some((line) => line.oneOff) });
   const currency = comparison.rfq.currencyCode;
   const awardable = comparison.actions.award;
-  const notLowest = comparison.lines.filter((line) => picked[line.id] && !line.offers.find((offer) => offer.quotationLineId === picked[line.id])?.lowest);
+  const notLowest = open.filter((line) => picked[line.id] && !line.offers.find((offer) => offer.quotationLineId === picked[line.id])?.lowest);
   const award = useMutation({ mutationFn: () => rfqAction(comparison.rfq.id, "award", { reason: reason || undefined,
-    awards: comparison.lines.filter((line) => picked[line.id]).map((line) => ({ rfqLineId: line.id, quotationLineId: picked[line.id] })) }), onSuccess: onAwarded });
-  const pickSupplier = (quotationId: string) => setPicked(Object.fromEntries(comparison.lines.map((line) => [line.id,
-    line.offers.find((offer) => offer.quotationId === quotationId)?.quotationLineId ?? ""])));
+    awards: open.filter((line) => picked[line.id]).map((line) => ({ rfqLineId: line.id, quotationLineId: picked[line.id] })),
+    accounts: Object.fromEntries(open.filter((line) => line.oneOff && picked[line.id]).map((line) => [line.id, oneOffAccountInput(accounts[line.id])])) }), onSuccess: onAwarded });
+  const oneOffsReady = open.every((line) => !line.oneOff || !picked[line.id] || oneOffAccountReady(accounts[line.id]));
+  const pickSupplier = (quotationId: string) => setPicked((state) => ({ ...state, ...Object.fromEntries(open.map((line) => [line.id,
+    line.offers.find((offer) => offer.quotationId === quotationId && !offer.expired)?.quotationLineId ?? ""])) }));
   return (
-    <Panel title="Comparison" description="Landed rate = rate after discount + its share of freight + GST, per unit. The lowest landed rate on each line is marked.">
+    <Panel title="Comparison" description="Landed rate per unit: price after discount, freight, and GST we cannot claim back. Lowest valid quote is marked.">
       {award.error && <Notice>{errorMessage(award.error)}</Notice>}
       <div className="overflow-x-auto">
         <table className="w-full min-w-[640px] text-sm">
@@ -329,10 +345,10 @@ function ComparisonPanel({ comparison, onAwarded }: { comparison: Comparison; on
                   return (
                     <td key={supplier.quotationId} className={`py-2 pr-3 align-top ${offer.lowest ? "bg-success-soft" : ""}`}>
                       <label className="flex cursor-pointer items-start gap-2">
-                        {awardable && <input type="radio" name={`award-${line.id}`} className="mt-1" checked={chosen} onChange={() => setPicked((state) => ({ ...state, [line.id]: offer.quotationLineId }))} />}
+                        {awardable && !line.awardedQuotationLineId && !offer.expired && <input type="radio" name={`award-${line.id}`} className="mt-1" checked={chosen} onChange={() => setPicked((state) => ({ ...state, [line.id]: offer.quotationLineId }))} />}
                         <span className="flex flex-col">
                           <span className="font-medium tabular-nums">{money(currency, offer.landedRate)} landed{offer.lowest && <span className="ml-1 text-xs text-success">Lowest</span>}</span>
-                          <span className="text-xs text-text-muted tabular-nums">Rate {money(currency, offer.netRate)} · GST {Number(offer.gstRate)}%{Number(offer.freightPerUnit) ? ` · freight ${money(currency, offer.freightPerUnit)}` : ""}</span>
+                          <span className="text-xs text-text-muted tabular-nums">Rate {money(currency, offer.netRate)} · GST {Number(offer.gstRate)}%{offer.gstClaimable ? " (claimed back)" : ""}{Number(offer.freightPerUnit) ? ` · freight ${money(currency, offer.freightPerUnit)}` : ""}</span>
                           {offer.expired && <span className="text-xs text-warning">Quotation expired</span>}
                           {offer.awarded && <span className="text-xs text-success">Awarded</span>}
                         </span>
@@ -347,14 +363,42 @@ function ComparisonPanel({ comparison, onAwarded }: { comparison: Comparison; on
       </div>
       {awardable && (
         <div className="mt-3 flex flex-col gap-2">
+          {open.filter((line) => line.oneOff && picked[line.id]).map((line) => (
+            <div key={line.id} className="flex flex-col gap-1">
+              <p className="text-sm font-medium">{line.productName}</p>
+              <OneOffAccountFields value={accounts[line.id]} accounts={ledger.data?.expenseAccounts ?? []} taxCategories={ledger.data?.taxCategories ?? []}
+                onChange={(value) => setAccounts((state) => ({ ...state, [line.id]: value }))} />
+            </div>
+          ))}
           {notLowest.length > 0 && <TextField label="Why not the lowest landed rate?" value={reason} onChange={setReason}
             description={`Needed for ${notLowest.map((line) => line.productName).join(", ")}.`} />}
           <div className="flex justify-end">
-            <Button variant="primary" isLoading={award.isPending} isDisabled={!Object.values(picked).some(Boolean) || (notLowest.length > 0 && !reason.trim())} onPress={() => award.mutate()}>
+            <Button variant="primary" isLoading={award.isPending} isDisabled={!open.some((line) => picked[line.id]) || !oneOffsReady || (notLowest.length > 0 && !reason.trim())} onPress={() => award.mutate()}>
               Award and create purchase orders</Button>
           </div>
         </div>
       )}
     </Panel>
+  );
+}
+
+// The supplier's own page for this price request, where they type their prices: opened on WhatsApp with the link in the message.
+function SupplierLinkButton({ rfqId, supplierId }: { rfqId: string; supplierId: string }) {
+  const [problem, setProblem] = useState<string | null>(null);
+  const share = useMutation({
+    mutationFn: () => fetch(`/api/procurement/rfqs/${rfqId}/supplier-link`, { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ supplierId }) }).then(async (response) => {
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok || payload.ok === false) throw new Error(payload.message ?? "The link could not be made.");
+      return payload.result as { url: string; whatsapp: string };
+    }),
+    onSuccess: (result) => { setProblem(null); window.open(result.whatsapp, "_blank", "noopener"); },
+    onError: (error) => setProblem(error instanceof Error ? error.message : "The link could not be made."),
+  });
+  return (
+    <span className="flex flex-col items-end">
+      <Button size="compact" variant="ghost" isLoading={share.isPending} onPress={() => share.mutate()}>WhatsApp link</Button>
+      {problem && <span className="text-xs text-danger-emphasis">{problem}</span>}
+    </span>
   );
 }

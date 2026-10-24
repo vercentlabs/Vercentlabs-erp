@@ -183,14 +183,6 @@ export function FollowUpListScreen({ tabs }: { tabs?: ReactNode } = {}) {
   };
 
   const columns = useMemo<ColumnDef<FollowUp, unknown>[]>(() => [
-    {
-      id: "done", header: () => <span className="sr-only">Actions</span>, enableSorting: false, enableHiding: false,
-      // Snooze is for the person the reminder goes to.
-      cell: ({ row }) => row.original.status === "completed"
-        ? <span className="flex size-6 items-center justify-center rounded-full bg-success text-white" title="Completed"><Check className="size-3.5" strokeWidth={3} aria-label="Completed" /></span>
-        : row.original.status === "scheduled" && can?.complete
-          ? <WorkRowActions kind="follow_up" id={row.original.id} layout="check" snooze={row.original.assignedTo === options?.currentUserId} onDone={() => refresh()} onMessage={setNotice} /> : null,
-    },
     { id: "scheduledAt", accessorKey: "scheduledAt", header: "When", cell: ({ row }) => <FollowUpWhen followUp={row.original} /> },
     {
       id: "subject", accessorKey: "subject", header: "What", enableHiding: false,
@@ -222,6 +214,14 @@ export function FollowUpListScreen({ tabs }: { tabs?: ReactNode } = {}) {
     { id: "who", header: "Contact", enableSorting: false, cell: ({ row }) => <span className="whitespace-nowrap">{row.original.contactName ?? "—"}</span> },
     { id: "assignee", accessorKey: "assignedName", header: "Assigned to", cell: ({ row }) => <span className="whitespace-nowrap">{row.original.assignedName ?? "Unassigned"}</span> },
     { id: "status", accessorKey: "status", header: "Status", enableSorting: false, cell: ({ row }) => <span className="flex flex-col gap-1"><FollowUpStatusBadge status={row.original.status} />{row.original.outcomeLabel && <span className="text-xs text-text-muted">{row.original.outcomeLabel}</span>}</span> },
+    {
+      id: "done", header: () => <span className="sr-only">Actions</span>, enableSorting: false, enableHiding: false,
+      // Snooze is for the person the reminder goes to.
+      cell: ({ row }) => row.original.status === "completed"
+        ? <span className="flex items-center justify-end gap-1.5 text-xs font-medium text-success"><span className="flex size-5 items-center justify-center rounded-full bg-success text-white"><Check className="size-3" strokeWidth={3} aria-hidden="true" /></span>Completed</span>
+        : row.original.status === "scheduled" && can?.complete
+          ? <WorkRowActions kind="follow_up" id={row.original.id} layout="check" labelled snooze={row.original.assignedTo === options?.currentUserId} onDone={() => refresh()} onMessage={setNotice} /> : null,
+    },
     // eslint-disable-next-line react-hooks/exhaustive-deps -- refresh only invalidates the list
   ], [can?.complete, options?.currentUserId]);
 
