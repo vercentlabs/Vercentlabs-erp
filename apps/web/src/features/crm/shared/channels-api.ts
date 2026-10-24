@@ -27,6 +27,10 @@ export const getChannelSettings = () => request<{ settings: ChannelSettings }>("
 export const saveChannelSettings = (input: Record<string, unknown>) =>
   request<{ settings: ChannelSettings; callWebhookKey: string | null; smsWebhookKey: string | null }>("/api/crm/channel-settings", { method: "PUT", json: input });
 export const setMyCallPhone = (myCallPhone: string | null) => request<{ phone: string | null }>("/api/crm/channel-settings", { method: "PATCH", json: { myCallPhone } });
+// Checks the setup: Exotel answers for the account, or a test SMS goes to a number.
+export const checkTelephony = () => request<{ result: { ok: true; name: string } }>("/api/crm/channel-settings/test", { method: "POST", json: { kind: "calls" } }).then((result) => result.result);
+export const sendTestSms = (templateId: string, phone: string) =>
+  request<{ result: { sent: boolean; error?: string } }>("/api/crm/channel-settings/test", { method: "POST", json: { kind: "sms", templateId, phone } }).then((result) => result.result);
 export const listSmsTemplates = (all = false) => request<{ templates: SmsTemplate[] }>(`/api/crm/sms-templates${all ? "?all=1" : ""}`).then((result) => result.templates);
 export const saveSmsTemplate = (id: string | null, input: Partial<SmsTemplate>) =>
   request<{ templates: SmsTemplate[] }>(id ? `/api/crm/sms-templates/${id}` : "/api/crm/sms-templates", { method: id ? "PATCH" : "POST", json: input }).then((result) => result.templates);

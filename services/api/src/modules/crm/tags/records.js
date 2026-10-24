@@ -131,3 +131,19 @@ export async function deleteTag(client, context, tagId) {
   if (!rowCount) throw new CrmError(404, "Tag not found.", "CRM_TAG_NOT_FOUND");
   return { deleted: true };
 }
+
+// Merging a tag into another (two names for one label, such as "Hot" and "Hot lead"): every record that had it gets the other instead,
+// once, and the merged tag is deleted. Returns the remaining tag with its counts.
+export async function mergeTag(client, context, tagId, intoId) {
+  requireManage(context);
+  if (!UUID.test(String(tagId ?? "")) || !UUID.test(String(intoId ?? ""))) throw new CrmError(404, "Tag not found.", "CRM_TAG_NOT_FOUND");
+  if (tagId === intoId) throw invalid("into", "Choose another tag to merge into.");
+  const found = (await client.query("SELECT id FROM tenant.crm_tags WHERE organization_id = $1 AND id = ANY($2::uuid[])", [context.organizationId, [tagId, intoId]])).rows;
+  if (found.length !== 2) throw new CrmError(404, "Tag not found.", "CRM_TAG_NOT_FOUND");
+  await client.query(
+    `INSERT INTO tenant.crm_record_tags (organization_id, tag_id, entity_type, entity_id, created_by)
+     SELECT organization_id, $3, entity_type, entity_id, $4 FROM tenant.crm_record_tags WHERE organization_id = $1 AND tag_id = $2 ON CONFLICT DO NOTHING`,
+    [context.organizationId, tagId, intoId, context.userId ?? null]);
+  await client.query("DELETE FROM tenant.crm_tags WHERE organization_id = $1 AND id = $2", [context.organizationId, tagId]);
+  return (await listTags(client, context, { withCounts: true })).find((tag) => tag.id === intoId);
+}

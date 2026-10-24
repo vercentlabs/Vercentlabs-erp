@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import {
+  canonicalAppOrigin,
   clientIp,
   consumeSocialSignInState,
   exchangeSocialSignInCode,
@@ -18,7 +19,8 @@ export async function GET(request: Request, context: { params: Promise<{ provide
   const { provider } = await context.params;
   const url = new URL(request.url);
   let purpose: "sign_in" | "link" = "sign_in";
-  const back = (path: string) => NextResponse.redirect(new URL(path, url.origin), 303);
+  // Redirects use the app's public address (APP_URL): behind Cloud Run the request's own address is the container's (0.0.0.0:3001).
+  const back = (path: string) => NextResponse.redirect(new URL(path, canonicalAppOrigin(process.env)), 303);
   try {
     const state = await ingressTransaction((client) => consumeSocialSignInState(client, provider, url.searchParams.get("state"), process.env));
     purpose = state.purpose;

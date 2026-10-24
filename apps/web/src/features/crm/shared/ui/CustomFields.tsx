@@ -18,12 +18,15 @@ export function CustomFieldInputs({ fields, values, onChange }: { fields: Custom
         const description = field.helpText ?? undefined;
         if (field.type === "checkbox")
           return <Checkbox key={field.key} isSelected={value === true} onChange={(selected) => set(field.key, selected)}>{field.label}</Checkbox>;
-        if (field.type === "select")
+        if (field.type === "select") {
+          // A choice since taken off the list stays selectable on the records that have it.
+          const retired = typeof value === "string" && value && !field.options.includes(value) ? [{ value, label: `${value} (no longer on the list)` }] : [];
           return (
             <Select key={field.key} label={field.label} isRequired={field.isRequired} description={description} selectedKey={typeof value === "string" && value ? value : "none"}
               onSelectionChange={(key) => set(field.key, String(key) === "none" ? null : String(key))}
-              options={[{ value: "none", label: "Not set" }, ...field.options.map((option) => ({ value: option, label: option }))]} />
+              options={[{ value: "none", label: "Not set" }, ...retired, ...field.options.map((option) => ({ value: option, label: option }))]} />
           );
+        }
         if (field.type === "date")
           return <DateInput key={field.key} label={field.label} isRequired={field.isRequired} description={description} value={typeof value === "string" ? value : ""} onChange={(next) => set(field.key, next || null)} />;
         return (

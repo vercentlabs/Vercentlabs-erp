@@ -170,7 +170,7 @@ export type LeadTeamOption = { id: string; name: string; managerUserId: string |
 
 export type LeadSource = { id: string; code: string; name: string; description: string | null; isActive: boolean; isSystem: boolean; sortOrder: number; leadCount?: number };
 
-export type LeadListFilters = {
+export type LeadListFilters = Partial<Record<`cf.${string}`, string>> & {
   view?: LeadViewKey;
   scoreMin?: string;
   campaignId?: string;

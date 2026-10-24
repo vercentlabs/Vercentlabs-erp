@@ -20,13 +20,43 @@ async function zoomCredentials(client, organizationId, env) {
   return row?.zoom_credentials ? await decryptSecret(row.zoom_credentials, env) : null;
 }
 
+// The connection as Setup shows it (never the secret): who hosts the meetings, and how many links were made and are waiting.
 export async function getZoomSettings(client, context, { env = process.env } = {}) {
   const credentials = await zoomCredentials(client, context.organizationId, env);
-  return { connected: Boolean(credentials?.accountId && credentials?.clientId && credentials?.clientSecret), accountId: credentials?.accountId ?? null, clientId: credentials?.clientId ?? null };
+  const counts = (await client.query(
+    `SELECT count(*) FILTER (WHERE video_link IS NOT NULL)::int AS made,
+            count(*) FILTER (WHERE video_link IS NULL AND ${OPEN} AND COALESCE(start_at, due_at) > now() - interval '1 hour')::int AS waiting
+       FROM tenant.crm_activities WHERE organization_id = $1 AND video_provider = 'zoom'`, [context.organizationId])).rows[0];
+  return { connected: Boolean(credentials?.accountId && credentials?.clientId && credentials?.clientSecret), accountId: credentials?.accountId ?? null, clientId: credentials?.clientId ?? null,
+    hostEmail: credentials?.hostEmail ?? null, hostName: credentials?.hostName ?? null, linksMade: counts?.made ?? 0, linksWaiting: counts?.waiting ?? 0 };
 }
 
-// input: { accountId, clientId, clientSecret? } (the secret is kept when left out), or { disconnect: true }.
-export async function saveZoomSettings(client, context, input = {}, { env = process.env } = {}) {
+const zoomUser = (credentials) => (credentials.hostEmail ? encodeURIComponent(credentials.hostEmail) : "me");
+
+// Asks Zoom with these credentials: a token, then the user who will host the meetings. Returns { email, name }; throws Zoom's reason.
+async function verifyZoom(fetchImpl, credentials) {
+  const token = await zoomToken(fetchImpl, credentials);
+  const response = await fetchImpl(`https://api.zoom.us/v2/users/${zoomUser(credentials)}`, { headers: { authorization: `Bearer ${token}` } });
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok)
+    throw new CrmError(502, credentials.hostEmail
+      ? `Zoom does not know ${credentials.hostEmail} on this account (${body.message ?? response.status}).`
+      : `Zoom accepted the app but could not name the host (${body.message ?? response.status}): enter the host's Zoom email, and give the app the user:read scope.`, "CRM_ZOOM_HOST");
+  return { email: body.email ?? credentials.hostEmail ?? null, name: [body.first_name, body.last_name].filter(Boolean).join(" ") || body.display_name || null };
+}
+
+// Checks the saved connection with Zoom now. Returns the settings with the host Zoom named.
+export async function checkZoomConnection(client, context, { fetchImpl = fetch, env = process.env } = {}) {
+  if (!(context.roleSlugs?.includes("organization_owner") || context.permissions?.includes(MANAGE))) throw new CrmError(403, "You do not have permission to set up Zoom.", "PERMISSION_DENIED");
+  const credentials = await zoomCredentials(client, context.organizationId, env);
+  if (!credentials?.clientSecret) throw new CrmError(409, "Zoom is not connected yet.", "CRM_ZOOM_NOT_CONNECTED");
+  await verifyZoom(fetchImpl, credentials);
+  return getZoomSettings(client, context, { env });
+}
+
+// input: { accountId, clientId, clientSecret?, hostEmail? } (the secret is kept when left out), or { disconnect: true }. The credentials are
+// tried with Zoom first: nothing is saved that Zoom refuses.
+export async function saveZoomSettings(client, context, input = {}, { env = process.env, fetchImpl = fetch } = {}) {
   if (!(context.roleSlugs?.includes("organization_owner") || context.permissions?.includes(MANAGE))) throw new CrmError(403, "You do not have permission to set up Zoom.", "PERMISSION_DENIED");
   let stored = null;
   if (input.disconnect !== true) {
@@ -37,7 +67,11 @@ export async function saveZoomSettings(client, context, input = {}, { env = proc
     if (!accountId || !/^[A-Za-z0-9_-]{6,64}$/.test(accountId)) throw invalid("accountId", "Enter the Account ID from your Zoom app.");
     if (!clientId || !/^[A-Za-z0-9_-]{6,64}$/.test(clientId)) throw invalid("clientId", "Enter the Client ID from your Zoom app.");
     if (!clientSecret) throw invalid("clientSecret", "Enter the Client secret from your Zoom app.");
-    stored = JSON.stringify(await encryptSecret({ accountId, clientId, clientSecret: clientSecret.slice(0, 200) }, env));
+    const hostEmail = (has(input, "hostEmail") ? text(input.hostEmail) : kept.hostEmail ?? "").toLowerCase() || null;
+    if (hostEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(hostEmail)) throw invalid("hostEmail", "Enter the host's Zoom email address, or leave it empty.");
+    const credentials = { accountId, clientId, clientSecret: clientSecret.slice(0, 200), hostEmail };
+    const host = await verifyZoom(fetchImpl, credentials);
+    stored = JSON.stringify(await encryptSecret({ ...credentials, hostName: host.name, hostEmail: hostEmail ?? host.email }, env));
   }
   await client.query(
     `INSERT INTO tenant.crm_settings (organization_id, zoom_credentials, created_by, updated_by) VALUES ($1, $2::jsonb, $3, $3)
@@ -72,7 +106,7 @@ export async function makeZoomLinks(client, organizationId, { fetchImpl = fetch,
   const token = await zoomToken(fetchImpl, credentials);
   for (const meeting of rows) {
     try {
-      const response = await fetchImpl("https://api.zoom.us/v2/users/me/meetings", {
+      const response = await fetchImpl(`https://api.zoom.us/v2/users/${zoomUser(credentials)}/meetings`, {
         method: "POST", headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
         body: JSON.stringify({ topic: String(meeting.subject ?? "Meeting").slice(0, 200), type: 2, start_time: new Date(meeting.starts_at).toISOString().replace(/\.\d{3}Z$/, "Z"),
           duration: meeting.minutes, timezone: "UTC", settings: { join_before_host: true, waiting_room: false } }),

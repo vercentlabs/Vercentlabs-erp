@@ -3,4 +3,4 @@ export { buildIcs, cancelMeetingInvitation, getMeetingInvitation, sendMeetingInv
 export {
   calendarAuthorizeUrl, completeCalendarConnection, disconnectCalendar, hasCalendarConnections, listCalendarConnections, readCalendarState, syncCalendars, syncMeetingNow, syncMyCalendar,
 } from "./calendar.js";
-export { getMeetingVideo, getZoomSettings, makeZoomLinks, saveZoomSettings, setMeetingVideo } from "./video.js";
+export { checkZoomConnection, getMeetingVideo, getZoomSettings, makeZoomLinks, saveZoomSettings, setMeetingVideo } from "./video.js";

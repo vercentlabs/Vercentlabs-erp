@@ -9,8 +9,10 @@ const { request } = crmApiClient(FieldsApiError, "body");
 
 export type CustomFieldType = "text" | "number" | "date" | "select" | "checkbox";
 export type CustomField = {
-  id: string; entityType: "lead" | "opportunity"; key: string; label: string; type: CustomFieldType; options: string[]; isRequired: boolean;
+  id: string; entityType: CustomFieldEntity; key: string; label: string; type: CustomFieldType; options: string[]; isRequired: boolean;
   helpText: string | null; sequence: number; isActive: boolean;
+  // Records of the type holding a value (settings list only).
+  usedOn?: number;
 };
 export type CustomValues = Record<string, string | number | boolean | null>;
 export const CUSTOM_FIELD_TYPES: Array<{ value: CustomFieldType; label: string }> = [
@@ -24,6 +26,9 @@ export const listCustomFields = (entity: CustomFieldEntity, all = false) =>
   request<{ fields: CustomField[] }>(`/api/crm/custom-fields?entity=${entity}${all ? "&all=1" : ""}`).then((result) => result.fields);
 export const createCustomField = (input: { entityType: CustomFieldEntity; label: string; type: CustomFieldType; options?: string[]; isRequired?: boolean; helpText?: string }) =>
   request<{ field: CustomField }>("/api/crm/custom-fields", { method: "POST", json: input }).then((result) => result.field);
+// The order of a record type's fields on its forms and pages.
+export const reorderCustomFields = (entityType: CustomFieldEntity, ids: string[]) =>
+  request<{ fields: CustomField[] }>("/api/crm/custom-fields/order", { method: "PUT", json: { entityType, ids } }).then((result) => result.fields);
 export const updateCustomField = (id: string, input: Partial<{ label: string; options: string[]; isRequired: boolean; helpText: string; sequence: number; isActive: boolean }>) =>
   request<{ field: CustomField }>(`/api/crm/custom-fields/${id}`, { method: "PATCH", json: input }).then((result) => result.field);
 
@@ -44,7 +49,10 @@ export const updateScoringRule = (id: string, input: Partial<{ points: number; l
   request<{ rule: ScoringRule; rescored: number }>(`/api/crm/lead-scoring/rules/${id}`, { method: "PATCH", json: input });
 export const deleteScoringRule = (id: string) => request<{ deleted: true; rescored: number }>(`/api/crm/lead-scoring/rules/${id}`, { method: "DELETE" });
 
-export type RecurringPlan = { id: string; name: string; months: number; isActive: boolean; dealCount?: number };
+export type RecurringPlan = { id: string; name: string; months: number; isActive: boolean; dealCount?: number;
+  // settings list only: deals on the plan and what they bring a month (reporting currency)
+  openDeals?: number; wonDeals?: number; wonMonthly?: number; openMonthly?: number };
+export const listRecurringPlanResults = () => request<{ plans: RecurringPlan[]; currency: string | null }>("/api/crm/recurring-plans?all=1");
 export const listRecurringPlans = (all = false) => request<{ plans: RecurringPlan[] }>(`/api/crm/recurring-plans${all ? "?all=1" : ""}`).then((result) => result.plans);
 export const createRecurringPlan = (input: { name: string; months: number }) =>
   request<{ plan: RecurringPlan }>("/api/crm/recurring-plans", { method: "POST", json: input }).then((result) => result.plan);

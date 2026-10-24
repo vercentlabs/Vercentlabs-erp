@@ -27,6 +27,7 @@ import { getLeadOptions, leadExportUrl, listLeads, type Lead, type LeadBulkResul
 import { ChangeStageDialog, DisqualifyLeadsDialog } from "../components/LeadActionDialogs";
 import { AssignLeadsDialog } from "../components/LeadAssignment";
 import { MoreMenu } from "@/features/crm/shared/ui/MoreMenu";
+import { CustomFieldFilters, customFilterParams } from "@/features/crm/shared/ui/CustomFields";
 import { LogActivityDialog } from "../components/LeadWorkPanels";
 import { ErrorBanner, FollowUpCell, LeadStageBadge, LeadStatusBadge, PRIORITY_OPTIONS, PriorityBadge, RATING_OPTIONS, RatingBadge, STATUS_LABELS, StaleBadge, days, leadName } from "../lead-format";
 import { LIVE_LEAD_QUERY } from "../live-query";
@@ -116,6 +117,9 @@ export function LeadListScreen() {
   const [ranges, setRanges] = useState<FilterRange>({ qualifiedFrom: params.get("qualifiedFrom") ?? "", qualifiedTo: params.get("qualifiedTo") ?? "",
     convertedFrom: params.get("convertedFrom") ?? "", convertedTo: params.get("convertedTo") ?? "" });
   const [logging, setLogging] = useState<Lead | null>(null);
+  // The organization's choice and yes/no fields as filters: { key: value }.
+  const [customFilters, setCustomFiltersState] = useState<Record<string, string>>(() =>
+    Object.fromEntries([...params].filter(([key]) => key.startsWith("cf.")).map(([key, value]) => [key.slice(3), value])));
   const [created, setCreated] = useState({ from: params.get("createdFrom") ?? "", to: params.get("createdTo") ?? "" });
   // Open leads with no activity for a while; set from the dashboard or the filter panel.
   const [staleOnly, setStaleOnlyState] = useState(params.get("stale") === "yes");
@@ -165,9 +169,10 @@ export function LeadListScreen() {
     stale: staleOnly ? "yes" : undefined,
     ...Object.fromEntries(Object.entries(queue).filter(([, value]) => value.trim())),
     ...Object.fromEntries(Object.entries(ranges).filter(([, value]) => value)),
+    ...customFilterParams(customFilters, ANY),
     sortBy: sorting[0]?.id,
     sortDirection: sorting[0]?.desc === false ? "asc" : "desc",
-  }), [view, submittedSearch, filters, created, staleOnly, queue, ranges, sorting]);
+  }), [view, submittedSearch, filters, created, staleOnly, queue, ranges, customFilters, sorting]);
 
   const listQuery = useQuery({
     queryKey: scopedQueryKey(workspace, "crm", "leads", listFilters, pageIndex),
@@ -293,6 +298,10 @@ export function LeadListScreen() {
     ...(created.from || created.to ? [{ id: "created", label: `Created: ${created.from ? formatDate(created.from) : "start"} – ${created.to ? formatDate(created.to) : "today"}` }] : []),
     ...(ranges.qualifiedFrom || ranges.qualifiedTo ? [{ id: "qualified", label: `Qualified: ${ranges.qualifiedFrom ? formatDate(ranges.qualifiedFrom) : "start"} – ${ranges.qualifiedTo ? formatDate(ranges.qualifiedTo) : "today"}` }] : []),
     ...(ranges.convertedFrom || ranges.convertedTo ? [{ id: "converted", label: `Converted: ${ranges.convertedFrom ? formatDate(ranges.convertedFrom) : "start"} – ${ranges.convertedTo ? formatDate(ranges.convertedTo) : "today"}` }] : []),
+    ...Object.entries(customFilters).filter(([, value]) => value !== ANY).map(([key, value]) => {
+      const field = (options?.customFields ?? []).find((entry) => entry.key === key);
+      return { id: `cf.${key}`, label: `${field?.label ?? key}: ${field?.type === "checkbox" ? (value === "true" ? "Yes" : "No") : value}` };
+    }),
   ];
   const removeFilter = (id: string) => {
     if (id === "created") {
@@ -302,6 +311,7 @@ export function LeadListScreen() {
     else if (id === "converted") { setRanges({ ...ranges, convertedFrom: "", convertedTo: "" }); restart(); }
     else if (id === "stale") setStaleOnly(false);
     else if (id.startsWith("queue:")) setQueue({ ...queue, [id.slice("queue:".length)]: "" });
+    else if (id.startsWith("cf.")) { setCustomFiltersState({ ...customFilters, [id.slice(3)]: ANY }); restart(); }
     else setFilters({ ...filters, [id]: ANY });
   };
   const clearFilters = () => {
@@ -309,6 +319,7 @@ export function LeadListScreen() {
     setRanges({ qualifiedFrom: "", qualifiedTo: "", convertedFrom: "", convertedTo: "" });
     setStaleOnlyState(false);
     setQueue(NO_QUEUE_FILTERS);
+    setCustomFiltersState({});
     setFilters(NO_FILTERS);
   };
   const statusOptions = [{ value: ANY, label: "Any status" }, ...(options?.statuses ?? []).map((entry) => ({ value: entry.code, label: entry.label }))];
@@ -380,6 +391,7 @@ export function LeadListScreen() {
                           options={filterOptions((options.mediums ?? []).map((entry) => ({ value: entry.code, label: entry.label })), "Any medium")} />
                         <Select label="Tag" size="compact" selectedKey={filters.tagId} onSelectionChange={(key) => setFilters({ ...filters, tagId: String(key) })}
                           options={filterOptions((options.tags ?? []).map((entry) => ({ value: entry.id, label: entry.name })), "Any tag")} />
+                        <CustomFieldFilters fields={options.customFields ?? []} values={customFilters} anyValue={ANY} onChange={(next) => { setCustomFiltersState(next); restart(); }} />
                         <p className="border-t border-border pt-3 text-xs font-medium text-text-secondary sm:col-span-2 lg:col-span-3">Location, interest and age</p>
                         <TextField label="State" value={queue.state} onChange={(state) => setQueue({ ...queue, state })} />
                         <TextField label="District" value={queue.district} onChange={(district) => setQueue({ ...queue, district })} />

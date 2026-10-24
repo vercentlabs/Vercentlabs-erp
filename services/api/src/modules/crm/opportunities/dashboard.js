@@ -48,6 +48,12 @@ export async function getOpportunityDashboard(client, context, input = {}) {
             COALESCE(avg(${inBase("COALESCE(opportunity.won_amount, opportunity.amount)")}) FILTER (WHERE opportunity.status = 'won' AND ${closed("opportunity")}), 0)::float8 AS average_deal_size,
             count(*) FILTER (WHERE ${RATE} IS NULL AND (opportunity.status = 'open' OR (opportunity.status IN ('won', 'lost') AND ${closed("opportunity")})))::int AS unconverted_count,
             COALESCE(array_agg(DISTINCT opportunity.currency_code) FILTER (WHERE ${RATE} IS NULL AND (opportunity.status = 'open' OR (opportunity.status IN ('won', 'lost') AND ${closed("opportunity")}))), '{}') AS unconverted_currencies,
+            -- repeat revenue as a monthly figure (Repeat orders / AMC): from won deals, and in the open pipeline
+            COALESCE(sum(${inBase("opportunity.recurring_revenue / NULLIF((SELECT plan.months FROM tenant.crm_recurring_plans plan WHERE plan.organization_id = opportunity.organization_id AND plan.id = opportunity.recurring_plan_id), 0)")})
+              FILTER (WHERE opportunity.status = 'won'), 0)::float8 AS recurring_won_monthly,
+            count(*) FILTER (WHERE opportunity.status = 'won' AND opportunity.recurring_revenue IS NOT NULL AND opportunity.recurring_plan_id IS NOT NULL)::int AS recurring_won_deals,
+            COALESCE(sum(${inBase("opportunity.recurring_revenue / NULLIF((SELECT plan.months FROM tenant.crm_recurring_plans plan WHERE plan.organization_id = opportunity.organization_id AND plan.id = opportunity.recurring_plan_id), 0)")})
+              FILTER (WHERE opportunity.status = 'open'), 0)::float8 AS recurring_open_monthly,
             round((avg(EXTRACT(epoch FROM COALESCE(opportunity.closed_at, opportunity.actual_close_date::timestamptz) - opportunity.created_at))
                    FILTER (WHERE opportunity.status = 'won' AND ${closed("opportunity")}) / 86400)::numeric, 1)::float8 AS average_sales_cycle_days
        FROM tenant.crm_opportunities opportunity
@@ -91,6 +97,7 @@ export async function getOpportunityDashboard(client, context, input = {}) {
       overdue: totals.overdue,
       stale: totals.stale,
       staleDays: OPPORTUNITY_STALE_DAYS,
+      recurringWonMonthly: money(totals.recurring_won_monthly), recurringWonDeals: totals.recurring_won_deals, recurringOpenMonthly: money(totals.recurring_open_monthly),
       averageDealSize: money(totals.average_deal_size),
       // won ÷ (won + lost), as a percentage
       // Nothing closed in the period: no rate (shown as –), never a 0% that reads as a result.

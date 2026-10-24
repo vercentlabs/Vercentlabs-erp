@@ -25,15 +25,29 @@ async function companySetup(client, organizationId) {
     whatsappTemplate: row.reminder_whatsapp_template ?? null, whatsappLanguage: row.reminder_whatsapp_language ?? "en", smsTemplateId: row.reminder_sms_template_id ?? null,
     // Whether a person can turn each on: the channel is connected and the company named its reminder template.
     whatsappReady: Boolean(row.whatsapp_connected && row.reminder_whatsapp_template), smsReady: Boolean(row.sms_connected && row.reminder_sms_template_id),
+    whatsappConnected: Boolean(row.whatsapp_connected), smsConnected: Boolean(row.sms_connected),
   };
 }
+
+// Why a channel cannot be turned on yet, in words, or null when it can.
+const missing = (connected, template, what) => (connected ? (template ? null : `the company has not chosen its ${what} reminder template`) : `${what} is not connected for the company`);
 
 // The caller's own choice, their mobile, and what the company has made possible.
 export async function getMyReminderChannels(client, context) {
   const mine = (await client.query("SELECT whatsapp, sms FROM tenant.crm_reminder_channels WHERE organization_id = $1 AND user_id = $2", [context.organizationId, context.userId])).rows[0];
   const phone = (await client.query("SELECT phone FROM tenant.crm_call_agents WHERE organization_id = $1 AND user_id = $2", [context.organizationId, context.userId])).rows[0]?.phone ?? null;
   const company = await companySetup(client, context.organizationId);
-  return { whatsapp: Boolean(mine?.whatsapp), sms: Boolean(mine?.sms), mobile: phone, whatsappReady: company.whatsappReady, smsReady: company.smsReady };
+  return { whatsapp: Boolean(mine?.whatsapp), sms: Boolean(mine?.sms), mobile: phone, whatsappReady: company.whatsappReady, smsReady: company.smsReady,
+    whatsappMissing: missing(company.whatsappConnected, company.whatsappTemplate, "WhatsApp"), smsMissing: missing(company.smsConnected, company.smsTemplateId, "SMS") };
+}
+
+// Sends the caller a test reminder now on the channels they saved, so they see it arrive. Returns { whatsapp?, sms? }: "sent" or why not.
+export async function sendTestReminder(client, context, options = {}) {
+  if (!context.userId) throw new CrmError(403, "Sign in to test your reminders.", "PERMISSION_DENIED");
+  const mine = await getMyReminderChannels(client, context);
+  if (!mine.whatsapp && !mine.sms) throw invalid("whatsapp", "Turn on WhatsApp or SMS and save first.");
+  return remindOnOutsideChannels(client, context.organizationId, context.userId,
+    { title: "Test reminder", message: "This is how your CRM follow-up and task reminders arrive." }, options);
 }
 
 // input: { whatsapp?, sms?, mobile? } — the mobile is the same number calls ring (one "my mobile" in CRM).
@@ -64,7 +78,8 @@ export async function saveMyReminderChannels(client, context, input = {}) {
 // The company's reminder templates (CRM settings managers).
 export async function getReminderTemplates(client, context) {
   const company = await companySetup(client, context.organizationId);
-  return { whatsappTemplate: company.whatsappTemplate, whatsappLanguage: company.whatsappLanguage, smsTemplateId: company.smsTemplateId };
+  return { whatsappTemplate: company.whatsappTemplate, whatsappLanguage: company.whatsappLanguage, smsTemplateId: company.smsTemplateId,
+    whatsappConnected: company.whatsappConnected, smsConnected: company.smsConnected };
 }
 
 // input: { whatsappTemplate?, whatsappLanguage?, smsTemplateId? } — empty clears one.

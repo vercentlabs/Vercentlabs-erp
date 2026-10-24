@@ -82,11 +82,15 @@ function requireManager(context) {
 
 export async function listOptOuts(client, context, { search = "" } = {}) {
   requireManager(context);
-  const like = `%${text(search).toLowerCase()}%`;
+  // Numbers are kept as digits: "+91 98765-43210" finds 9876543210.
+  const term = text(search).toLowerCase();
+  const like = `%${/^[\d\s+()-]+$/.test(term) ? term.replace(/\D/g, "").replace(/^91(?=\d{10}$)/, "") : term}%`;
   const { rows } = await client.query(
     `SELECT opt_out.*, member.full_name AS created_by_name FROM tenant.crm_opt_outs opt_out LEFT JOIN users member ON member.id = opt_out.created_by
       WHERE opt_out.organization_id = $1 AND ($2 = '%%' OR opt_out.value LIKE $2) ORDER BY opt_out.created_at DESC LIMIT 500`, [context.organizationId, like]);
-  return rows.map((row) => ({ kind: row.kind, value: row.value, channels: row.channels, source: row.source, reason: row.reason, createdAt: row.created_at, createdByName: row.created_by_name ?? null }));
+  // An entry can come off the list on its own CONSENT_LOCK_DAYS after it was added (sooner only when the person asks).
+  return rows.map((row) => ({ kind: row.kind, value: row.value, channels: row.channels, source: row.source, reason: row.reason, createdAt: row.created_at, createdByName: row.created_by_name ?? null,
+    removableFrom: new Date(new Date(row.created_at).getTime() + CONSENT_LOCK_DAYS * 86400000).toISOString() }));
 }
 
 // Someone asked (by phone, in person) not to be contacted at an address that may not be on any record yet.

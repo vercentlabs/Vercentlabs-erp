@@ -1,4 +1,4 @@
-import { beginSocialSignIn, clientIp, enforceRateLimit } from "@vercentlabs/api";
+import { beginSocialSignIn, canonicalAppOrigin, clientIp, enforceRateLimit } from "@vercentlabs/api";
 
 import { ingressTransaction, withIngressClient } from "@/core/db";
 import { getSessionContext } from "@/core/session";
@@ -8,7 +8,7 @@ export async function GET(request: Request, context: { params: Promise<{ provide
   const { provider } = await context.params;
   const url = new URL(request.url);
   const purpose = url.searchParams.get("purpose") === "link" ? "link" : "sign_in";
-  const failed = (code: string) => Response.redirect(new URL(purpose === "link" ? `/settings/profile?signInError=${code}` : `/login?error=${code}`, url.origin).toString(), 303);
+  const failed = (code: string) => Response.redirect(new URL(purpose === "link" ? `/settings/profile?signInError=${code}` : `/login?error=${code}`, canonicalAppOrigin(process.env)).toString(), 303);
   try {
     await withIngressClient((client) => enforceRateLimit(client, `social-sign-in:${clientIp(request, process.env)}`, 20, 300));
     const session = purpose === "link" ? await getSessionContext() : null;

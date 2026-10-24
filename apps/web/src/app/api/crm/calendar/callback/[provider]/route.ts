@@ -1,3 +1,4 @@
+import { canonicalAppOrigin } from "@vercentlabs/api";
 import { completeCalendarConnection, readCalendarState } from "@vercentlabs/api/crm";
 
 import { tenantTransaction } from "@/core/db";
@@ -8,7 +9,7 @@ import { requireApiWorkspace } from "@/core/session";
 export async function GET(request: Request, { params }: { params: Promise<{ provider: string }> }) {
   const { provider } = await params;
   const url = new URL(request.url);
-  const back = (outcome: string) => Response.redirect(new URL(`/crm/settings/calendar?calendar=${encodeURIComponent(outcome)}`, url.origin), 303);
+  const back = (outcome: string) => Response.redirect(new URL(`/crm/settings/calendar?calendar=${encodeURIComponent(outcome)}`, canonicalAppOrigin(process.env)), 303);
   try {
     if (url.searchParams.get("error")) return back("refused");
     const session = await requireApiWorkspace();

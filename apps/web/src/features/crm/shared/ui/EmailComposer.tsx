@@ -3,7 +3,7 @@
 // Email from a record (CRM plan 4.1): the record's emails both ways, and a composer — a template or a fresh email, to the record's person
 // by default, with the signature and the record's number added when it is sent. Someone who refused email is never sent to; the
 // composer says so instead.
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { CornerUpLeft, Mail, Paperclip } from "lucide-react";
 import { Button, Checkbox, Dialog, Select, TextArea, TextField } from "@vercentlabs/design-system";
@@ -17,17 +17,18 @@ import { errorMessage, listEmails, prepareEmail, sendEmail, type EmailEntity, ty
 
 const NONE = "";
 
-export function EmailButton({ entity, recordId, label = "Email", onSent }: { entity: EmailEntity; recordId: string; label?: string; onSent?: () => void }) {
+// templateId: a template to start from (an email follow-up's type names one in Setup › Activity types).
+export function EmailButton({ entity, recordId, label = "Email", templateId, onSent }: { entity: EmailEntity; recordId: string; label?: string; templateId?: string | null; onSent?: () => void }) {
   const [open, setOpen] = useState(false);
   return (
     <>
       <Button variant="secondary" onPress={() => setOpen(true)}><Mail className="size-4" aria-hidden="true" />{label}</Button>
-      {open && <EmailDialog entity={entity} recordId={recordId} onClose={() => setOpen(false)} onSent={() => { setOpen(false); onSent?.(); }} />}
+      {open && <EmailDialog entity={entity} recordId={recordId} startTemplateId={templateId ?? null} onClose={() => setOpen(false)} onSent={() => { setOpen(false); onSent?.(); }} />}
     </>
   );
 }
 
-function EmailDialog({ entity, recordId, onClose, onSent }: { entity: EmailEntity; recordId: string; onClose: () => void; onSent: () => void }) {
+function EmailDialog({ entity, recordId, startTemplateId, onClose, onSent }: { entity: EmailEntity; recordId: string; startTemplateId: string | null; onClose: () => void; onSent: () => void }) {
   const workspace = useWorkspaceContext();
   const queryClient = useQueryClient();
   const [templateId, setTemplateId] = useState(NONE);
@@ -46,6 +47,14 @@ function EmailDialog({ entity, recordId, onClose, onSent }: { entity: EmailEntit
     onSuccess: (filled) => { setSubject(filled.subject); setBody(filled.body); },
     onError: (failure) => setError(errorMessage(failure)),
   });
+  // Start from the given template once the draft is in, if it is still an active template.
+  const started = useRef(false);
+  useEffect(() => {
+    if (started.current || !startTemplateId || !draft?.templates.some((entry) => entry.id === startTemplateId)) return;
+    started.current = true;
+    setTemplateId(startTemplateId);
+    fill.mutate(startTemplateId);
+  }, [draft, startTemplateId, fill]);
   const send = useMutation({
     mutationFn: () => sendEmail(entity, recordId, { to: to ?? draft?.to ?? "", cc, subject, body, templateId: templateId || null, replyToEmailId: replyTo?.id ?? null, attachmentIds: attached }),
     onSuccess: () => {

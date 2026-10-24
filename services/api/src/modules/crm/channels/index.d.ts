@@ -24,3 +24,5 @@ export function sendSms(client: QueryClient, context: CrmContext, type: ChannelR
 export function listSmsMessages(client: QueryClient, context: CrmContext, type: ChannelRecordType, id: string): Promise<Array<{ id: string; phone: string; body: string; status: string; error: string | null; sentByName: string | null; createdAt: string }>>;
 export function receiveSmsStatus(client: QueryClient, organizationId: string, fields: Record<string, string>): Promise<{ matched: boolean; status?: string }>;
 export function resolveChannelWebhook(client: QueryClient, webhookKey: string): Promise<{ organizationId: string; channel: "call" | "sms" }>;
+export function checkTelephony(client: QueryClient, context: CrmContext, runtime?: Runtime): Promise<{ ok: true; name: string }>;
+export function sendTestSms(client: QueryClient, context: CrmContext, input: { templateId?: string; phone?: string | null }, runtime?: Runtime): Promise<{ sent: boolean; error?: string }>;

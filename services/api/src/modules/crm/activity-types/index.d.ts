@@ -8,9 +8,10 @@ export type CrmActivityType = {
   defaultDelayHours: number | null; defaultAssignee: "record_owner" | "creator" | "user"; defaultUserId: string | null; defaultUserName: string | null;
   defaultReminderMinutes: number | null; emailTemplateId: string | null; emailTemplateName: string | null;
   chaining: "none" | "suggest" | "trigger"; nextTypeId: string | null; nextTypeName: string | null; nextDelayDays: number; sequence: number;
+  openFollowUps?: number; usedByPlans?: string[]; chainedFrom?: string[];
 };
 export type CrmActivityPlan = {
-  id: string; name: string; description: string | null; appliesTo: "lead" | "opportunity" | "any"; isActive: boolean;
+  id: string; name: string; description: string | null; appliesTo: "lead" | "opportunity" | "any"; isActive: boolean; plannedCount: number; openCount: number;
   steps: Array<{ id: string; sequence: number; activityTypeId: string; activityTypeName: string; kind: ActivityKind; subject: string | null; offsetDays: number;
     assignee: "record_owner" | "applier" | "user"; userId: string | null; userName: string | null }>;
 };

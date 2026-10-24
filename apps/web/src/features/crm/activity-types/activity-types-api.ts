@@ -17,11 +17,13 @@ export type ActivityType = {
   defaultDelayHours: number | null; defaultAssignee: "record_owner" | "creator" | "user"; defaultUserId: string | null; defaultUserName: string | null;
   defaultReminderMinutes: number | null; emailTemplateId: string | null; emailTemplateName: string | null;
   chaining: "none" | "suggest" | "trigger"; nextTypeId: string | null; nextTypeName: string | null; nextDelayDays: number; sequence: number;
+  // settings list only
+  openFollowUps?: number; usedByPlans?: string[]; chainedFrom?: string[];
 };
-export type ActivityTypeInput = Partial<Omit<ActivityType, "id" | "code" | "isStandard" | "defaultUserName" | "emailTemplateName" | "nextTypeName" | "sequence">>;
+export type ActivityTypeInput = Partial<Omit<ActivityType, "id" | "code" | "isStandard" | "defaultUserName" | "emailTemplateName" | "nextTypeName" | "sequence" | "openFollowUps" | "usedByPlans" | "chainedFrom">>;
 export type PlanStep = { activityTypeId: string; offsetDays: number; subject?: string | null; assignee: "record_owner" | "applier" | "user"; userId?: string | null };
 export type ActivityPlan = {
-  id: string; name: string; description: string | null; appliesTo: "lead" | "opportunity" | "any"; isActive: boolean;
+  id: string; name: string; description: string | null; appliesTo: "lead" | "opportunity" | "any"; isActive: boolean; plannedCount: number; openCount: number;
   steps: Array<PlanStep & { id: string; sequence: number; activityTypeName: string; kind: ActivityKind; userName: string | null }>;
 };
 

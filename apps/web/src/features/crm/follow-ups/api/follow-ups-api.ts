@@ -28,6 +28,7 @@ export type FollowUp = {
   typeCode: string;
   typeName: string;
   activityPlanName: string | null;
+  emailTemplateId?: string | null;
   holidayName?: string | null;
   repeat: FollowUpRepeat | null;
   status: FollowUpStatus;
@@ -93,6 +94,7 @@ export type FollowUpOptions = {
 export type FollowUpListFilters = Partial<{
   view: FollowUpViewKey; search: string; status: string; type: string; outcome: string; assigneeId: string; createdBy: string; completedBy: string;
   relatedType: string; relatedId: string; accountId: string; contactId: string; leadId: string; opportunityId: string; dueFrom: string; dueTo: string;
+  activityTypeId: string; activityPlanId: string;
   createdFrom: string; createdTo: string; ids: string; sortBy: string; sortDirection: "asc" | "desc"; limit: number; offset: number;
 }>;
 export type FollowUpSummary = { dueToday: number; overdue: number; upcoming: number; open: number; teamOverdue: number | null };

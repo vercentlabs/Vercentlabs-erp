@@ -18,7 +18,8 @@ export function verifyAccountGstin(client: QueryClient, context: CrmContext, par
   gstin: string; valid: boolean; configured: boolean; check: GstinCheck | null; warnings: Array<{ code: string; message: string }>;
 }>;
 // A company's own GST lookup provider (CRM audit).
-export type CrmGstLookupSettings = { own: boolean; url: string | null; keyHeader: string; keySet: boolean; platform: boolean };
+export type CrmGstLookupSettings = { own: boolean; url: string | null; keyHeader: string; keySet: boolean; platform: boolean; recent: Array<Record<string, any>> };
 export function gstLookupConfiguredFor(client: QueryClient, organizationId: string, env?: Record<string, string | undefined>): Promise<boolean>;
 export function getGstLookupSettings(client: QueryClient, context: CrmContext, runtime?: { env?: Record<string, string | undefined> }): Promise<CrmGstLookupSettings>;
+export function testGstLookup(client: QueryClient, context: CrmContext, input: Record<string, unknown>, runtime?: { fetchImpl?: typeof fetch; env?: Record<string, string | undefined> }): Promise<{ gstin: string; status: string; statusLabel: string; legalName: string | null; tradeName: string | null; registeredOn: string | null; address: Record<string, string | null> }>;
 export function saveGstLookupSettings(client: QueryClient, context: CrmContext, input: Record<string, unknown>, runtime?: { env?: Record<string, string | undefined> }): Promise<CrmGstLookupSettings>;

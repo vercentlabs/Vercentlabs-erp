@@ -39,6 +39,8 @@ function toType(row) {
     emailTemplateId: row.email_template_id ?? null, emailTemplateName: row.email_template_name ?? null,
     chaining: row.chaining, nextTypeId: row.next_type_id ?? null, nextTypeName: row.next_type_name ?? null, nextDelayDays: row.next_delay_days,
     sequence: row.sequence,
+    // settings list only: open follow-ups of this type, and the active plans and types that lead to it
+    ...(row.open_count !== undefined ? { openFollowUps: Number(row.open_count), usedByPlans: row.used_by_plans ?? [], chainedFrom: row.chained_from ?? [] } : {}),
   };
 }
 
@@ -52,10 +54,20 @@ const TYPE_SELECT = `SELECT type.*, member.full_name AS default_user_name, templ
 export async function listActivityTypes(client, context, { includeInactive = false } = {}) {
   if (includeInactive) requireManage(context);
   await ensureStandardActivityTypes(client, context.organizationId);
-  const { rows } = await client.query(`${TYPE_SELECT} WHERE type.organization_id = $1 AND ($2 OR type.status = 'active') ORDER BY (type.status = 'active') DESC, type.sequence, lower(type.name)`,
+  const usage = includeInactive ? `, ${USAGE}` : "";
+  const { rows } = await client.query(`${TYPE_SELECT.replace(" FROM tenant.crm_activity_types type", `${usage} FROM tenant.crm_activity_types type`)}
+     WHERE type.organization_id = $1 AND ($2 OR type.status = 'active') ORDER BY (type.status = 'active') DESC, type.sequence, lower(type.name)`,
     [context.organizationId, includeInactive]);
   return rows.map(toType);
 }
+
+// What uses a type: its open follow-ups, the active plans with a step of it, and the active types that plan or suggest it next.
+const USAGE = `(SELECT count(*) FROM tenant.crm_activities follow_up WHERE follow_up.organization_id = type.organization_id AND follow_up.activity_type_id = type.id
+        AND follow_up.activity_type = 'follow_up' AND follow_up.status IN ('planned', 'in_progress', 'overdue')) AS open_count,
+    ARRAY(SELECT DISTINCT plan.name FROM tenant.crm_activity_plan_steps step JOIN tenant.crm_activity_plans plan ON plan.organization_id = step.organization_id AND plan.id = step.plan_id
+           WHERE step.organization_id = type.organization_id AND step.activity_type_id = type.id AND plan.status = 'active' ORDER BY plan.name) AS used_by_plans,
+    ARRAY(SELECT other.name FROM tenant.crm_activity_types other WHERE other.organization_id = type.organization_id AND other.next_type_id = type.id
+           AND other.chaining <> 'none' AND other.status = 'active' AND other.id <> type.id ORDER BY other.sequence) AS chained_from`;
 
 // The type a follow-up is of: by id, else by code (a standard kind or the organization's own code), else Call. Inactive types are
 // still found by id (an existing follow-up keeps its type) but not chosen for new work by code.
@@ -168,6 +180,11 @@ export async function updateActivityType(client, context, typeId, input = {}) {
   const fields = await cleanType(client, context, input, current);
   if (has(input, "isActive")) {
     if (!input.isActive && current.is_standard) throw invalid("isActive", "A standard type stays on; rename it or give it other defaults instead.");
+    if (!input.isActive && current.status === "active") {
+      const used = (await client.query(`SELECT ${USAGE} FROM tenant.crm_activity_types type WHERE type.organization_id = $1 AND type.id = $2`, [context.organizationId, current.id])).rows[0];
+      const what = [used.used_by_plans.length ? `plan ${used.used_by_plans.join(", ")}` : null, used.chained_from.length ? `what comes after ${used.chained_from.join(", ")}` : null].filter(Boolean);
+      if (what.length) throw invalid("isActive", `Still used by ${what.join(" and ")}. Change those first.`);
+    }
     fields.status = input.isActive ? "active" : "inactive";
   }
   const columns = Object.keys(fields);
@@ -196,6 +213,8 @@ export async function activityTypeChoices(client, context) {
 function toPlan(row, steps) {
   return {
     id: row.id, name: row.name, description: row.description ?? null, appliesTo: row.applies_to, isActive: row.status === "active",
+    // follow-ups planned from it so far, and how many of those are still open
+    plannedCount: Number(row.planned_count ?? 0), openCount: Number(row.open_count ?? 0),
     steps: steps.map((step) => ({
       id: step.id, sequence: step.sequence, activityTypeId: step.activity_type_id, activityTypeName: step.type_name, kind: step.kind, subject: step.subject ?? null,
       offsetDays: step.offset_days, assignee: step.assignee, userId: step.user_id ?? null, userName: step.user_name ?? null,
@@ -205,7 +224,10 @@ function toPlan(row, steps) {
 
 async function readPlans(client, organizationId, { id = null, includeInactive = false } = {}) {
   const plans = (await client.query(
-    `SELECT * FROM tenant.crm_activity_plans WHERE organization_id = $1 AND ($2::uuid IS NULL OR id = $2) AND ($3 OR status = 'active') ORDER BY (status = 'active') DESC, lower(name)`,
+    `SELECT plan.*, used.planned_count, used.open_count FROM tenant.crm_activity_plans plan
+       LEFT JOIN LATERAL (SELECT count(*) AS planned_count, count(*) FILTER (WHERE follow_up.status IN ('planned', 'in_progress', 'overdue')) AS open_count
+                            FROM tenant.crm_activities follow_up WHERE follow_up.organization_id = plan.organization_id AND follow_up.activity_plan_id = plan.id) used ON true
+      WHERE plan.organization_id = $1 AND ($2::uuid IS NULL OR plan.id = $2) AND ($3 OR plan.status = 'active') ORDER BY (plan.status = 'active') DESC, lower(plan.name)`,
     [organizationId, id, includeInactive])).rows;
   if (!plans.length) return [];
   const steps = (await client.query(
@@ -224,12 +246,18 @@ export async function listActivityPlans(client, context, { includeInactive = fal
   return appliesTo ? plans.filter((plan) => plan.appliesTo === "any" || plan.appliesTo === appliesTo) : plans;
 }
 
-async function cleanPlan(client, context, input, creating) {
+async function cleanPlan(client, context, input, creating, current = null) {
   const out = {};
   if (creating || has(input, "name")) {
     out.name = text(input.name);
     if (!out.name || out.name.length > 120) throw invalid("name", "Name the plan (up to 120 characters).", "CRM_ACTIVITY_PLAN_VALIDATION");
   }
+  // two active plans never share a name (checked on rename and on switching back on)
+  const name = out.name ?? current?.name;
+  if ((out.name || input.isActive === true) && (input.isActive ?? current?.isActive ?? true) && (await client.query(
+    "SELECT 1 FROM tenant.crm_activity_plans WHERE organization_id = $1 AND lower(name) = lower($2) AND status = 'active' AND id IS DISTINCT FROM $3",
+    [context.organizationId, name, current?.id ?? null])).rows[0])
+    throw invalid("name", "Another plan already has this name.", "CRM_ACTIVITY_PLAN_VALIDATION");
   if (has(input, "description")) out.description = text(input.description).slice(0, 500) || null;
   if (creating || has(input, "appliesTo")) {
     out.applies_to = input.appliesTo ?? "any";
@@ -278,7 +306,7 @@ export async function updateActivityPlan(client, context, planId, input = {}) {
   requireManage(context, "activity plans");
   const current = UUID.test(String(planId ?? "")) ? (await readPlans(client, context.organizationId, { id: planId, includeInactive: true }))[0] : null;
   if (!current) throw new CrmError(404, "Activity plan not found.", "CRM_ACTIVITY_PLAN_NOT_FOUND");
-  const { fields, steps } = await cleanPlan(client, context, input, false);
+  const { fields, steps } = await cleanPlan(client, context, input, false, current);
   if (has(input, "isActive")) fields.status = input.isActive ? "active" : "inactive";
   const columns = Object.keys(fields);
   if (columns.length)

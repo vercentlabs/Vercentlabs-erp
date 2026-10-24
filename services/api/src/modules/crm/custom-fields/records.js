@@ -1,6 +1,7 @@
 // Custom fields on leads, deals, companies and contacts (CRM plan 5.3; companies and contacts: CRM audit M4). The organization defines
 // them (CRM settings); their values live in the record's custom_data, keyed by the field's key, and are set through the record's form
-// like any other field, and through import. A switched-off field is no longer shown or accepted, but its values stay.
+// like any other field, and through import. A switched-off field is no longer shown or accepted, but its values stay. The settings list
+// says how many records use each field; a choice taken off the list stays on the records that have it until someone changes it.
 import { CrmError } from "../data-management/errors.js";
 
 const MANAGE = "crm.settings.manage";
@@ -21,11 +22,27 @@ function requireEntity(entity) {
   if (!CUSTOM_FIELD_ENTITIES.includes(entity)) throw invalid("entityType", "Custom fields are for leads, deals, companies and contacts.");
 }
 
-function toField(row) {
+function toField(row, usage = null) {
   return {
     id: row.id, entityType: row.entity_type, key: row.key, label: row.label, type: row.field_type, options: row.options ?? [], isRequired: row.is_required,
-    helpText: row.help_text ?? null, sequence: row.sequence, isActive: row.status === "active",
+    helpText: row.help_text ?? null, sequence: row.sequence, isActive: row.status === "active", ...(usage ? { usedOn: usage.get(row.key) ?? 0 } : {}),
   };
+}
+
+// How many records of the type hold a value for each field: { key → count }.
+async function usageOf(client, organizationId, entity) {
+  const { rows } = await client.query(
+    `SELECT field.key, count(*)::int AS count FROM tenant.${TABLE[entity]} record, jsonb_object_keys(record.custom_data) AS field(key)
+      WHERE record.organization_id = $1 GROUP BY field.key`, [organizationId]);
+  return new Map(rows.map((row) => [row.key, row.count]));
+}
+
+// Another switched-on field of the type with this name (case ignored), or the type already at its 50 switched-on fields.
+async function checkName(client, organizationId, entity, label, exceptId, { counting = false } = {}) {
+  const active = (await client.query("SELECT id, label FROM tenant.crm_custom_fields WHERE organization_id = $1 AND entity_type = $2 AND status = 'active'",
+    [organizationId, entity])).rows.filter((row) => row.id !== exceptId);
+  if (active.some((row) => row.label.toLowerCase() === label.toLowerCase())) throw invalid("label", "Another field already has this name.");
+  if (counting && active.length >= 50) throw invalid("label", "Up to 50 custom fields per record type.");
 }
 
 export async function listCustomFields(client, context, entity, { includeInactive = false } = {}) {
@@ -34,7 +51,22 @@ export async function listCustomFields(client, context, entity, { includeInactiv
   const { rows } = await client.query(
     `SELECT * FROM tenant.crm_custom_fields WHERE organization_id = $1 AND entity_type = $2 AND ($3 OR status = 'active') ORDER BY (status = 'active') DESC, sequence, lower(label)`,
     [context.organizationId, entity, includeInactive]);
-  return rows.map(toField);
+  // For the settings screen: how many records use each field.
+  const usage = includeInactive ? await usageOf(client, context.organizationId, entity) : null;
+  return rows.map((row) => toField(row, usage));
+}
+
+// The fields of a type in the order given (ids): the order on the forms and record pages. Ids not of the type are refused.
+export async function reorderCustomFields(client, context, entity, ids = []) {
+  requireManage(context);
+  requireEntity(entity);
+  const list = (Array.isArray(ids) ? ids : []).filter((id) => UUID.test(String(id)));
+  const known = new Set((await client.query("SELECT id FROM tenant.crm_custom_fields WHERE organization_id = $1 AND entity_type = $2", [context.organizationId, entity])).rows.map((row) => row.id));
+  if (!list.length || list.some((id) => !known.has(id))) throw invalid("ids", "The order must list this record type's fields.");
+  for (const [index, id] of list.entries())
+    await client.query("UPDATE tenant.crm_custom_fields SET sequence = $3, updated_by = $4, updated_at = now() WHERE organization_id = $1 AND id = $2",
+      [context.organizationId, id, (index + 1) * 10, context.userId ?? null]);
+  return listCustomFields(client, context, entity, { includeInactive: true });
 }
 
 function cleanOptions(type, value) {
@@ -75,18 +107,23 @@ export async function updateCustomField(client, context, fieldId, input = {}) {
   if (has(input, "label")) {
     const label = text(input.label);
     if (!label || label.length > 80) throw invalid("label", "Name the field (up to 80 characters).");
+    if (current.status === "active" || input.isActive === true) await checkName(client, context.organizationId, current.entity_type, label, current.id);
     sets.label = label;
   }
   if (has(input, "options")) sets.options = JSON.stringify(cleanOptions(current.field_type, input.options));
   if (has(input, "isRequired")) sets.is_required = Boolean(input.isRequired);
   if (has(input, "helpText")) sets.help_text = text(input.helpText).slice(0, 200) || null;
   if (has(input, "sequence")) sets.sequence = Math.max(0, Math.trunc(Number(input.sequence) || 0));
-  if (has(input, "isActive")) sets.status = input.isActive ? "active" : "inactive";
+  if (has(input, "isActive")) {
+    // Switched back on: its name must still be free, and the type within its 50 fields.
+    if (input.isActive && current.status !== "active") await checkName(client, context.organizationId, current.entity_type, sets.label ?? current.label, current.id, { counting: true });
+    sets.status = input.isActive ? "active" : "inactive";
+  }
   const columns = Object.keys(sets);
   if (columns.length)
     await client.query(`UPDATE tenant.crm_custom_fields SET ${columns.map((column, index) => `${column} = $${index + 4}${column === "options" ? "::jsonb" : ""}`).join(", ")}, updated_by = $3, updated_at = now()
       WHERE organization_id = $1 AND id = $2`, [context.organizationId, current.id, context.userId ?? null, ...columns.map((column) => sets[column])]);
-  return toField((await client.query("SELECT * FROM tenant.crm_custom_fields WHERE id = $1", [current.id])).rows[0]);
+  return toField((await client.query("SELECT * FROM tenant.crm_custom_fields WHERE id = $1", [current.id])).rows[0], await usageOf(client, context.organizationId, current.entity_type));
 }
 
 // One value, checked against its field. Empty means "no value" (null).
@@ -134,6 +171,8 @@ export async function applyCustomFields(client, context, entity, recordId, value
   const changed = [];
   for (const [key, value] of Object.entries(given)) {
     const field = byKey.get(key);
+    // A value saved back unchanged is kept as it is (a choice since taken off the list stays until someone changes it).
+    if (value !== null && value !== undefined && JSON.stringify(current[key] ?? null) === JSON.stringify(value)) continue;
     const clean = cleanValue(field, value);
     if (JSON.stringify(next[key] ?? null) !== JSON.stringify(clean)) {
       changed.push({ key, label: field.label, from: next[key] ?? null, to: clean });

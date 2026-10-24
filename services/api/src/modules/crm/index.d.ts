@@ -81,12 +81,13 @@ export function claimDueReminders(client: QueryClient, context: any, options?: {
 export function markReminderOutcome(client: QueryClient, context: any, reminderId: string, options: { status: "sent" | "failed"; failureReason?: string | null }): Promise<void>;
 export function resetStuckDispatchingReminders(client: QueryClient, context: any, options?: { olderThanMinutes?: number }): Promise<number>;
 // Reminders on WhatsApp and SMS (reminders/outside-channels.js, CRM audit M6).
-export type CrmMyReminderChannels = { whatsapp: boolean; sms: boolean; mobile: string | null; whatsappReady: boolean; smsReady: boolean };
-export type CrmReminderTemplates = { whatsappTemplate: string | null; whatsappLanguage: string; smsTemplateId: string | null };
+export type CrmMyReminderChannels = { whatsapp: boolean; sms: boolean; mobile: string | null; whatsappReady: boolean; smsReady: boolean; whatsappMissing: string | null; smsMissing: string | null };
+export type CrmReminderTemplates = { whatsappTemplate: string | null; whatsappLanguage: string; smsTemplateId: string | null; whatsappConnected: boolean; smsConnected: boolean };
 export function getMyReminderChannels(client: QueryClient, context: any): Promise<CrmMyReminderChannels>;
 export function saveMyReminderChannels(client: QueryClient, context: any, input: Record<string, unknown>): Promise<CrmMyReminderChannels>;
 export function getReminderTemplates(client: QueryClient, context: any): Promise<CrmReminderTemplates>;
 export function saveReminderTemplates(client: QueryClient, context: any, input: Record<string, unknown>): Promise<CrmReminderTemplates>;
+export function sendTestReminder(client: QueryClient, context: any, options?: { fetchImpl?: typeof fetch; env?: Record<string, string | undefined> }): Promise<{ whatsapp?: string; sms?: string; error?: string }>;
 export function remindOnOutsideChannels(client: QueryClient, organizationId: string, userId: string, reminder: { title: string; message: string },
   options?: { fetchImpl?: typeof fetch; env?: Record<string, string | undefined> }): Promise<{ whatsapp?: string; sms?: string; error?: string }>;
 export function getCrmRecordTimelinePage(

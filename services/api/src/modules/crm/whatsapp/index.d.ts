@@ -6,6 +6,7 @@ export type WhatsAppRecordType = "lead" | "opportunity" | "party" | "contact";
 export type WhatsAppSettings = {
   mode: "click_to_chat" | "cloud_api"; displayNumber: string | null; phoneNumberId: string | null; credentialsSet: string[];
   webhookKeyPrefix: string | null; lastReceivedAt: string | null; lastError: string | null;
+  verifiedName: string | null; qualityRating: string | null; last30Days: { sent: number; received: number; failed: number };
 };
 export type WhatsAppMessage = {
   id: string; direction: "inbound" | "outbound"; channel: "click_to_chat" | "cloud_api"; phone: string; body: string | null; templateName: string | null;
@@ -14,6 +15,7 @@ export type WhatsAppMessage = {
 
 export function sendTeamWhatsApp(client: QueryClient, organizationId: string, input: { phone: string; templateName: string; templateLanguage?: string; values?: string[] }, options?: Runtime): Promise<{ sent: boolean; error?: string }>;
 export function getWhatsAppSettings(client: QueryClient, context: CrmContext, runtime?: Runtime): Promise<WhatsAppSettings>;
+export function checkWhatsAppConnection(client: QueryClient, context: CrmContext, runtime?: Runtime): Promise<WhatsAppSettings>;
 export function saveWhatsAppSettings(client: QueryClient, context: CrmContext, input: Record<string, unknown>, runtime?: Runtime): Promise<{ settings: WhatsAppSettings; webhookKey: string | null; verifyToken: string | null }>;
 export function prepareWhatsApp(client: QueryClient, context: CrmContext, type: WhatsAppRecordType, id: string): Promise<{
   phone: string | null; name: string | null; mode: "click_to_chat" | "cloud_api"; refused: string | null; consented: boolean; windowOpen: boolean; needsTemplate: boolean;

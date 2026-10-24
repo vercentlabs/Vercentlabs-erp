@@ -1,6 +1,7 @@
 // Recurring plans (CRM plan 5.3): how often a deal's recurring revenue comes in — Monthly, Quarterly, Yearly, or the organization's
 // own (every 6 months, every 2 years…). A deal names its plan and the amount per period; the pipeline shows it as monthly revenue.
 import { CrmError } from "../data-management/errors.js";
+import { dealRate, reportingCurrencyOf } from "../data-management/reporting-currency.js";
 
 const MANAGE = "crm.settings.manage";
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -14,7 +15,10 @@ function requireManage(context) {
   throw new CrmError(403, "You do not have permission to manage recurring plans.", "PERMISSION_DENIED");
 }
 
-const toPlan = (row) => ({ id: row.id, name: row.name, months: row.months, isActive: row.status === "active", dealCount: row.deal_count === undefined ? undefined : Number(row.deal_count) });
+const money = (value) => Math.round(Number(value ?? 0) * 100) / 100;
+const toPlan = (row) => ({ id: row.id, name: row.name, months: row.months, isActive: row.status === "active", dealCount: row.deal_count === undefined ? undefined : Number(row.deal_count),
+  // For the settings list: the deals on the plan and what they bring each month, in the reporting currency (won = coming in; open = in the pipeline).
+  ...(row.won_count !== undefined ? { openDeals: Number(row.open_count), wonDeals: Number(row.won_count), wonMonthly: money(row.won_monthly), openMonthly: money(row.open_monthly) } : {}) });
 
 // The plans (Monthly, Quarterly and Yearly are there from the start), shortest first.
 export async function listRecurringPlans(client, context, { includeInactive = false } = {}) {
@@ -22,11 +26,28 @@ export async function listRecurringPlans(client, context, { includeInactive = fa
   const any = (await client.query("SELECT 1 FROM tenant.crm_recurring_plans WHERE organization_id = $1 LIMIT 1", [context.organizationId])).rows[0];
   if (!any) for (const plan of STANDARD)
     await client.query("INSERT INTO tenant.crm_recurring_plans (organization_id, name, months) VALUES ($1, $2, $3)", [context.organizationId, plan.name, plan.months]);
+  const stats = includeInactive
+    ? `, stats.open_count, stats.won_count, stats.won_monthly, stats.open_monthly`
+    : "";
   const { rows } = await client.query(
-    `SELECT plan.*, (SELECT count(*) FROM tenant.crm_opportunities deal WHERE deal.organization_id = plan.organization_id AND deal.recurring_plan_id = plan.id) AS deal_count
-       FROM tenant.crm_recurring_plans plan WHERE plan.organization_id = $1 AND ($2 OR plan.status = 'active') ORDER BY (plan.status = 'active') DESC, plan.months, lower(plan.name)`,
+    `SELECT plan.*, (SELECT count(*) FROM tenant.crm_opportunities deal WHERE deal.organization_id = plan.organization_id AND deal.recurring_plan_id = plan.id) AS deal_count${stats}
+       FROM tenant.crm_recurring_plans plan
+       ${includeInactive ? `LEFT JOIN LATERAL (
+         SELECT count(*) FILTER (WHERE opportunity.status = 'open') AS open_count, count(*) FILTER (WHERE opportunity.status = 'won') AS won_count,
+                COALESCE(sum(opportunity.recurring_revenue / plan.months * ${dealRate("opportunity")}) FILTER (WHERE opportunity.status = 'won'), 0) AS won_monthly,
+                COALESCE(sum(opportunity.recurring_revenue / plan.months * ${dealRate("opportunity")}) FILTER (WHERE opportunity.status = 'open'), 0) AS open_monthly
+           FROM tenant.crm_opportunities opportunity
+          WHERE opportunity.organization_id = plan.organization_id AND opportunity.recurring_plan_id = plan.id AND opportunity.archived_at IS NULL
+            AND opportunity.recurring_revenue IS NOT NULL) stats ON true` : ""}
+      WHERE plan.organization_id = $1 AND ($2 OR plan.status = 'active') ORDER BY (plan.status = 'active') DESC, plan.months, lower(plan.name)`,
     [context.organizationId, includeInactive]);
   return rows.map(toPlan);
+}
+
+// The settings list with the reporting currency its monthly figures are in.
+export async function listRecurringPlansWithResults(client, context) {
+  const plans = await listRecurringPlans(client, context, { includeInactive: true });
+  return { plans, currency: await reportingCurrencyOf(client, context.organizationId) };
 }
 
 function clean(input, creating) {
@@ -59,6 +80,11 @@ export async function updateRecurringPlan(client, context, planId, input = {}) {
   const current = UUID.test(String(planId ?? "")) ? (await client.query("SELECT * FROM tenant.crm_recurring_plans WHERE organization_id = $1 AND id = $2", [context.organizationId, planId])).rows[0] : null;
   if (!current) throw new CrmError(404, "Recurring plan not found.", "CRM_RECURRING_PLAN_NOT_FOUND");
   const fields = clean(input, false);
+  const name = fields.name ?? current.name;
+  if ((has(fields, "name") || fields.status === "active") && (fields.status ?? current.status) === "active"
+    && (await client.query("SELECT 1 FROM tenant.crm_recurring_plans WHERE organization_id = $1 AND lower(name) = lower($2) AND status = 'active' AND id <> $3",
+      [context.organizationId, name, current.id])).rows[0])
+    throw invalid("name", "Another plan already has this name.");
   if (has(fields, "months") && fields.months !== current.months
     && (await client.query("SELECT 1 FROM tenant.crm_opportunities WHERE organization_id = $1 AND recurring_plan_id = $2 LIMIT 1", [context.organizationId, current.id])).rows[0])
     throw invalid("months", "Deals use this plan: make a new plan for another period.");

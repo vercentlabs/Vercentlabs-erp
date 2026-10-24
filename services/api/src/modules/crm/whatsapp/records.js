@@ -60,16 +60,56 @@ async function settingsRow(client, organizationId) {
 export async function getWhatsAppSettings(client, context, { env = process.env } = {}) {
   const row = await settingsRow(client, context.organizationId);
   const credentials = row?.encrypted_credentials ? await decryptSecret(row.encrypted_credentials, env) : {};
+  // The last 30 days on WhatsApp, as Setup shows them.
+  const counts = (await client.query(
+    `SELECT count(*) FILTER (WHERE direction = 'outbound')::int AS sent, count(*) FILTER (WHERE direction = 'inbound')::int AS received,
+            count(*) FILTER (WHERE status = 'failed')::int AS failed
+       FROM tenant.crm_whatsapp_messages WHERE organization_id = $1 AND created_at > now() - interval '30 days'`, [context.organizationId])).rows[0];
   return {
     mode: row?.mode ?? "click_to_chat", displayNumber: row?.display_number ?? null, phoneNumberId: row?.phone_number_id ?? null,
     credentialsSet: ["accessToken", "appSecret"].filter((key) => credentials[key]), webhookKeyPrefix: row?.webhook_key_prefix ?? null,
     lastReceivedAt: row?.last_received_at ?? null, lastError: row?.last_error ?? null,
+    verifiedName: credentials.verifiedName ?? null, qualityRating: credentials.qualityRating ?? null,
+    last30Days: { sent: counts?.sent ?? 0, received: counts?.received ?? 0, failed: counts?.failed ?? 0 },
   };
 }
 
+// Asks Meta about the business number with this ID and token: { displayNumber, verifiedName, qualityRating }, or Meta's reason.
+async function askMetaForNumber(fetchImpl, phoneNumberId, accessToken) {
+  let response;
+  try {
+    response = await fetchImpl(`${GRAPH}/${encodeURIComponent(phoneNumberId)}?fields=display_phone_number,verified_name,quality_rating`,
+      { headers: { authorization: `Bearer ${accessToken}` } });
+  } catch (error) {
+    throw new CrmError(502, `Meta could not be reached: ${error?.message ?? error}`, "CRM_WHATSAPP_UNREACHABLE");
+  }
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const reason = body?.error?.message ?? `status ${response.status}`;
+    throw new CrmError(502, response.status === 401 || body?.error?.code === 190
+      ? `Meta refused the access token (${reason}). Make a permanent token for a system user with whatsapp_business_messaging.`
+      : `Meta does not know phone number ID ${phoneNumberId} with this token (${reason}).`, "CRM_WHATSAPP_REFUSED");
+  }
+  return { displayNumber: body.display_phone_number ?? null, verifiedName: body.verified_name ?? null, qualityRating: body.quality_rating ?? null };
+}
+
+// Checks the saved connection with Meta now; keeps what Meta says about the number. Returns the settings.
+export async function checkWhatsAppConnection(client, context, { fetchImpl = fetch, env = process.env } = {}) {
+  requireManage(context);
+  const row = await settingsRow(client, context.organizationId);
+  if (row?.mode !== "cloud_api") throw new CrmError(409, "WhatsApp Business API is not connected.", "CRM_WHATSAPP_NOT_CONNECTED");
+  const credentials = await decryptSecret(row.encrypted_credentials, env);
+  const number = await askMetaForNumber(fetchImpl, row.phone_number_id, credentials.accessToken);
+  await client.query(
+    `UPDATE tenant.crm_whatsapp_settings SET encrypted_credentials = $2::jsonb, display_number = COALESCE(display_number, $3), last_error = NULL, updated_at = now() WHERE organization_id = $1`,
+    [context.organizationId, JSON.stringify(await encryptSecret({ ...credentials, verifiedName: number.verifiedName, qualityRating: number.qualityRating }, env)), number.displayNumber]);
+  return getWhatsAppSettings(client, context, { env });
+}
+
 // input: { mode, displayNumber?, phoneNumberId?, accessToken?, appSecret? } — connecting the Cloud API returns the webhook key and the
-// verify token once (to paste into Meta's app), with { webhookKey, verifyToken }.
-export async function saveWhatsAppSettings(client, context, input = {}, { env = process.env } = {}) {
+// verify token once (to paste into Meta's app), with { webhookKey, verifyToken }. The number and token are tried with Meta first: nothing
+// Meta refuses is saved, and the business number and its verified name come from Meta.
+export async function saveWhatsAppSettings(client, context, input = {}, { env = process.env, fetchImpl = fetch } = {}) {
   requireManage(context);
   const row = await settingsRow(client, context.organizationId);
   const mode = input.mode === "cloud_api" ? "cloud_api" : "click_to_chat";
@@ -77,13 +117,17 @@ export async function saveWhatsAppSettings(client, context, input = {}, { env = 
   const credentials = { ...kept };
   for (const key of ["accessToken", "appSecret"]) if (text(input[key])) credentials[key] = text(input[key]).slice(0, 2000);
   const phoneNumberId = input.phoneNumberId === undefined ? row?.phone_number_id ?? null : text(input.phoneNumberId) || null;
-  const displayNumber = input.displayNumber === undefined ? row?.display_number ?? null : text(input.displayNumber).slice(0, 40) || null;
+  let displayNumber = input.displayNumber === undefined ? row?.display_number ?? null : text(input.displayNumber).slice(0, 40) || null;
   let webhookKey = null;
   let verifyToken = null;
   if (mode === "cloud_api") {
     if (!phoneNumberId || !/^\d{5,30}$/.test(phoneNumberId)) throw invalid("phoneNumberId", "Enter the phone number ID from WhatsApp Manager (digits).");
     if (!credentials.accessToken) throw invalid("accessToken", "Enter the access token.");
     if (!credentials.appSecret) throw invalid("appSecret", "Enter the app secret.");
+    const number = await askMetaForNumber(fetchImpl, phoneNumberId, credentials.accessToken);
+    credentials.verifiedName = number.verifiedName;
+    credentials.qualityRating = number.qualityRating;
+    if (!displayNumber && number.displayNumber) displayNumber = number.displayNumber;
     if (!credentials.verifyToken) { credentials.verifyToken = randomBytes(18).toString("base64url"); verifyToken = credentials.verifyToken; }
     if (!row?.webhook_key_hash || input.newWebhook === true) webhookKey = `wa_${randomBytes(24).toString("base64url")}`;
   }

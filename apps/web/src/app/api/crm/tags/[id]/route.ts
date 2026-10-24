@@ -17,7 +17,7 @@ export async function PATCH(request: Request, { params }: Params) {
   });
 }
 
-// Deleting a tag takes it off every lead and deal that has it.
+// Deleting a tag takes it off every lead, deal, company and contact that has it.
 export async function DELETE(request: Request, { params }: Params) {
   const { id } = await params;
   return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.settingsManage, billingWrite: true }, async ({ client, session, snapshot }) =>

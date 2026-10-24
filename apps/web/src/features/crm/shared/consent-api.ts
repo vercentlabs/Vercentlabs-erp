@@ -8,7 +8,9 @@ export class ConsentApiError extends CrmApiErrorWithBody {}
 const { request } = crmApiClient(ConsentApiError, "body");
 
 export type ConsentEvent = { id: string; channel: string; action: "opt_in" | "opt_out" | "consent_withdrawn" | "opt_out_lifted"; source: string; evidence: string | null; recordedAt: string; recordedByName: string | null };
-export type OptOut = { kind: "email" | "phone"; value: string; channels: string[]; source: string; reason: string | null; createdAt: string; createdByName: string | null };
+export type OptOut = { kind: "email" | "phone"; value: string; channels: string[]; source: string; reason: string | null; createdAt: string; createdByName: string | null;
+  // When it can come off the list without the person asking (90 days after it was added).
+  removableFrom: string };
 export type PersonalData = {
   query: { email: string | null; phone: string | null };
   leads: Array<{ id: string; code: string; name: string; email: string | null; mobile: string | null; status: string; createdAt: string }>;
@@ -26,6 +28,7 @@ export const ACTION_LABEL: Record<string, string> = { opt_in: "Agreed", opt_out:
 export const SOURCE_LABEL = (source: string) => ({
   manual: "Recorded by staff", web_form: "Web form", import: "Import", conversion: "Carried over from the lead", whatsapp_message: "Their WhatsApp message",
   existing: "Recorded before the ledger", self_service: "The person themselves", email_reply: "Their email",
+  unsubscribe: "Unsubscribed from an email", whatsapp_stop: "Replied STOP on WhatsApp",
 } as Record<string, string>)[source] ?? (source.startsWith("connector:") ? `Lead connector (${source.slice(10)})` : source);
 
 export const listConsentHistory = (type: "leads" | "contacts", id: string) => request<{ history: ConsentEvent[] }>(`/api/crm/consent/${type}/${id}`).then((result) => result.history);

@@ -7,6 +7,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AlertDialog, Button, ErrorState, Menu, MenuItem, MenuTrigger, RecordDetailsPage } from "@vercentlabs/design-system";
 
 import { MeetingInviteButton } from "@/features/crm/shared/ui/MeetingInvite";
+import { EmailButton } from "@/features/crm/shared/ui/EmailComposer";
 import { readableHistory } from "@/features/crm/shared/field-labels";
 import { MoreMenu } from "@/features/crm/shared/ui/MoreMenu";
 import { whenLabel } from "@/features/crm/shared/when";
@@ -21,6 +22,8 @@ import { CancelFollowUpDialog, CompleteFollowUpDialog, ReassignFollowUpDialog, R
 import { ErrorBanner, FollowUpStatusBadge, FollowUpWhen, RELATED_LABELS, TYPE_LABELS, snoozeChoices } from "../follow-up-format";
 
 type DialogKind = "edit" | "complete" | "reschedule" | "cancel" | "reassign" | "delete" | null;
+
+const EMAIL_ENTITY: Record<string, "leads" | "opportunities" | "accounts" | "contacts" | undefined> = { lead: "leads", opportunity: "opportunities", party: "accounts", contact: "contacts" };
 
 export function FollowUpDetailScreen({ followUpId }: { followUpId: string }) {
   const workspace = useWorkspaceContext();
@@ -82,6 +85,11 @@ export function FollowUpDetailScreen({ followUpId }: { followUpId: string }) {
               {open && can.reschedule && <Button variant="secondary" onPress={() => setDialog("reschedule")}>Reschedule</Button>}
               {/* A meeting can go to its attendees' calendars (CRM plan 4.5). */}
               {open && followUp.type === "meeting" && can.reschedule && <MeetingInviteButton activityId={followUp.id} defaultEmail={followUp.contactEmail} />}
+              {/* An email follow-up is written from here, starting from its type's template; sending it offers to complete it. */}
+              {open && followUp.type === "email" && followUp.relatedType && followUp.relatedId && EMAIL_ENTITY[followUp.relatedType] && (
+                <EmailButton entity={EMAIL_ENTITY[followUp.relatedType]!} recordId={followUp.relatedId} label="Write email" templateId={followUp.emailTemplateId}
+                  onSent={() => { if (can.complete) setDialog("complete"); }} />
+              )}
               {/* Only a follow-up with a reminder has one to snooze. */}
               {open && followUp.assignedTo === options.currentUserId && followUp.reminderAt && (
                 <MenuTrigger>

@@ -16,6 +16,7 @@ export type WhatsAppMessage = {
 export type WhatsAppSettings = {
   mode: "click_to_chat" | "cloud_api"; displayNumber: string | null; phoneNumberId: string | null; credentialsSet: string[];
   webhookKeyPrefix: string | null; lastReceivedAt: string | null; lastError: string | null;
+  verifiedName: string | null; qualityRating: string | null; last30Days: { sent: number; received: number; failed: number };
 };
 
 export const prepareWhatsApp = (entity: WhatsAppEntity, id: string) => request<{ draft: WhatsAppDraft }>(`/api/crm/whatsapp/${entity}/${id}`).then((result) => result.draft);
@@ -26,6 +27,7 @@ export const sendWhatsApp = (entity: WhatsAppEntity, id: string, input: { body?:
 export const listWhatsAppMessages = (entity: WhatsAppEntity, id: string) =>
   request<{ messages: WhatsAppMessage[] }>(`/api/crm/whatsapp/${entity}/${id}/messages`).then((result) => result.messages);
 export const getWhatsAppSettings = () => request<{ settings: WhatsAppSettings }>("/api/crm/whatsapp-settings").then((result) => result.settings);
+export const checkWhatsAppConnection = () => request<{ settings: WhatsAppSettings }>("/api/crm/whatsapp-settings/check", { method: "POST", json: {} }).then((result) => result.settings);
 export const saveWhatsAppSettings = (input: Record<string, unknown>) =>
   request<{ settings: WhatsAppSettings; webhookKey: string | null; verifyToken: string | null }>("/api/crm/whatsapp-settings", { method: "PUT", json: input });
 

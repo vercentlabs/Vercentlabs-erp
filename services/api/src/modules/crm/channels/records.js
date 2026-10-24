@@ -395,3 +395,36 @@ export async function resolveChannelWebhook(client, webhookKey) {
   await setTenantContext(client, row.organization_id);
   return { organizationId: row.organization_id, channel: row.channel };
 }
+
+// ------------------------------------------------------------------ checking the setup
+
+// Asks Exotel for the account with the saved SID, key and token: { ok: true, name } or a CrmError with Exotel's reason.
+export async function checkTelephony(client, context, { fetchImpl = fetch, env = process.env } = {}) {
+  requireManage(context);
+  const settings = (await client.query("SELECT * FROM tenant.crm_telephony_settings WHERE organization_id = $1", [context.organizationId])).rows[0];
+  if (settings?.provider !== "exotel") throw new CrmError(409, "Calling is not connected.", "CRM_TELEPHONY_NOT_CONNECTED");
+  const credentials = await credentialsOf(settings, env);
+  let response;
+  try {
+    response = await fetchImpl(`https://${settings.api_host}/v1/Accounts/${encodeURIComponent(settings.account_sid)}.json`, {
+      headers: { authorization: `Basic ${Buffer.from(`${credentials.apiKey}:${credentials.apiToken}`).toString("base64")}` } });
+  } catch (error) {
+    throw new CrmError(502, `Exotel could not be reached: ${error?.message ?? error}`, "CRM_TELEPHONY_UNREACHABLE");
+  }
+  const body = await response.json().catch(() => ({}));
+  if (response.status === 401 || response.status === 403) throw new CrmError(502, "Exotel refused the API key and token: check them, and the account SID.", "CRM_TELEPHONY_REFUSED");
+  if (!response.ok) throw new CrmError(502, `Exotel answered ${body?.RestException?.Message ?? response.status}: check the account SID and region.`, "CRM_TELEPHONY_REFUSED");
+  return { ok: true, name: body?.Account?.FriendlyName ?? body?.Account?.Sid ?? settings.account_sid };
+}
+
+// Sends a test SMS from a service template to a number (by default the caller's own), filling each value with "Test". { sent, error? }.
+export async function sendTestSms(client, context, { templateId, phone = null } = {}, { fetchImpl = fetch, env = process.env } = {}) {
+  requireManage(context);
+  const template = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(templateId ?? ""))
+    ? (await client.query("SELECT category FROM tenant.crm_sms_templates WHERE organization_id = $1 AND id = $2 AND status = 'active'", [context.organizationId, templateId])).rows[0] : null;
+  if (!template) throw invalid("templateId", "Choose an active SMS template to test with.");
+  if (template.category === "promotional") throw invalid("templateId", "Test with a service or transactional template: a promotional one needs the person's SMS consent.");
+  const to = text(phone) || (await client.query("SELECT phone FROM tenant.crm_call_agents WHERE organization_id = $1 AND user_id = $2", [context.organizationId, context.userId])).rows[0]?.phone;
+  if (!to || digits(to).length < 10) throw invalid("phone", "Enter the mobile number to send the test to.");
+  return sendTeamSms(client, context.organizationId, { phone: to, templateId, values: ["Test", "Test", "Test", "Test", "Test"] }, { fetchImpl, env });
+}

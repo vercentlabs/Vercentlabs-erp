@@ -184,8 +184,8 @@ export type OpportunityOptions = {
   capabilities: OpportunityCapabilities;
 };
 
-export type OpportunityListFilters = Partial<{
-  campaignId: string; medium: string; tagId: string; pipelineId: string;
+export type OpportunityListFilters = Partial<Record<`cf.${string}`, string>> & Partial<{
+  campaignId: string; medium: string; tagId: string; pipelineId: string; recurringPlanId: string; recurring: string;
   view: OpportunityViewKey; search: string; status: string; stageId: string; ownerId: string; teamId: string; accountId: string; contactId: string;
   product: string; sourceId: string; priority: string; expectedCloseFrom: string; expectedCloseTo: string; valueMin: string; valueMax: string;
   createdFrom: string; createdTo: string; closedFrom: string; closedTo: string; stale: string; highValue: string; noNextActivity: string; ids: string; sortBy: string; sortDirection: "asc" | "desc"; limit: number; offset: number;
@@ -227,7 +227,7 @@ export type OpportunityDuplicate = {
 export type OpportunityDashboard = {
   totals: {
     open: number; openValue: number; weightedValue: number; closingThisMonth: number; won: number; wonValue: number; lost: number; lostValue: number; topLostReason: string | null;
-    overdue: number; stale: number; staleDays: number; averageDealSize: number; winRate: number | null; lossRate: number | null; averageSalesCycleDays: number | null;
+    overdue: number; stale: number; staleDays: number; recurringWonMonthly?: number; recurringWonDeals?: number; recurringOpenMonthly?: number; averageDealSize: number; winRate: number | null; lossRate: number | null; averageSalesCycleDays: number | null;
   };
   byStage: Array<{ stageId: string; label: string; total: number; value: number; weightedValue: number }>;
   currency: CurrencyDisclosure;

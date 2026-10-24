@@ -35,6 +35,8 @@ export const createTag = (input: { name: string; color?: TagColor }) => request<
 export const updateTag = (id: string, input: { name?: string; color?: TagColor }) =>
   request<{ tag: CrmTag }>(`/api/crm/tags/${id}`, { method: "PATCH", json: input }).then((result) => result.tag);
 export const deleteTag = (id: string) => request<{ deleted: true }>(`/api/crm/tags/${id}`, { method: "DELETE" });
+// Merge a tag into another: its records get the other tag, and it is deleted.
+export const mergeTag = (id: string, into: string) => request<{ tag: CrmTag }>(`/api/crm/tags/${id}/merge`, { method: "POST", json: { into } }).then((result) => result.tag);
 export const setRecordTags = (entity: TaggedEntity, id: string, tags: Array<{ id: string } | { name: string }>) =>
   request<{ tags: CrmTag[] }>(`/api/crm/${TAG_PATHS[entity]}/${id}/tags`, { method: "PUT", json: { tags } }).then((result) => result.tags);
 

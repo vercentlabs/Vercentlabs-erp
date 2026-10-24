@@ -40,8 +40,9 @@ const LIVE = { staleTime: 0, refetchOnMount: "always", refetchOnWindowFocus: tru
 type FilterKey = "type" | "assigneeId" | "relatedType" | "createdBy" | "completedBy" | "outcome";
 const FILTER_KEYS: FilterKey[] = ["type", "assigneeId", "relatedType", "createdBy", "completedBy", "outcome"];
 const FILTER_NAMES: Record<FilterKey, string> = { type: "Type", assigneeId: "Assigned to", relatedType: "About", createdBy: "Created by", completedBy: "Completed by", outcome: "Outcome" };
-type MoreKey = "accountId" | "dueFrom" | "dueTo";
-const NO_MORE: Record<MoreKey, string> = { accountId: "", dueFrom: "", dueTo: "" };
+// activityTypeId / activityPlanId come from the links on Setup › Activity types and plans
+type MoreKey = "accountId" | "dueFrom" | "dueTo" | "activityTypeId" | "activityPlanId";
+const NO_MORE: Record<MoreKey, string> = { accountId: "", dueFrom: "", dueTo: "", activityTypeId: "", activityPlanId: "" };
 const NO_FILTERS = Object.fromEntries(FILTER_KEYS.map((key) => [key, ANY])) as Record<FilterKey, string>;
 type BulkKind = "reassign" | "reschedule" | "cancel";
 
@@ -114,7 +115,8 @@ export function FollowUpListScreen({ tabs }: { tabs?: ReactNode } = {}) {
     ...(Object.fromEntries(FILTER_KEYS.map((key) => [key, params.get(key) ?? ANY])) as Record<FilterKey, string>),
     ...(initial.createdBy ? { createdBy: initial.createdBy } : {}),
   }));
-  const [more, setMoreState] = useState<Record<MoreKey, string>>({ accountId: params.get("accountId") ?? "", dueFrom: params.get("dueFrom") ?? "", dueTo: params.get("dueTo") ?? "" });
+  const [more, setMoreState] = useState<Record<MoreKey, string>>({ accountId: params.get("accountId") ?? "", dueFrom: params.get("dueFrom") ?? "", dueTo: params.get("dueTo") ?? "",
+    activityTypeId: params.get("activityTypeId") ?? "", activityPlanId: params.get("activityPlanId") ?? "" });
   const [accountName, setAccountName] = useState<string | null>(null);
   const [sorting, setSortingState] = useState<SortingState>([]);
   const [pageIndex, setPageIndex] = useState(0);
@@ -238,11 +240,15 @@ export function FollowUpListScreen({ tabs }: { tabs?: ReactNode } = {}) {
   const activeFilters: ActiveFilter[] = [
     ...FILTER_KEYS.filter((key) => filters[key] !== ANY).map((key) => ({ id: key, label: `${FILTER_NAMES[key]}: ${labelOf(key, filters[key])}` })),
     ...(more.accountId ? [{ id: "more:accountId", label: `Company: ${accountName ?? "chosen company"}` }] : []),
+    ...(more.activityTypeId ? [{ id: "more:activityTypeId", label: `Type: ${options?.types.find((entry) => entry.id === more.activityTypeId)?.label ?? "chosen type"}` }] : []),
+    ...(more.activityPlanId ? [{ id: "more:activityPlanId", label: `Plan: ${rows.find((row) => row.activityPlanName)?.activityPlanName ?? "chosen plan"}` }] : []),
     ...(more.dueFrom || more.dueTo ? [{ id: "more:due", label: `Date: ${more.dueFrom ? formatDate(more.dueFrom) : "any"} – ${more.dueTo ? formatDate(more.dueTo) : "any"}` }] : []),
   ];
   const removeFilter = (id: string) => {
     if (id === "more:due") setMore({ ...more, dueFrom: "", dueTo: "" });
     else if (id === "more:accountId") setMore({ ...more, accountId: "" });
+    else if (id === "more:activityTypeId") setMore({ ...more, activityTypeId: "" });
+    else if (id === "more:activityPlanId") setMore({ ...more, activityPlanId: "" });
     else setFilters({ ...filters, [id]: ANY });
   };
   const clearFilters = () => { setMore(NO_MORE); setFilters(NO_FILTERS); };

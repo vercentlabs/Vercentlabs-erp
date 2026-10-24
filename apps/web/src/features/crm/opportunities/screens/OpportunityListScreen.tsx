@@ -27,6 +27,7 @@ import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { ON_SCREEN_EXPORT_LIMIT, startExport } from "@/features/crm/shared/data-jobs-api";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 
+import { CustomFieldFilters, customFilterParams } from "@/features/crm/shared/ui/CustomFields";
 import {
   getOpportunityOptions, listOpportunities, opportunityExportUrl,
   type Opportunity, type OpportunityBulkResult, type OpportunityListFilters, type OpportunityViewKey,
@@ -74,10 +75,10 @@ function storedVisibility(): VisibilityState {
   }
 }
 
-type FilterKey = "status" | "stageId" | "ownerId" | "teamId" | "sourceId" | "priority" | "campaignId" | "medium" | "tagId";
+type FilterKey = "status" | "stageId" | "ownerId" | "teamId" | "sourceId" | "priority" | "campaignId" | "medium" | "tagId" | "recurringPlanId";
 type Filters = Record<FilterKey, string>;
-const FILTER_KEYS: FilterKey[] = ["status", "stageId", "ownerId", "teamId", "sourceId", "priority", "campaignId", "medium", "tagId"];
-const FILTER_NAMES: Record<FilterKey, string> = { status: "Status", stageId: "Stage", ownerId: "Owner", teamId: "Team", sourceId: "Source", priority: "Priority", campaignId: "Campaign", medium: "Came through", tagId: "Tag" };
+const FILTER_KEYS: FilterKey[] = ["status", "stageId", "ownerId", "teamId", "sourceId", "priority", "campaignId", "medium", "tagId", "recurringPlanId"];
+const FILTER_NAMES: Record<FilterKey, string> = { status: "Status", stageId: "Stage", ownerId: "Owner", teamId: "Team", sourceId: "Source", priority: "Priority", campaignId: "Campaign", medium: "Came through", tagId: "Tag", recurringPlanId: "Repeat plan" };
 
 // Who the deal is with, what is sold, and the ranges.
 type MoreKey = "accountId" | "contactId" | "product" | "expectedCloseFrom" | "expectedCloseTo" | "closedFrom" | "closedTo" | "valueMin" | "valueMax" | "createdFrom" | "createdTo";
@@ -104,7 +105,7 @@ export function OpportunityListScreen() {
   const [more, setMoreState] = useState<MoreFilters>(() => Object.fromEntries(MORE_KEYS.map((key) => [key, params.get(key) ?? ""])) as MoreFilters);
   const [staleOnly, setStaleOnlyState] = useState(params.get("stale") === "yes");
   // The pipeline's High value and No next activity switches, carried over when its List toggle opens this page.
-  const [switches, setSwitches] = useState({ highValue: params.get("highValue") === "yes", noNextActivity: params.get("noNextActivity") === "yes" });
+  const [switches, setSwitches] = useState({ highValue: params.get("highValue") === "yes", noNextActivity: params.get("noNextActivity") === "yes", recurring: params.get("recurring") === "yes" });
   // Names for the company and contact chips; ids alone mean nothing to a person.
   const [names, setNames] = useState<{ account: string | null; contact: string | null }>({ account: params.get("accountName"), contact: null });
   const [sorting, setSortingState] = useState<SortingState>([{ id: "updatedAt", desc: true }]);
@@ -116,6 +117,9 @@ export function OpportunityListScreen() {
 
   // Changing what is listed starts again from the first page with nothing selected.
   const restart = () => { setPageIndex(0); setSelection({}); };
+  // The organization's choice and yes/no fields as filters: { key: value }.
+  const [customFilters, setCustomFiltersState] = useState<Record<string, string>>(() =>
+    Object.fromEntries([...params].filter(([key]) => key.startsWith("cf.")).map(([key, value]) => [key.slice(3), value])));
   const setView = (next: OpportunityViewKey) => { setViewState(next); restart(); };
   const setFilters = (next: Filters) => { setFiltersState(next); restart(); };
   const setSorting = (next: SortingState) => { setSortingState(next); restart(); };
@@ -157,9 +161,11 @@ export function OpportunityListScreen() {
     stale: staleOnly ? "yes" : undefined,
     highValue: switches.highValue ? "yes" : undefined,
     noNextActivity: switches.noNextActivity ? "yes" : undefined,
+    recurring: switches.recurring ? "yes" : undefined,
+    ...customFilterParams(customFilters, ANY),
     sortBy: sorting[0]?.id,
     sortDirection: sorting[0]?.desc === false ? "asc" : "desc",
-  }), [view, submittedSearch, filters, more, staleOnly, switches, sorting]);
+  }), [view, submittedSearch, filters, more, staleOnly, switches, customFilters, sorting]);
 
   const listQuery = useQuery({
     queryKey: scopedQueryKey(workspace, "crm", "opportunities", listFilters, pageIndex),
@@ -247,6 +253,7 @@ export function OpportunityListScreen() {
     if (key === "campaignId") return options.campaigns?.find((entry) => entry.id === value)?.name ?? "Chosen campaign";
     if (key === "medium") return options.mediums?.find((entry) => entry.code === value)?.label ?? value;
     if (key === "tagId") return options.tags?.find((entry) => entry.id === value)?.name ?? "Chosen tag";
+    if (key === "recurringPlanId") return options.recurringPlans?.find((entry) => entry.id === value)?.name ?? "Chosen plan";
     return value.charAt(0).toUpperCase() + value.slice(1);
   };
   const activeFilters: ActiveFilter[] = [
@@ -261,10 +268,16 @@ export function OpportunityListScreen() {
     ...(staleOnly ? [{ id: "stale", label: `Stale: no activity for ${options?.staleDays ?? 14}+ days` }] : []),
     ...(switches.highValue ? [{ id: "highValue", label: "High value" }] : []),
     ...(switches.noNextActivity ? [{ id: "noNextActivity", label: "No next activity" }] : []),
+    ...(switches.recurring ? [{ id: "recurring", label: "With repeat revenue" }] : []),
+    ...Object.entries(customFilters).filter(([, value]) => value !== ANY).map(([key, value]) => {
+      const field = (options?.customFields ?? []).find((entry) => entry.key === key);
+      return { id: `cf.${key}`, label: `${field?.label ?? key}: ${field?.type === "checkbox" ? (value === "true" ? "Yes" : "No") : value}` };
+    }),
   ];
   const removeFilter = (id: string) => {
     if (id === "stale") setStaleOnly(false);
-    else if (id === "highValue" || id === "noNextActivity") { setSwitches({ ...switches, [id]: false }); restart(); }
+    else if (id.startsWith("cf.")) { setCustomFiltersState({ ...customFilters, [id.slice(3)]: ANY }); restart(); }
+    else if (id === "highValue" || id === "noNextActivity" || id === "recurring") { setSwitches({ ...switches, [id]: false }); restart(); }
     else if (id === "more:accountId") setMore({ ...more, accountId: "", contactId: "" });
     else if (id === "more:expectedClose") setMore({ ...more, expectedCloseFrom: "", expectedCloseTo: "" });
     else if (id === "more:closed") setMore({ ...more, closedFrom: "", closedTo: "" });
@@ -275,8 +288,9 @@ export function OpportunityListScreen() {
   };
   const clearFilters = () => {
     setStaleOnlyState(false);
-    setSwitches({ highValue: false, noNextActivity: false });
+    setSwitches({ highValue: false, noNextActivity: false, recurring: false });
     setMore(NO_MORE);
+    setCustomFiltersState({});
     setFilters(Object.fromEntries(FILTER_KEYS.map((key) => [key, ANY])) as Filters);
   };
   const hasCriteria = Boolean(submittedSearch) || activeFilters.length > 0 || view !== defaultView;
@@ -331,6 +345,11 @@ export function OpportunityListScreen() {
                     options={withAny((options.mediums ?? []).map((entry) => ({ value: entry.code, label: entry.label })), "Any medium")} />
                   <Select label="Tag" size="compact" selectedKey={filters.tagId} onSelectionChange={(key) => setFilters({ ...filters, tagId: String(key) })}
                     options={withAny((options.tags ?? []).map((entry) => ({ value: entry.id, label: entry.name })), "Any tag")} />
+                  <CustomFieldFilters fields={options.customFields ?? []} values={customFilters} anyValue={ANY} onChange={(next) => { setCustomFiltersState(next); restart(); }} />
+                  {(options.recurringPlans ?? []).length > 0 && (
+                    <Select label="Repeat plan" size="compact" selectedKey={filters.recurringPlanId} onSelectionChange={(key) => setFilters({ ...filters, recurringPlanId: String(key) })}
+                      options={withAny((options.recurringPlans ?? []).map((entry) => ({ value: entry.id, label: entry.name })), "Any or none")} />
+                  )}
                   <p className="col-span-2 border-t border-border pt-3 text-xs font-medium text-text-secondary">Who, what and when</p>
                   <div className="col-span-2">
                     <AccountPicker label="Company" value={more.accountId || null}

@@ -408,7 +408,10 @@ export function buildOpportunityListWhere(context, filters = {}, values = []) {
   for (const [key, column] of Object.entries({
     stageId: "opportunity.stage_id", pipelineId: "opportunity.pipeline_id", teamId: "opportunity.team_id", accountId: "opportunity.party_id", contactId: "opportunity.contact_id",
     sourceId: "opportunity.source_id", lostReasonId: "opportunity.lost_reason_id", leadId: "opportunity.lead_id", campaignId: "opportunity.campaign_id",
+    recurringPlanId: "opportunity.recurring_plan_id",
   })) if (isUuid(filters[key])) where.push(`${column} = ${bind(filters[key])}`);
+  // Deals with repeat revenue on any plan (Repeat orders / AMC).
+  if (filters.recurring === "yes") where.push("opportunity.recurring_plan_id IS NOT NULL AND opportunity.recurring_revenue IS NOT NULL");
   if (filters.medium) where.push(`opportunity.medium = ${bind(String(filters.medium))}`);
   if (isUuid(filters.tagId))
     where.push(`EXISTS (SELECT 1 FROM tenant.crm_record_tags tagged WHERE tagged.organization_id = opportunity.organization_id AND tagged.entity_type = 'opportunity' AND tagged.entity_id = opportunity.id AND tagged.tag_id = ${bind(filters.tagId)})`);

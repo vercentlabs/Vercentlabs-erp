@@ -101,6 +101,17 @@ export function OpportunityDashboardScreen() {
               </div>
             </section>
 
+            {Boolean(dashboard.totals.recurringWonMonthly || dashboard.totals.recurringOpenMonthly) && (
+              <section className="flex flex-col gap-3">
+                <h2 className="text-base font-semibold">Repeat revenue <span className="text-sm font-normal text-text-muted">· AMCs, subscriptions and rentals, as a monthly figure</span></h2>
+                <div className="grid gap-3 sm:grid-cols-3">
+                  <Figure href="/crm/opportunities?view=all&status=won&recurring=yes" label={`Coming in a month (${dashboard.totals.recurringWonDeals ?? 0} won deals)`} value={money(dashboard.totals.recurringWonMonthly ?? 0)} />
+                  <Figure label="A year at that rate" value={money((dashboard.totals.recurringWonMonthly ?? 0) * 12)} />
+                  <Figure href="/crm/opportunities?view=open&recurring=yes" label="A month more in the open pipeline" value={money(dashboard.totals.recurringOpenMonthly ?? 0)} />
+                </div>
+              </section>
+            )}
+
             <section className="flex flex-col gap-3">
               <h2 className="text-base font-semibold">Forecast <span className="text-sm font-normal text-text-muted">· open deals expected to close {formatDate(dashboard.forecast.from)} – {formatDate(dashboard.forecast.to)}</span></h2>
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">

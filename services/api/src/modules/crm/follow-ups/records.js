@@ -57,6 +57,7 @@ export const FOLLOW_UP_SELECT = `
          account.id AS account_id, COALESCE(account.display_name, lead.company_name) AS account_name,
          origin.code AS origin_lead_code,
          activity_type.code AS activity_type_code, activity_type.name AS activity_type_name, plan.name AS activity_plan_name,
+         activity_type.email_template_id AS type_email_template_id,
          to_char(follow_up.repeat_until, 'YYYY-MM-DD') AS repeat_until_on,
          COALESCE((SELECT holiday.name FROM tenant.crm_holidays holiday WHERE holiday.organization_id = follow_up.organization_id
              AND holiday.holiday_date = (follow_up.due_at AT TIME ZONE organization.timezone)::date),
@@ -97,6 +98,8 @@ export function toFollowUp(row) {
     typeCode: row.activity_type_code ?? (TYPE_CODES.includes(row.follow_up_type) ? row.follow_up_type : "other"),
     typeName: row.activity_type_name ?? typeLabel(row.follow_up_type),
     activityPlanName: row.activity_plan_name ?? null,
+    // the email template its type starts with (Setup › Activity types), offered when writing the email
+    emailTemplateId: row.type_email_template_id ?? null,
     // the holiday it falls on (CRM plan 5.6), to move it
     holidayName: row.holiday_name ?? null,
     // repeats every N days, weeks or months, until a date (completing one plans the next)
@@ -225,6 +228,9 @@ export function buildFollowUpListWhere(context, filters = {}, values = []) {
   }[filters.status];
   if (status) where.push(status);
   if (TYPE_CODES.includes(filters.type)) where.push(`follow_up.follow_up_type = ${bind(filters.type)}`);
+  // the organization's own activity type, or the plan it was planned from (Setup › Activity types and plans)
+  if (isUuid(filters.activityTypeId)) where.push(`follow_up.activity_type_id = ${bind(filters.activityTypeId)}`);
+  if (isUuid(filters.activityPlanId)) where.push(`follow_up.activity_plan_id = ${bind(filters.activityPlanId)}`);
   if (filters.outcome && FOLLOW_UP_OUTCOMES.some((entry) => entry.code === filters.outcome)) where.push(`follow_up.outcome_code = ${bind(filters.outcome)}`);
   for (const [key, column] of Object.entries({ assigneeId: "assigned_to", createdBy: "created_by", completedBy: "completed_by" })) {
     if (filters[key] === "me") where.push(`follow_up.${column} = ${me()}`);

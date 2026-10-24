@@ -9,7 +9,7 @@ export type FollowUpRouteParams = { params: Promise<{ id: string }> };
 
 const FILTER_KEYS = [
   "view", "search", "status", "type", "outcome", "assigneeId", "createdBy", "completedBy", "relatedType", "relatedId", "accountId", "contactId", "leadId",
-  "opportunityId", "dueFrom", "dueTo", "createdFrom", "createdTo", "sortBy", "sortDirection",
+  "opportunityId", "dueFrom", "dueTo", "createdFrom", "createdTo", "sortBy", "sortDirection", "activityTypeId", "activityPlanId",
 ] as const;
 
 export function followUpFiltersFromUrl(url: URL) {
