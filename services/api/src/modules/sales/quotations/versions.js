@@ -56,19 +56,17 @@ export async function insertQuotationVersion(client, context, quotationId, input
           description_snapshot, hsn_sac_snapshot, uom_snapshot, quantity, base_quantity, conversion_factor, list_unit_price, unit_price, discount_percent, discount_amount,
           net_amount, tax_amount, line_total, standard_cost, cost_amount, margin_amount, margin_percent, tax_category_id, requested_delivery_date, manual_price_override,
           manual_price_reason, pricing_trace, tax_trace, created_by, discount_type, discount_value, gross_amount, document_discount_amount,
-          taxable_amount, tax_rate, tax_rate_id, tax_category_code, tax_treatment, hsn_sac_kind)
+          taxable_amount, tax_rate, tax_rate_id, tax_category_code, tax_treatment, hsn_sac_kind, scheme_rule_id, mrp, rate_contract_line_id)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30::jsonb, $31::jsonb,
-               $32, $33, $34, $35, $36, $37, $38, $39, $40, $41, $42) RETURNING id`,
+               $32, $33, $34, $35, $36, $37, $38, $39, $40, $41, $42, $43, $44, $45) RETURNING id`,
       [context.organizationId, version.id, line.sequence, line.itemId, line.uomId, line.warehouseId, line.itemCodeSnapshot, line.itemNameSnapshot, line.descriptionSnapshot,
         line.hsnSacSnapshot, line.uomSnapshot, line.quantity, line.baseQuantity, line.conversionFactor, line.listUnitPrice, line.unitPrice, line.discountPercent,
         line.discountAmount, line.netAmount, line.taxAmount, line.lineTotal, line.standardCost, line.costAmount, line.marginAmount, line.marginPercent, line.taxCategoryId,
         line.requestedDeliveryDate, line.manualPriceOverride, line.manualPriceReason, JSON.stringify(line.pricingTrace), JSON.stringify(line.taxTrace),
-        context.userId ?? null, line.discountType, line.discountValue, line.grossAmount, line.documentDiscountAmount, line.taxableAmount, ...lineTaxColumns(line)],
+        context.userId ?? null, line.discountType, line.discountValue, line.grossAmount, line.documentDiscountAmount, line.taxableAmount, ...lineTaxColumns(line),
+        // A free line of a scheme (Sales audit M3), the MRP and the rate contract line: written with the line, as quotation lines never change.
+        line.schemeRuleId ?? null, line.mrp ?? null, line.rateContractLineId ?? null],
     );
-    // A free line of a scheme (Sales audit M3).
-    if (line.schemeRuleId || line.mrp || line.rateContractLineId)
-      await client.query("UPDATE tenant.sales_quotation_lines SET scheme_rule_id = $3, mrp = $4, rate_contract_line_id = $5 WHERE organization_id = $1 AND id = $2",
-        [context.organizationId, inserted.rows[0].id, line.schemeRuleId ?? null, line.mrp ?? null, line.rateContractLineId ?? null]);
     for (const tax of line.taxLines)
       await client.query(
         `INSERT INTO tenant.sales_quotation_tax_lines (organization_id, quotation_version_id, quotation_line_id, sequence, tax_type, label, rate, taxable_amount, tax_amount,

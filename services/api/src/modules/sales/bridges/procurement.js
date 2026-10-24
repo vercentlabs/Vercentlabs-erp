@@ -23,10 +23,10 @@ export async function buyForSalesOrder(client, context, order, lines) {
   }
   // The supplier and price each product was last bought at.
   const last = new Map((await client.query(
-    `SELECT DISTINCT ON (line.item_id) line.item_id, purchase_order.supplier_id, line.unit_price
+    `SELECT DISTINCT ON (line.product_id) line.product_id AS item_id, purchase_order.supplier_id, line.unit_price
        FROM tenant.purchase_order_lines line JOIN tenant.purchase_orders purchase_order ON purchase_order.id = line.purchase_order_id
-      WHERE line.organization_id = $1 AND line.item_id = ANY($2::uuid[]) AND purchase_order.status <> 'cancelled'
-      ORDER BY line.item_id, purchase_order.order_date DESC, purchase_order.created_at DESC`, [context.organizationId, lines.map((line) => line.itemId)])).rows
+      WHERE line.organization_id = $1 AND line.product_id = ANY($2::uuid[]) AND purchase_order.status <> 'cancelled'
+      ORDER BY line.product_id, purchase_order.order_date DESC, purchase_order.created_at DESC`, [context.organizationId, lines.map((line) => line.itemId)])).rows
     .map((row) => [row.item_id, row]));
   const results = [];
   const bySupplier = new Map();
